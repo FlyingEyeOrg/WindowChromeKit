@@ -118,6 +118,9 @@ internal static class NativeWindowMethods
     [DllImport("user32.dll", EntryPoint = "SendMessageW")]
     internal static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wordParameter, IntPtr longParameter);
 
+    [DllImport("user32.dll", EntryPoint = "LoadIconW")]
+    internal static extern IntPtr LoadIcon(IntPtr instance, IntPtr iconName);
+
     [DllImport("user32.dll", SetLastError = true, EntryPoint = "RegisterClassExW")]
     internal static extern ushort RegisterWindowClass(
         [In, Out] ref NativeWindowClass windowClass);

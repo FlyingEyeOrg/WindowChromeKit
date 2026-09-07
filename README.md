@@ -12,7 +12,7 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
 - 在任务栏位于屏幕任意边缘时，都能正确计算最大化工作区。
 - 支持多显示器居中和工作区约束，包括负坐标显示器。
 - 提供可模板化的 `ChromeWindow`，其画刷和尺寸均可通过依赖属性绑定。
-- 默认提供 Windows 7 风格的多尺寸窗口图标，应用仍可通过 `Icon` 属性覆盖。
+- 提供 Windows 7 和 Windows 10 风格的可选多尺寸窗口图标资源，不改变 WPF 原有的窗口图标规则。
 - 保留标准 WPF `ResizeMode`、`Owner`、`Closing` 和模态窗口语义。
 
 本程序集不依赖 SoftwareHub、WebView2、SignalR 或 Serilog。
@@ -35,6 +35,15 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
     ActiveTitleBarBackground="#181818">
     <Grid />
 </chrome:ChromeWindow>
+```
+
+`ChromeWindow` 不会为 `Window.Icon` 注入默认值：未设置 `Icon` 或显式使用
+`Icon="{x:Null}"` 时，仍由 WPF 使用项目的 `<ApplicationIcon>`；项目没有配置应用程序图标时，
+则使用 Windows 默认图标。程序集额外提供两个可选资源，应用可按需显式引用：
+
+```xml
+Icon="/WindowChromeKit.Wpf;component/Assets/Windows7WindowIcon.ico"
+Icon="/WindowChromeKit.Wpf;component/Assets/Windows10WindowIcon.ico"
 ```
 
 后台代码继承相同的基类：
@@ -78,6 +87,24 @@ public partial class MainWindow : ChromeWindow
 模板可以根据 `HoveredChromeRole` 和 `PressedChromeRole` 分别实现悬停及按下状态。默认模板
 还将标题栏按钮的悬停画刷、按下画刷和禁用透明度公开为依赖属性。
 
+`ShowTitleBarIcon="False"` 可以只隐藏标题栏中的图标及其命中区域，并释放这部分布局空间，
+不会改变任务栏或 Alt+Tab 中的窗口图标。完全自定义标题栏时，应绑定只读的
+`EffectiveTitleBarIcon`，它既支持显式 `Icon`，也能在窗口句柄创建后取得 WPF 实际选定的图标：
+
+```xml
+<Border Width="36"
+        Height="35"
+        chrome:ChromeWindow.HitTestRole="SystemMenu">
+    <Image Width="16"
+           Height="16"
+           IsHitTestVisible="False"
+           Source="{Binding EffectiveTitleBarIcon,
+                    RelativeSource={RelativeSource AncestorType={x:Type chrome:ChromeWindow}}}" />
+</Border>
+```
+
+把图标容器标记为 `SystemMenu` 后，单击会打开系统菜单，双击会执行系统的关闭窗口行为。
+
 ### 模板迁移
 
 - 将旧的 `PART_Icon` 角色替换为 `PART_SystemMenu` 或
@@ -89,7 +116,7 @@ public partial class MainWindow : ChromeWindow
 - 缺少可选区域时会安全降级，不会导致模板加载失败。
 
 现有示例中包含一个独立的自定义标题栏窗口，演示内容插槽、可交互的标题栏文本框、
-自定义菜单、操作控件以及运行时颜色切换。
+自定义菜单、菜单高对比度状态、图标切换、标题栏图标显隐、操作控件以及运行时颜色切换。
 
 ## 项目结构
 

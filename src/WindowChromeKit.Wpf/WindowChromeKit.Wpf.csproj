@@ -11,7 +11,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\DefaultWindowIcon.ico" />
+    <Resource Include="Assets\Windows7WindowIcon.ico" />
+    <Resource Include="Assets\Windows10WindowIcon.ico" />
   </ItemGroup>
 
 </Project>

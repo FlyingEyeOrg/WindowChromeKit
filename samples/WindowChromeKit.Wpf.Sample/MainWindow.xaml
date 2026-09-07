@@ -6,6 +6,7 @@
         xmlns:chrome="clr-namespace:WindowChromeKit.Wpf;assembly=WindowChromeKit.Wpf"
         mc:Ignorable="d"
         Title="WindowChromeKit Sample"
+        Icon="/WindowChromeKit.Wpf;component/Assets/Windows7WindowIcon.ico"
         Width="900"
         Height="560"
         MinWidth="420"

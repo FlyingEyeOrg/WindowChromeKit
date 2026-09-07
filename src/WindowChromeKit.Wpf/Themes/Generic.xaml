@@ -95,7 +95,7 @@
                                                    Height="16"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
-                                                   Source="{TemplateBinding Icon}"
+                                                   Source="{TemplateBinding EffectiveTitleBarIcon}"
                                                    Stretch="Uniform" />
                                         </Border>
                                         <TextBlock VerticalAlignment="Center"
@@ -188,6 +188,9 @@
                         <Trigger Property="TitleBarContent" Value="{x:Null}">
                             <Setter TargetName="PART_DefaultTitleContent" Property="Visibility" Value="Visible" />
                             <Setter TargetName="PART_TitleBarContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="ShowTitleBarIcon" Value="False">
+                            <Setter TargetName="PART_SystemMenu" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                         <Trigger Property="ResizeMode" Value="NoResize">
                             <Setter TargetName="PART_MinimizeButton" Property="Visibility" Value="Collapsed" />

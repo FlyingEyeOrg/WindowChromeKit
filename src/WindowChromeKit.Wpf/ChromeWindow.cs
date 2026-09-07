@@ -32,6 +32,7 @@ public class ChromeWindow : Window
     private const uint WmGetMinMaxInfo = 0x0024;
     private const uint WmWindowPosChanged = 0x0047;
     private const uint WmDisplayChange = 0x007E;
+    private const uint WmGetIcon = 0x007F;
     private const uint WmNcCalcSize = 0x0083;
     private const uint WmNcHitTest = 0x0084;
     private const uint WmNcMouseMove = 0x00A0;
@@ -46,6 +47,10 @@ public class ChromeWindow : Window
     private const int SpiSetWorkArea = 0x002F;
     private const uint TmeLeave = 0x00000002;
     private const uint TmeNonClient = 0x00000010;
+    private const int IconSmall = 0;
+    private const int IconBig = 1;
+    private const int IconSmall2 = 2;
+    private const int IdiApplication = 32512;
 
     public static readonly DependencyProperty ActiveTitleBarBackgroundProperty =
         DependencyProperty.Register(
@@ -127,6 +132,19 @@ public class ChromeWindow : Window
             nameof(CaptionButtonDisabledOpacity), typeof(double), typeof(ChromeWindow),
             new FrameworkPropertyMetadata(0.4d), IsUnitDouble);
 
+    public static readonly DependencyProperty ShowTitleBarIconProperty =
+        DependencyProperty.Register(
+            nameof(ShowTitleBarIcon), typeof(bool), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(true));
+
+    private static readonly DependencyPropertyKey EffectiveTitleBarIconPropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(EffectiveTitleBarIcon), typeof(ImageSource), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(null));
+
+    public static readonly DependencyProperty EffectiveTitleBarIconProperty =
+        EffectiveTitleBarIconPropertyKey.DependencyProperty;
+
     public static readonly DependencyProperty HitTestRoleProperty =
         DependencyProperty.RegisterAttached(
             "HitTestRole", typeof(ChromeHitTestRole), typeof(ChromeWindow),
@@ -172,6 +190,7 @@ public class ChromeWindow : Window
     private bool _inSizeMove;
     private bool _nativeFrameRefreshPending;
     private bool _refreshingNativeFrame;
+    private bool _effectiveIconRefreshPending;
     private bool _centerWhenInitialized;
     private bool _constrainWhenInitialized;
     private bool _disposed;
@@ -180,9 +199,6 @@ public class ChromeWindow : Window
     {
         DefaultStyleKeyProperty.OverrideMetadata(
             typeof(ChromeWindow), new FrameworkPropertyMetadata(typeof(ChromeWindow)));
-        // 主题资源会跨 Dispatcher 缓存；冻结图标后才可安全供多 UI 线程窗口共享。
-        IconProperty.OverrideMetadata(
-            typeof(ChromeWindow), new FrameworkPropertyMetadata(CreateDefaultIcon()));
     }
 
     public ChromeWindow()
@@ -332,6 +348,20 @@ public class ChromeWindow : Window
         set => SetValue(CaptionButtonDisabledOpacityProperty, value);
     }
 
+    /// <summary>获取或设置标题栏是否显示窗口图标；隐藏后不占用标题栏布局空间。</summary>
+    public bool ShowTitleBarIcon
+    {
+        get => (bool)GetValue(ShowTitleBarIconProperty);
+        set => SetValue(ShowTitleBarIconProperty, value);
+    }
+
+    /// <summary>
+    /// 获取标题栏应显示的实际图标。未显式设置 <see cref="Window.Icon"/> 时，
+    /// 该属性会在窗口句柄创建后反映 WPF 为原生窗口选定的图标。
+    /// </summary>
+    public ImageSource? EffectiveTitleBarIcon =>
+        (ImageSource?)GetValue(EffectiveTitleBarIconProperty);
+
     /// <summary>获取当前指针覆盖的标题栏角色。</summary>
     public ChromeHitTestRole HoveredChromeRole =>
         (ChromeHitTestRole)GetValue(HoveredChromeRoleProperty);
@@ -422,6 +452,7 @@ public class ChromeWindow : Window
     {
         base.OnPropertyChanged(eventArgs);
         if (eventArgs.Property == ResizeModeProperty) ApplyResizeMode();
+        if (eventArgs.Property == IconProperty) ScheduleEffectiveTitleBarIconRefresh();
     }
 
     private double EffectiveWidth => IsFinitePositive(Width)
@@ -442,6 +473,7 @@ public class ChromeWindow : Window
         UpdateDpiVisuals();
         RefreshNativeFrame();
         ApplyResizeMode();
+        RefreshEffectiveTitleBarIcon();
 
         if (_centerWhenInitialized)
         {
@@ -1048,18 +1080,62 @@ public class ChromeWindow : Window
         return brush;
     }
 
-    private static ImageSource CreateDefaultIcon()
+    private void ScheduleEffectiveTitleBarIconRefresh()
     {
-        using var stream = typeof(ChromeWindow).Assembly.GetManifestResourceStream(
-            "WindowChromeKit.Wpf.Assets.DefaultWindowIcon.ico")
-            ?? throw new InvalidOperationException("无法读取 WindowChromeKit 默认窗口图标资源。");
-        var icon = new BitmapImage();
-        icon.BeginInit();
-        icon.CacheOption = BitmapCacheOption.OnLoad;
-        icon.StreamSource = stream;
-        icon.EndInit();
-        icon.Freeze();
-        return icon;
+        if (Icon is not null || _handle == IntPtr.Zero)
+        {
+            RefreshEffectiveTitleBarIcon();
+            return;
+        }
+
+        // Icon 清空后，WPF 会异步把应用程序图标重新写入 HWND；下一轮再读取才能得到最终结果。
+        if (_effectiveIconRefreshPending) return;
+        _effectiveIconRefreshPending = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            _effectiveIconRefreshPending = false;
+            if (!_disposed) RefreshEffectiveTitleBarIcon();
+        });
+    }
+
+    private void RefreshEffectiveTitleBarIcon()
+    {
+        if (Icon is { } explicitIcon)
+        {
+            SetValue(EffectiveTitleBarIconPropertyKey, explicitIcon);
+            return;
+        }
+
+        if (_handle == IntPtr.Zero)
+        {
+            SetValue(EffectiveTitleBarIconPropertyKey, null);
+            return;
+        }
+
+        var iconHandle = NativeWindowMethods.SendMessage(
+            _handle, WmGetIcon, new IntPtr(IconSmall2), IntPtr.Zero);
+        if (iconHandle == IntPtr.Zero)
+            iconHandle = NativeWindowMethods.SendMessage(
+                _handle, WmGetIcon, new IntPtr(IconSmall), IntPtr.Zero);
+        if (iconHandle == IntPtr.Zero)
+            iconHandle = NativeWindowMethods.SendMessage(
+                _handle, WmGetIcon, new IntPtr(IconBig), IntPtr.Zero);
+        if (iconHandle == IntPtr.Zero)
+            iconHandle = NativeWindowMethods.LoadIcon(IntPtr.Zero, new IntPtr(IdiApplication));
+
+        if (iconHandle == IntPtr.Zero)
+        {
+            SetValue(EffectiveTitleBarIconPropertyKey, null);
+            return;
+        }
+
+        // WM_GETICON 和 LoadIcon 返回的句柄均由系统所有，不能调用 DestroyIcon。
+        var source = Imaging.CreateBitmapSourceFromHIcon(
+            iconHandle,
+            Int32Rect.Empty,
+            BitmapSizeOptions.FromEmptyOptions());
+        if (source.CanFreeze) source.Freeze();
+        SetValue(EffectiveTitleBarIconPropertyKey, source);
     }
 
     private void OnChromeClosed(object? sender, EventArgs eventArgs)

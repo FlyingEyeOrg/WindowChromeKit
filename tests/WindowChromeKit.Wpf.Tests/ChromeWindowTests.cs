@@ -7,6 +7,7 @@ using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace WindowChromeKit.Wpf.Tests;
@@ -21,6 +22,9 @@ public sealed class ChromeWindowTests
         Assert.Equal(35, window.TitleBarHeight);
         Assert.Equal(46, window.CaptionButtonWidth);
         Assert.Equal(ResizeMode.CanResize, window.ResizeMode);
+        Assert.Null(window.Icon);
+        Assert.True(window.ShowTitleBarIcon);
+        Assert.Null(window.EffectiveTitleBarIcon);
         Assert.False(window.UseLayoutRounding);
         Assert.Equal(ChromeHitTestRole.Default, window.HoveredChromeRole);
         Assert.Equal(ChromeHitTestRole.Default, window.PressedChromeRole);
@@ -31,6 +35,22 @@ public sealed class ChromeWindowTests
         Assert.Throws<ArgumentException>(() => window.CaptionButtonDisabledOpacity = 1.1);
         Assert.Throws<ArgumentException>(() =>
             ChromeWindow.SetHitTestRole(window, (ChromeHitTestRole)999));
+    });
+
+    [Fact]
+    public void OptionalWindowIconResourcesCanBeLoaded() => RunSta(() =>
+    {
+        var windows7 = BitmapFrame.Create(new Uri(
+            "pack://application:,,,/WindowChromeKit.Wpf;component/Assets/Windows7WindowIcon.ico",
+            UriKind.Absolute));
+        var windows10 = BitmapFrame.Create(new Uri(
+            "pack://application:,,,/WindowChromeKit.Wpf;component/Assets/Windows10WindowIcon.ico",
+            UriKind.Absolute));
+
+        Assert.True(windows7.PixelWidth > 0);
+        Assert.True(windows7.PixelHeight > 0);
+        Assert.True(windows10.PixelWidth > 0);
+        Assert.True(windows10.PixelHeight > 0);
     });
 
     [Fact]
@@ -291,8 +311,10 @@ public sealed class ChromeWindowTests
         window.UpdateLayout();
         window.SynchronizeResizeOverlay();
 
-        Assert.NotNull(window.Icon);
+        Assert.Null(window.Icon);
+        Assert.NotNull(window.EffectiveTitleBarIcon);
         var titleBar = Assert.IsAssignableFrom<FrameworkElement>(window.Template.FindName(ChromeWindow.PartTitleBar, window));
+        var systemMenu = Assert.IsAssignableFrom<FrameworkElement>(window.Template.FindName(ChromeWindow.PartSystemMenu, window));
         var minimize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
         var maximize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
         var close = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartCloseButton, window));
@@ -303,6 +325,27 @@ public sealed class ChromeWindowTests
         Assert.True(content.ActualHeight > 0);
         Assert.Equal(Visibility.Visible, minimize.Visibility);
         Assert.Equal(Visibility.Visible, maximize.Visibility);
+        Assert.Equal(36, systemMenu.ActualWidth, 3);
+        Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, systemMenu));
+
+        window.ShowTitleBarIcon = false;
+        window.UpdateLayout();
+        Assert.Equal(Visibility.Collapsed, systemMenu.Visibility);
+        Assert.Equal(0, systemMenu.ActualWidth, 3);
+        window.ShowTitleBarIcon = true;
+        window.UpdateLayout();
+        Assert.Equal(Visibility.Visible, systemMenu.Visibility);
+
+        var explicitIcon = new DrawingImage(new GeometryDrawing(
+            Brushes.DodgerBlue,
+            null,
+            new RectangleGeometry(new Rect(0, 0, 16, 16))));
+        explicitIcon.Freeze();
+        window.Icon = explicitIcon;
+        Assert.Same(explicitIcon, window.EffectiveTitleBarIcon);
+        window.Icon = null;
+        window.Dispatcher.Invoke(DispatcherPriority.Loaded, () => { });
+        Assert.NotNull(window.EffectiveTitleBarIcon);
 
         var overlay = window.ResizeOverlayHandle;
         Assert.NotEqual(IntPtr.Zero, overlay);
