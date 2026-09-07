@@ -1,0 +1,55 @@
+<chrome:ChromeWindow x:Class="WindowChromeKit.Wpf.Sample.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:chrome="clr-namespace:WindowChromeKit.Wpf;assembly=WindowChromeKit.Wpf"
+        mc:Ignorable="d"
+        Title="WindowChromeKit Sample"
+        Width="900"
+        Height="560"
+        MinWidth="420"
+        MinHeight="300"
+        ResizeMode="CanResizeWithGrip"
+        ActiveTitleBarBackground="#181818"
+        ActiveTitleBarForeground="#F2F2F2"
+        InactiveTitleBarBackground="#252526"
+        InactiveTitleBarForeground="#A0A0A0"
+        TitleBarBorderBrush="#3F3F46">
+    <Grid Background="#F5F5F5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Padding="24" Background="White" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock FontSize="24" FontWeight="SemiBold" Text="WindowChromeKit" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="#606060"
+                           Text="Native DWM shadow, snap layouts, DPI-aware resize overlay, and templateable WPF chrome." />
+            </StackPanel>
+        </Border>
+        <StackPanel Grid.Row="1" Margin="24">
+            <TextBlock Margin="0,0,0,12" Text="ResizeMode" FontWeight="SemiBold" />
+            <ComboBox x:Name="ResizeModeSelector"
+                      Width="220"
+                      HorizontalAlignment="Left"
+                      SelectionChanged="OnResizeModeChanged">
+                <ComboBoxItem Content="NoResize" />
+                <ComboBoxItem Content="CanMinimize" />
+                <ComboBoxItem Content="CanResize" />
+                <ComboBoxItem Content="CanResizeWithGrip" IsSelected="True" />
+            </ComboBox>
+            <WrapPanel Margin="0,24,0,0">
+                <Button Margin="0,0,12,0" Padding="16,8" Click="OnCenterClicked" Content="Center on target monitor" />
+                <Button Margin="0,0,12,0" Padding="16,8" Click="OnConstrainClicked" Content="Constrain to work area" />
+                <Button Padding="16,8" Click="OnOpenOwnedWindowClicked" Content="Open owned window" />
+            </WrapPanel>
+            <TextBox Margin="0,28,0,0"
+                     MinHeight="100"
+                     Padding="12"
+                     AcceptsReturn="True"
+                     Text="The content area remains ordinary WPF content. Try typing here, resizing from every edge, maximizing, restoring, and using Windows Snap." />
+        </StackPanel>
+    </Grid>
+</chrome:ChromeWindow>
