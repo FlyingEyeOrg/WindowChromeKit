@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WindowChromeKit.Wpf.Internal;
 
@@ -179,6 +180,9 @@ public class ChromeWindow : Window
     {
         DefaultStyleKeyProperty.OverrideMetadata(
             typeof(ChromeWindow), new FrameworkPropertyMetadata(typeof(ChromeWindow)));
+        // 主题资源会跨 Dispatcher 缓存；冻结图标后才可安全供多 UI 线程窗口共享。
+        IconProperty.OverrideMetadata(
+            typeof(ChromeWindow), new FrameworkPropertyMetadata(CreateDefaultIcon()));
     }
 
     public ChromeWindow()
@@ -1042,6 +1046,20 @@ public class ChromeWindow : Window
         var brush = new SolidColorBrush(Color.FromArgb(alpha, red, green, blue));
         brush.Freeze();
         return brush;
+    }
+
+    private static ImageSource CreateDefaultIcon()
+    {
+        using var stream = typeof(ChromeWindow).Assembly.GetManifestResourceStream(
+            "WindowChromeKit.Wpf.Assets.DefaultWindowIcon.ico")
+            ?? throw new InvalidOperationException("无法读取 WindowChromeKit 默认窗口图标资源。");
+        var icon = new BitmapImage();
+        icon.BeginInit();
+        icon.CacheOption = BitmapCacheOption.OnLoad;
+        icon.StreamSource = stream;
+        icon.EndInit();
+        icon.Freeze();
+        return icon;
     }
 
     private void OnChromeClosed(object? sender, EventArgs eventArgs)

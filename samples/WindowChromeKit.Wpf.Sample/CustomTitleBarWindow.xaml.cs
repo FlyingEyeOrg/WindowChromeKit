@@ -20,6 +20,23 @@ public partial class CustomTitleBarWindow : ChromeWindow
         CaptionButtonPressedBackground = BrushFrom(_alternateTheme ? "#815AC0" : "#486581");
     }
 
+    private void OnNewWindowClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        var window = new CustomTitleBarWindow { Owner = this };
+        window.CenterOnTargetMonitor();
+        window.Show();
+    }
+
+    private void OnCloseClicked(object sender, RoutedEventArgs eventArgs) => Close();
+
+    private void OnAboutClicked(object sender, RoutedEventArgs eventArgs) =>
+        MessageBox.Show(
+            this,
+            "WindowChromeKit 自定义标题栏菜单示例。",
+            "关于 WindowChromeKit",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+
     private static Brush BrushFrom(string value) =>
         (Brush)new BrushConverter().ConvertFromString(value)!;
 }

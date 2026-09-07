@@ -5,7 +5,7 @@
                      Title="自定义标题栏示例"
                      Width="820"
                      Height="520"
-                     MinWidth="560"
+                     MinWidth="720"
                      MinHeight="360"
                      ActiveTitleBarBackground="#102A43"
                      ActiveTitleBarForeground="#F0F4F8"
@@ -20,18 +20,12 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border Width="24"
-                    Height="24"
-                    Margin="8,0"
-                    VerticalAlignment="Center"
-                    CornerRadius="5"
-                    Background="#2CB1BC">
-                <TextBlock HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           Text="W" />
-            </Border>
+            <Image Width="24"
+                   Height="24"
+                   Margin="8,0"
+                   VerticalAlignment="Center"
+                   Source="{Binding Icon, RelativeSource={RelativeSource AncestorType={x:Type chrome:ChromeWindow}}}"
+                   Stretch="Uniform" />
             <StackPanel Grid.Column="1"
                         VerticalAlignment="Center">
                 <TextBlock FontSize="12"
@@ -59,13 +53,58 @@
     </chrome:ChromeWindow.TitleBarContent>
 
     <chrome:ChromeWindow.TitleBarActions>
-        <Button Width="74"
-                Height="27"
-                Margin="4,0,8,0"
-                Padding="8,2"
-                VerticalAlignment="Center"
-                Click="OnToggleThemeClicked"
-                Content="切换主题" />
+        <Menu Height="35"
+              Margin="4,0,8,0"
+              VerticalAlignment="Center"
+              Background="Transparent"
+              chrome:ChromeWindow.HitTestRole="Client">
+            <Menu.Resources>
+                <Style x:Key="TitleBarMenuItemStyle" TargetType="{x:Type MenuItem}">
+                    <Setter Property="Height" Value="35" />
+                    <Setter Property="Padding" Value="10,0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                    <Style.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter Property="Background" Value="#334E68" />
+                        </Trigger>
+                        <Trigger Property="IsSubmenuOpen" Value="True">
+                            <Setter Property="Background" Value="#486581" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+                <Style x:Key="PopupMenuItemStyle" TargetType="{x:Type MenuItem}">
+                    <Setter Property="MinWidth" Value="150" />
+                    <Setter Property="Padding" Value="12,6" />
+                    <Setter Property="Foreground" Value="#102A43" />
+                    <Style.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter Property="Background" Value="#D9E2EC" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Menu.Resources>
+
+            <MenuItem Header="文件" Style="{StaticResource TitleBarMenuItemStyle}">
+                <MenuItem Header="新建自定义窗口"
+                          Style="{StaticResource PopupMenuItemStyle}"
+                          Click="OnNewWindowClicked" />
+                <Separator />
+                <MenuItem Header="关闭"
+                          Style="{StaticResource PopupMenuItemStyle}"
+                          Click="OnCloseClicked" />
+            </MenuItem>
+            <MenuItem Header="视图" Style="{StaticResource TitleBarMenuItemStyle}">
+                <MenuItem Header="切换标题栏主题"
+                          Style="{StaticResource PopupMenuItemStyle}"
+                          Click="OnToggleThemeClicked" />
+            </MenuItem>
+            <MenuItem Header="帮助" Style="{StaticResource TitleBarMenuItemStyle}">
+                <MenuItem Header="关于 WindowChromeKit"
+                          Style="{StaticResource PopupMenuItemStyle}"
+                          Click="OnAboutClicked" />
+            </MenuItem>
+        </Menu>
     </chrome:ChromeWindow.TitleBarActions>
 
     <Grid Background="#F5F7FA">

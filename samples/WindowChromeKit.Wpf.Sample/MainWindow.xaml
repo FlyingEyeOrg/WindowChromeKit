@@ -10,7 +10,6 @@
         Height="560"
         MinWidth="420"
         MinHeight="300"
-        ResizeMode="CanResizeWithGrip"
         ActiveTitleBarBackground="#181818"
         ActiveTitleBarForeground="#F2F2F2"
         InactiveTitleBarBackground="#252526"
@@ -37,8 +36,8 @@
                       SelectionChanged="OnResizeModeChanged">
                 <ComboBoxItem Content="NoResize" />
                 <ComboBoxItem Content="CanMinimize" />
-                <ComboBoxItem Content="CanResize" />
-                <ComboBoxItem Content="CanResizeWithGrip" IsSelected="True" />
+                <ComboBoxItem Content="CanResize" IsSelected="True" />
+                <ComboBoxItem Content="CanResizeWithGrip" />
             </ComboBox>
             <WrapPanel Margin="0,24,0,0">
                 <Button Margin="0,0,12,0" Padding="16,8" Click="OnCenterClicked" Content="Center on target monitor" />

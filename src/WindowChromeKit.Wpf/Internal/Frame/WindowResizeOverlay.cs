@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -25,13 +26,18 @@ internal sealed class WindowResizeOverlay : IDisposable
     private const uint WindowExStyleNoActivate = 0x08000000;
 
     private static readonly object ClassGate = new();
-    private static readonly Dictionary<IntPtr, WindowResizeOverlay> Instances = [];
+    // WPF 支持在同一进程中创建多个 Dispatcher，窗口过程可能因此并发访问此集合。
+    private static readonly ConcurrentDictionary<IntPtr, WindowResizeOverlay> Instances = [];
     private static readonly NativeWindowMethods.WindowProcedure SharedWindowProcedure = WindowProcedure;
     private static bool _classRegistered;
 
     private readonly IntPtr _owner;
     private readonly Func<NativePoint, ChromeHitTestRole> _getChromeHitTestRole;
     private IntPtr _handle;
+    private int _regionWidth;
+    private int _regionHeight;
+    private int _regionBorderX;
+    private int _regionBorderY;
     private bool _disposed;
 
     internal WindowResizeOverlay(
@@ -58,7 +64,12 @@ internal sealed class WindowResizeOverlay : IDisposable
             IntPtr.Zero);
         if (_handle == IntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "无法创建 WindowChromeKit resize overlay HWND。");
-        Instances.Add(_handle, this);
+        if (!Instances.TryAdd(_handle, this))
+        {
+            _ = NativeWindowMethods.DestroyWindow(_handle);
+            _handle = IntPtr.Zero;
+            throw new InvalidOperationException("无法登记 WindowChromeKit resize overlay HWND。");
+        }
     }
 
     internal IntPtr Handle => _handle;
@@ -105,6 +116,15 @@ internal sealed class WindowResizeOverlay : IDisposable
 
     private void ApplyRingRegion(int width, int height, int borderX, int borderY)
     {
+        // 仅移动窗口时 overlay 尺寸不变，无需重复创建和销毁 GDI Region。
+        if (_regionWidth == width
+            && _regionHeight == height
+            && _regionBorderX == borderX
+            && _regionBorderY == borderY)
+        {
+            return;
+        }
+
         var outer = NativeWindowMethods.CreateRectRegion(0, 0, width, height);
         if (outer == IntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "无法创建 resize overlay 外部区域。");
@@ -121,8 +141,12 @@ internal sealed class WindowResizeOverlay : IDisposable
             }
 
             if (NativeWindowMethods.SetWindowRegion(_handle, outer, redraw: true) == 0)
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "无法设置 DesktopAgent resize overlay 区域。");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "无法设置 WindowChromeKit resize overlay 区域。");
             outer = IntPtr.Zero;
+            _regionWidth = width;
+            _regionHeight = height;
+            _regionBorderX = borderX;
+            _regionBorderY = borderY;
         }
         finally
         {
@@ -299,7 +323,7 @@ internal sealed class WindowResizeOverlay : IDisposable
         if (_disposed) return;
         _disposed = true;
         if (_handle == IntPtr.Zero) return;
-        Instances.Remove(_handle);
+        _ = Instances.TryRemove(_handle, out _);
         _ = NativeWindowMethods.DestroyWindow(_handle);
         _handle = IntPtr.Zero;
     }

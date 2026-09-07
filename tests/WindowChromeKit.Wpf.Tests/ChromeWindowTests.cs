@@ -291,6 +291,7 @@ public sealed class ChromeWindowTests
         window.UpdateLayout();
         window.SynchronizeResizeOverlay();
 
+        Assert.NotNull(window.Icon);
         var titleBar = Assert.IsAssignableFrom<FrameworkElement>(window.Template.FindName(ChromeWindow.PartTitleBar, window));
         var minimize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
         var maximize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
