@@ -124,6 +124,78 @@ public sealed class ChromeWindowTests
     });
 
     [Fact]
+    public void ResizeOverlaySynchronizesWithChromeHitTestRoles() => RunSta(() =>
+    {
+        var textBox = new TextBox
+        {
+            Width = 140,
+            Height = 25,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Text = "标题栏输入框",
+        };
+        ChromeWindow.SetHitTestRole(textBox, ChromeHitTestRole.Client);
+        var titleContent = new Grid { Background = Brushes.Transparent };
+        titleContent.Children.Add(textBox);
+        var action = new Button
+        {
+            Width = 90,
+            Height = 35,
+            Content = "标题栏操作",
+        };
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Title = "Overlay hit test",
+            TitleBarContent = titleContent,
+            TitleBarActions = action,
+        };
+
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+        window.SynchronizeResizeOverlay();
+
+        var overlay = window.ResizeOverlayHandle;
+        Assert.NotEqual(IntPtr.Zero, overlay);
+        Assert.Equal(
+            NativeWindowMethods.GetWindowThreadProcessId(handle, out _),
+            NativeWindowMethods.GetWindowThreadProcessId(overlay, out _));
+
+        var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartTitleBar, window));
+        var minimize = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
+        var actionPoint = action.PointToScreen(new Point(action.ActualWidth / 2, 1));
+        var minimizePoint = minimize.PointToScreen(new Point(minimize.ActualWidth / 2, 1));
+        var textBoxPoint = textBox.PointToScreen(new Point(textBox.ActualWidth / 2, 1));
+        var captionPoint = titleBar.PointToScreen(new Point(titleBar.ActualWidth / 2, 1));
+
+        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, actionPoint));
+        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, minimizePoint));
+        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, textBoxPoint));
+        Assert.Equal(WindowFrameHitTest.Top, SendHitTest(overlay, captionPoint));
+
+        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Caption);
+        Assert.Equal(WindowFrameHitTest.Top, SendHitTest(overlay, actionPoint));
+        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Client);
+        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, actionPoint));
+
+        Assert.True(NativeWindowMethods.GetWindowRect(handle, out var ownerBounds));
+        Assert.Equal(
+            WindowFrameHitTest.Left,
+            SendHitTest(overlay, new Point(ownerBounds.Left - 1, ownerBounds.Top + 100)));
+        Assert.Equal(
+            WindowFrameHitTest.Bottom,
+            SendHitTest(overlay, new Point(ownerBounds.Left + 100, ownerBounds.Bottom)));
+
+        window.Close();
+    });
+
+    [Fact]
     public void OptionalTemplatePartsCanBeMissingAndTemplateCanBeReapplied() => RunSta(() =>
     {
         const string templateXaml = """

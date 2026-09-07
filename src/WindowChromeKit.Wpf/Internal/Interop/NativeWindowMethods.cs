@@ -45,6 +45,9 @@ internal static class NativeWindowMethods
     internal static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    internal static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
+
+    [DllImport("user32.dll")]
     internal static extern IntPtr GetLastActivePopup(IntPtr windowHandle);
 
     [DllImport("user32.dll")]
