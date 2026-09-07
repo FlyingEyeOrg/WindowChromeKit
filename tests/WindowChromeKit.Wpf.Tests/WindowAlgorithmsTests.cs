@@ -3,6 +3,21 @@ namespace WindowChromeKit.Wpf.Tests;
 public sealed class WindowAlgorithmsTests
 {
     [Theory]
+    [InlineData(ChromeHitTestRole.Default, false)]
+    [InlineData(ChromeHitTestRole.Caption, false)]
+    [InlineData(ChromeHitTestRole.Client, true)]
+    [InlineData(ChromeHitTestRole.SystemMenu, true)]
+    [InlineData(ChromeHitTestRole.MinimizeButton, true)]
+    [InlineData(ChromeHitTestRole.MaximizeButton, true)]
+    [InlineData(ChromeHitTestRole.CloseButton, true)]
+    public void ResizeOverlayPassThroughMatchesChromeHitTestRole(
+        ChromeHitTestRole role,
+        bool expected)
+    {
+        Assert.Equal(expected, WindowResizeOverlay.IsInteractiveChromeRole(role));
+    }
+
+    [Theory]
     [InlineData(96, 136, 8, 146)]
     [InlineData(120, 170, 9, 182)]
     [InlineData(144, 202, 11, 218)]

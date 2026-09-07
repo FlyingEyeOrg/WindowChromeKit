@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -9,27 +9,23 @@ using WindowChromeKit.Wpf.Internal;
 
 namespace WindowChromeKit.Wpf;
 
-/// <summary>
-/// A WPF window with a templateable client-area title bar and native Windows
-/// resize, maximize, system-menu, shadow, and snap behavior.
-/// </summary>
-[TemplatePart(Name = PartTitleBar, Type = typeof(Border))]
-[TemplatePart(Name = PartIcon, Type = typeof(FrameworkElement))]
-[TemplatePart(Name = PartTitle, Type = typeof(TextBlock))]
-[TemplatePart(Name = PartMinimizeButton, Type = typeof(Border))]
-[TemplatePart(Name = PartMaximizeButton, Type = typeof(Border))]
-[TemplatePart(Name = PartCloseButton, Type = typeof(Border))]
+/// <summary>提供完全可模板化标题栏以及原生缩放、系统菜单、阴影和 Snap Layout 的 WPF 窗口。</summary>
+[TemplatePart(Name = PartTitleBar, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = PartSystemMenu, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = PartMinimizeButton, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = PartMaximizeButton, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = PartCloseButton, Type = typeof(FrameworkElement))]
 public class ChromeWindow : Window
 {
     internal const string PartTitleBar = "PART_TitleBar";
-    internal const string PartIcon = "PART_Icon";
-    internal const string PartTitle = "PART_Title";
+    internal const string PartSystemMenu = "PART_SystemMenu";
     internal const string PartMinimizeButton = "PART_MinimizeButton";
     internal const string PartMaximizeButton = "PART_MaximizeButton";
     internal const string PartCloseButton = "PART_CloseButton";
-    internal const string PartMaximizeGlyph = "PART_MaximizeGlyph";
 
     private const uint WmCancelMode = 0x001F;
+    private const uint WmMouseMove = 0x0200;
+    private const uint WmLButtonUp = 0x0202;
     private const uint WmShowWindow = 0x0018;
     private const uint WmSettingChange = 0x001A;
     private const uint WmGetMinMaxInfo = 0x0024;
@@ -49,11 +45,6 @@ public class ChromeWindow : Window
     private const int SpiSetWorkArea = 0x002F;
     private const uint TmeLeave = 0x00000002;
     private const uint TmeNonClient = 0x00000010;
-
-    private static readonly Brush ButtonHover = FrozenBrush(0x1A, 0xFF, 0xFF, 0xFF);
-    private static readonly Brush ButtonPressed = FrozenBrush(0x33, 0xFF, 0xFF, 0xFF);
-    private static readonly Brush CloseHover = FrozenBrush(0xFF, 0xC4, 0x2B, 0x1C);
-    private static readonly Brush ClosePressed = FrozenBrush(0xFF, 0xA9, 0x23, 0x16);
 
     public static readonly DependencyProperty ActiveTitleBarBackgroundProperty =
         DependencyProperty.Register(
@@ -90,18 +81,92 @@ public class ChromeWindow : Window
             nameof(CaptionButtonWidth), typeof(double), typeof(ChromeWindow),
             new FrameworkPropertyMetadata(46d, OnChromeMetricChanged), IsPositiveFiniteDouble);
 
-    private Border? _titleBar;
-    private FrameworkElement? _icon;
-    private TextBlock? _title;
-    private Border? _minimize;
-    private Border? _maximize;
-    private Border? _close;
-    private TextBlock? _maximizeGlyph;
+    public static readonly DependencyProperty TitleBarContentProperty =
+        DependencyProperty.Register(nameof(TitleBarContent), typeof(object), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty TitleBarContentTemplateProperty =
+        DependencyProperty.Register(nameof(TitleBarContentTemplate), typeof(DataTemplate), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty TitleBarContentTemplateSelectorProperty =
+        DependencyProperty.Register(
+            nameof(TitleBarContentTemplateSelector), typeof(DataTemplateSelector), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty TitleBarActionsProperty =
+        DependencyProperty.Register(nameof(TitleBarActions), typeof(object), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty TitleBarActionsTemplateProperty =
+        DependencyProperty.Register(nameof(TitleBarActionsTemplate), typeof(DataTemplate), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty TitleBarActionsTemplateSelectorProperty =
+        DependencyProperty.Register(
+            nameof(TitleBarActionsTemplateSelector), typeof(DataTemplateSelector), typeof(ChromeWindow));
+
+    public static readonly DependencyProperty CaptionButtonHoverBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(CaptionButtonHoverBackground), typeof(Brush), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(FrozenBrush(0x1A, 0xFF, 0xFF, 0xFF)));
+
+    public static readonly DependencyProperty CaptionButtonPressedBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(CaptionButtonPressedBackground), typeof(Brush), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(FrozenBrush(0x33, 0xFF, 0xFF, 0xFF)));
+
+    public static readonly DependencyProperty CloseButtonHoverBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(CloseButtonHoverBackground), typeof(Brush), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(FrozenBrush(0xFF, 0xC4, 0x2B, 0x1C)));
+
+    public static readonly DependencyProperty CloseButtonPressedBackgroundProperty =
+        DependencyProperty.Register(
+            nameof(CloseButtonPressedBackground), typeof(Brush), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(FrozenBrush(0xFF, 0xA9, 0x23, 0x16)));
+
+    public static readonly DependencyProperty CaptionButtonDisabledOpacityProperty =
+        DependencyProperty.Register(
+            nameof(CaptionButtonDisabledOpacity), typeof(double), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(0.4d), IsUnitDouble);
+
+    public static readonly DependencyProperty HitTestRoleProperty =
+        DependencyProperty.RegisterAttached(
+            "HitTestRole", typeof(ChromeHitTestRole), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(
+                ChromeHitTestRole.Default,
+                FrameworkPropertyMetadataOptions.Inherits),
+            IsDefinedChromeHitTestRole);
+
+    private static readonly DependencyPropertyKey HoveredChromeRolePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(HoveredChromeRole), typeof(ChromeHitTestRole), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(ChromeHitTestRole.Default));
+
+    public static readonly DependencyProperty HoveredChromeRoleProperty = HoveredChromeRolePropertyKey.DependencyProperty;
+
+    private static readonly DependencyPropertyKey PressedChromeRolePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(PressedChromeRole), typeof(ChromeHitTestRole), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(ChromeHitTestRole.Default));
+
+    public static readonly DependencyProperty PressedChromeRoleProperty = PressedChromeRolePropertyKey.DependencyProperty;
+
+    private static readonly DependencyPropertyKey TitleBarBorderThicknessPropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(TitleBarBorderThickness), typeof(Thickness), typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(new Thickness(0, 0, 0, 1)));
+
+    public static readonly DependencyProperty TitleBarBorderThicknessProperty =
+        TitleBarBorderThicknessPropertyKey.DependencyProperty;
+
+    private FrameworkElement? _titleBar;
+    private FrameworkElement? _systemMenu;
+    private FrameworkElement? _minimize;
+    private FrameworkElement? _maximize;
+    private FrameworkElement? _close;
     private HwndSource? _source;
     private WindowResizeOverlay? _resizeOverlay;
     private IntPtr _handle;
     private int _hotPart;
     private int _pressedPart;
+    private bool _trackingCaptionButtonPress;
     private bool _trackingMouse;
     private bool _inSizeMove;
     private bool _nativeFrameRefreshPending;
@@ -120,7 +185,9 @@ public class ChromeWindow : Window
     {
         AllowsTransparency = false;
         WindowStyle = WindowStyle.SingleBorderWindow;
-        UseLayoutRounding = true;
+        ResizeMode = ResizeMode.CanResize;
+        // 不在窗口根级强制布局取整，否则奇数标题栏中嵌套偶数高度控件时，
+        // 两层居中产生的半像素会分别取整，最终累积为一个像素的垂直偏差。
         SnapsToDevicePixels = true;
 
         SourceInitialized += OnChromeSourceInitialized;
@@ -129,6 +196,17 @@ public class ChromeWindow : Window
         StateChanged += OnChromeStateChanged;
         ContentRendered += OnChromeContentRendered;
         Closed += OnChromeClosed;
+
+        CommandBindings.Add(new CommandBinding(
+            SystemCommands.MinimizeWindowCommand, ExecuteMinimizeCommand, CanExecuteMinimizeCommand));
+        CommandBindings.Add(new CommandBinding(
+            SystemCommands.MaximizeWindowCommand, ExecuteMaximizeCommand, CanExecuteMaximizeCommand));
+        CommandBindings.Add(new CommandBinding(
+            SystemCommands.RestoreWindowCommand, ExecuteRestoreCommand, CanExecuteRestoreCommand));
+        CommandBindings.Add(new CommandBinding(
+            SystemCommands.CloseWindowCommand, ExecuteCloseCommand, CanExecuteAlways));
+        CommandBindings.Add(new CommandBinding(
+            SystemCommands.ShowSystemMenuCommand, ExecuteShowSystemMenuCommand, CanExecuteAlways));
     }
 
     public Brush ActiveTitleBarBackground
@@ -173,7 +251,110 @@ public class ChromeWindow : Window
         set => SetValue(CaptionButtonWidthProperty, value);
     }
 
-    /// <summary>Raised after Windows reports a display topology or work-area change.</summary>
+    /// <summary>获取或设置标题栏的主要自定义内容；为 <see langword="null"/> 时显示默认图标和标题。</summary>
+    public object? TitleBarContent
+    {
+        get => GetValue(TitleBarContentProperty);
+        set => SetValue(TitleBarContentProperty, value);
+    }
+
+    /// <summary>获取或设置标题栏主要内容的数据模板。</summary>
+    public DataTemplate? TitleBarContentTemplate
+    {
+        get => (DataTemplate?)GetValue(TitleBarContentTemplateProperty);
+        set => SetValue(TitleBarContentTemplateProperty, value);
+    }
+
+    /// <summary>获取或设置标题栏主要内容的数据模板选择器。</summary>
+    public DataTemplateSelector? TitleBarContentTemplateSelector
+    {
+        get => (DataTemplateSelector?)GetValue(TitleBarContentTemplateSelectorProperty);
+        set => SetValue(TitleBarContentTemplateSelectorProperty, value);
+    }
+
+    /// <summary>获取或设置标题栏右侧、系统按钮之前的操作区域内容。</summary>
+    public object? TitleBarActions
+    {
+        get => GetValue(TitleBarActionsProperty);
+        set => SetValue(TitleBarActionsProperty, value);
+    }
+
+    /// <summary>获取或设置标题栏操作区域的数据模板。</summary>
+    public DataTemplate? TitleBarActionsTemplate
+    {
+        get => (DataTemplate?)GetValue(TitleBarActionsTemplateProperty);
+        set => SetValue(TitleBarActionsTemplateProperty, value);
+    }
+
+    /// <summary>获取或设置标题栏操作区域的数据模板选择器。</summary>
+    public DataTemplateSelector? TitleBarActionsTemplateSelector
+    {
+        get => (DataTemplateSelector?)GetValue(TitleBarActionsTemplateSelectorProperty);
+        set => SetValue(TitleBarActionsTemplateSelectorProperty, value);
+    }
+
+    /// <summary>获取或设置普通标题按钮的悬停背景。</summary>
+    public Brush CaptionButtonHoverBackground
+    {
+        get => (Brush)GetValue(CaptionButtonHoverBackgroundProperty);
+        set => SetValue(CaptionButtonHoverBackgroundProperty, value);
+    }
+
+    /// <summary>获取或设置普通标题按钮的按下覆盖背景。</summary>
+    public Brush CaptionButtonPressedBackground
+    {
+        get => (Brush)GetValue(CaptionButtonPressedBackgroundProperty);
+        set => SetValue(CaptionButtonPressedBackgroundProperty, value);
+    }
+
+    /// <summary>获取或设置关闭按钮的悬停背景。</summary>
+    public Brush CloseButtonHoverBackground
+    {
+        get => (Brush)GetValue(CloseButtonHoverBackgroundProperty);
+        set => SetValue(CloseButtonHoverBackgroundProperty, value);
+    }
+
+    /// <summary>获取或设置关闭按钮的按下覆盖背景。</summary>
+    public Brush CloseButtonPressedBackground
+    {
+        get => (Brush)GetValue(CloseButtonPressedBackgroundProperty);
+        set => SetValue(CloseButtonPressedBackgroundProperty, value);
+    }
+
+    /// <summary>获取或设置禁用标题按钮的不透明度。</summary>
+    public double CaptionButtonDisabledOpacity
+    {
+        get => (double)GetValue(CaptionButtonDisabledOpacityProperty);
+        set => SetValue(CaptionButtonDisabledOpacityProperty, value);
+    }
+
+    /// <summary>获取当前指针覆盖的标题栏角色。</summary>
+    public ChromeHitTestRole HoveredChromeRole =>
+        (ChromeHitTestRole)GetValue(HoveredChromeRoleProperty);
+
+    /// <summary>获取当前按下的标题栏角色。</summary>
+    public ChromeHitTestRole PressedChromeRole =>
+        (ChromeHitTestRole)GetValue(PressedChromeRoleProperty);
+
+    /// <summary>获取对应当前 DPI 的单物理像素标题栏边框厚度。</summary>
+    public Thickness TitleBarBorderThickness =>
+        (Thickness)GetValue(TitleBarBorderThicknessProperty);
+
+    /// <summary>设置元素参与标题栏原生命中测试的角色。</summary>
+    public static void SetHitTestRole(DependencyObject element, ChromeHitTestRole value)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        element.SetValue(HitTestRoleProperty, value);
+    }
+
+    /// <summary>获取元素当前生效的标题栏原生命中测试角色。</summary>
+    public static ChromeHitTestRole GetHitTestRole(DependencyObject element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return (ChromeHitTestRole)element.GetValue(HitTestRoleProperty);
+    }
+
+    /// <summary>Windows 报告显示拓扑或工作区变化后触发。</summary>
     public event EventHandler? DisplayConfigurationChanged;
 
     internal IntPtr ResizeOverlayHandle => _resizeOverlay?.Handle ?? IntPtr.Zero;
@@ -182,20 +363,24 @@ public class ChromeWindow : Window
 
     public override void OnApplyTemplate()
     {
+        CancelCaptionButtonPress();
+        _titleBar = null;
+        _systemMenu = null;
+        _minimize = null;
+        _maximize = null;
+        _close = null;
         base.OnApplyTemplate();
-        _titleBar = RequirePart<Border>(PartTitleBar);
-        _icon = RequirePart<FrameworkElement>(PartIcon);
-        _title = RequirePart<TextBlock>(PartTitle);
-        _minimize = RequirePart<Border>(PartMinimizeButton);
-        _maximize = RequirePart<Border>(PartMaximizeButton);
-        _close = RequirePart<Border>(PartCloseButton);
-        _maximizeGlyph = GetTemplateChild(PartMaximizeGlyph) as TextBlock;
+        _titleBar = GetTemplateChild(PartTitleBar) as FrameworkElement;
+        _systemMenu = GetTemplateChild(PartSystemMenu) as FrameworkElement;
+        _minimize = GetTemplateChild(PartMinimizeButton) as FrameworkElement;
+        _maximize = GetTemplateChild(PartMaximizeButton) as FrameworkElement;
+        _close = GetTemplateChild(PartCloseButton) as FrameworkElement;
         ApplyResizeMode();
         UpdateDpiVisuals();
         ApplyVisualState();
     }
 
-    /// <summary>Centers this window on its owner monitor, or on the foreground monitor when it has no owner.</summary>
+    /// <summary>在所有者所在显示器居中；没有所有者时在前台窗口所在显示器居中。</summary>
     public void CenterOnTargetMonitor()
     {
         if (_handle == IntPtr.Zero)
@@ -216,7 +401,7 @@ public class ChromeWindow : Window
         SetNativeBounds(WindowPlacement.Center(target, EffectiveWidth, EffectiveHeight, ownerBounds));
     }
 
-    /// <summary>Moves and sizes this window so its bounds fit within the nearest monitor work area.</summary>
+    /// <summary>移动并调整窗口，使窗口边界位于最近显示器的工作区内。</summary>
     public void ConstrainToWorkArea()
     {
         if (_handle == IntPtr.Zero)
@@ -320,23 +505,57 @@ public class ChromeWindow : Window
                 ObserveNonClientMove(wordParameter.ToInt32());
                 break;
             case WmNcLButtonDown:
-                _pressedPart = wordParameter.ToInt32();
-                ApplyVisualState();
+                var pressedPart = wordParameter.ToInt32();
+                var pressedRole = NativePartToRole(pressedPart);
+                if (IsCaptionButtonRole(pressedRole))
+                {
+                    _hotPart = pressedPart;
+                    _pressedPart = IsRoleEnabled(pressedRole) ? pressedPart : 0;
+                    _trackingCaptionButtonPress = _pressedPart != 0;
+                    if (_trackingCaptionButtonPress) _ = NativeWindowMethods.SetCapture(window);
+                    ApplyVisualState();
+
+                    // 系统默认过程会独占跟踪非客户区按钮，导致自定义按钮收不到抬起消息。
+                    // 这里接管捕获，确保移出、移回、取消和最终命令具有普通 Button 一致的语义。
+                    handled = true;
+                    return IntPtr.Zero;
+                }
                 break;
             case WmNcLButtonUp:
                 var releasedPart = wordParameter.ToInt32();
-                var pressedPart = _pressedPart;
-                _pressedPart = 0;
-                ApplyVisualState();
-                if (TryExecuteMinimizeButton(pressedPart, releasedPart))
+                if (_trackingCaptionButtonPress)
                 {
+                    CompleteCaptionButtonPress(releasedPart);
+                    handled = true;
+                    return IntPtr.Zero;
+                }
+                break;
+            case WmMouseMove:
+                if (_trackingCaptionButtonPress)
+                {
+                    UpdateCapturedCaptionButtonPointer();
+                    handled = true;
+                    return IntPtr.Zero;
+                }
+                break;
+            case WmLButtonUp:
+                if (_trackingCaptionButtonPress)
+                {
+                    var currentPart = GetCaptionButtonPartAtCursor();
+                    CompleteCaptionButtonPress(currentPart);
                     handled = true;
                     return IntPtr.Zero;
                 }
                 break;
             case WmNcMouseLeave:
+                if (_trackingCaptionButtonPress) break;
+                ResetPointerVisualState();
+                break;
             case WmCancelMode:
+                CancelCaptionButtonPress();
+                break;
             case WmCaptureChanged:
+                _trackingCaptionButtonPress = false;
                 ResetPointerVisualState();
                 break;
         }
@@ -406,52 +625,67 @@ public class ChromeWindow : Window
 
     private int HitTest(NativePoint pointer)
     {
-        if (_titleBar is null || _icon is null || _minimize is null || _maximize is null || _close is null)
+        try
+        {
+            return RoleToNativePart(GetRoleAtPoint(pointer));
+        }
+        catch (InvalidOperationException)
+        {
             return WindowFrameHitTest.Client;
-        return WindowFrameHitTest.Evaluate(
-            pointer,
-            GetScreenBounds(_icon),
-            GetScreenBounds(_minimize),
-            GetScreenBounds(_maximize),
-            GetScreenBounds(_close),
-            GetScreenBounds(_titleBar).Bottom);
+        }
+        catch (ArgumentException)
+        {
+            return WindowFrameHitTest.Client;
+        }
     }
 
-    private bool IsCaptionButtonPoint(NativePoint pointer) =>
-        _minimize is not null && Contains(GetScreenBounds(_minimize), pointer)
-        || _maximize is not null && Contains(GetScreenBounds(_maximize), pointer)
-        || _close is not null && Contains(GetScreenBounds(_close), pointer);
+    private ChromeHitTestRole GetRoleAtPoint(NativePoint pointer)
+    {
+        var clientPoint = PointFromScreen(new Point(pointer.X, pointer.Y));
+        if (InputHitTest(clientPoint) is DependencyObject hit)
+        {
+            var role = GetHitTestRole(hit);
+            if (role != ChromeHitTestRole.Default) return role;
+        }
+
+        if (_close is not null && Contains(GetScreenBounds(_close), pointer))
+            return ChromeHitTestRole.CloseButton;
+        if (_maximize is not null && Contains(GetScreenBounds(_maximize), pointer))
+            return ChromeHitTestRole.MaximizeButton;
+        if (_minimize is not null && Contains(GetScreenBounds(_minimize), pointer))
+            return ChromeHitTestRole.MinimizeButton;
+        if (_systemMenu is not null && Contains(GetScreenBounds(_systemMenu), pointer))
+            return ChromeHitTestRole.SystemMenu;
+        if (_titleBar is not null && Contains(GetScreenBounds(_titleBar), pointer))
+            return ChromeHitTestRole.Caption;
+        return ChromeHitTestRole.Client;
+    }
 
     private void ApplyResizeMode()
     {
         var canMinimize = ResizeMode != ResizeMode.NoResize;
         var canMaximize = IsResizable;
-
-        if (_minimize is not null)
-            _minimize.Visibility = canMinimize ? Visibility.Visible : Visibility.Collapsed;
-        if (_maximize is not null)
-        {
-            _maximize.Visibility = canMinimize ? Visibility.Visible : Visibility.Collapsed;
-            _maximize.IsEnabled = canMaximize;
-            _maximize.Opacity = canMaximize ? 1 : 0.4;
-        }
+        var cancelPress = false;
 
         if (!canMinimize)
         {
             if (_hotPart == WindowFrameHitTest.MinButton) _hotPart = 0;
-            if (_pressedPart == WindowFrameHitTest.MinButton) _pressedPart = 0;
+            cancelPress = _pressedPart == WindowFrameHitTest.MinButton;
         }
         if (!canMaximize)
         {
             if (_hotPart == WindowFrameHitTest.MaxButton) _hotPart = 0;
-            if (_pressedPart == WindowFrameHitTest.MaxButton) _pressedPart = 0;
+            cancelPress |= _pressedPart == WindowFrameHitTest.MaxButton;
         }
-        ApplyVisualState();
+        if (cancelPress) CancelCaptionButtonPress();
+        else ApplyVisualState();
+        CommandManager.InvalidateRequerySuggested();
 
         if (_handle == IntPtr.Zero) return;
         if (IsResizable)
         {
-            _resizeOverlay ??= new WindowResizeOverlay(_handle, IsCaptionButtonPoint);
+            // Overlay 与 owner 均由当前 Dispatcher 线程创建，HTTRANSPARENT 才能继续命中主窗口。
+            _resizeOverlay ??= new WindowResizeOverlay(_handle, GetRoleAtPoint);
             _resizeOverlay.Synchronize();
         }
         else
@@ -463,18 +697,59 @@ public class ChromeWindow : Window
 
     private bool IsResizable => ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip;
 
-    internal bool TryExecuteMinimizeButton(int pressedPart, int releasedPart)
+    internal bool TryExecuteCaptionButton(ChromeHitTestRole pressedRole, ChromeHitTestRole releasedRole)
     {
-        if (ResizeMode == ResizeMode.NoResize
-            || pressedPart != WindowFrameHitTest.MinButton
-            || releasedPart != WindowFrameHitTest.MinButton)
-        {
-            return false;
-        }
+        if (pressedRole != releasedRole || !IsRoleEnabled(pressedRole)) return false;
 
-        SystemCommands.MinimizeWindow(this);
-        return true;
+        switch (pressedRole)
+        {
+            case ChromeHitTestRole.MinimizeButton:
+                SystemCommands.MinimizeWindow(this);
+                return true;
+            case ChromeHitTestRole.MaximizeButton:
+                if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+                else SystemCommands.MaximizeWindow(this);
+                return true;
+            case ChromeHitTestRole.CloseButton:
+                SystemCommands.CloseWindow(this);
+                return true;
+            default:
+                return false;
+        }
     }
+
+    private bool IsRoleEnabled(ChromeHitTestRole role) => role switch
+    {
+        ChromeHitTestRole.MinimizeButton => ResizeMode != ResizeMode.NoResize,
+        ChromeHitTestRole.MaximizeButton => IsResizable,
+        ChromeHitTestRole.CloseButton => true,
+        _ => false,
+    };
+
+    private int RoleToNativePart(ChromeHitTestRole role) => role switch
+    {
+        ChromeHitTestRole.Caption => WindowFrameHitTest.Caption,
+        ChromeHitTestRole.SystemMenu => WindowFrameHitTest.SystemMenu,
+        ChromeHitTestRole.MinimizeButton when ResizeMode != ResizeMode.NoResize => WindowFrameHitTest.MinButton,
+        ChromeHitTestRole.MaximizeButton when ResizeMode != ResizeMode.NoResize => WindowFrameHitTest.MaxButton,
+        ChromeHitTestRole.CloseButton => WindowFrameHitTest.Close,
+        _ => WindowFrameHitTest.Client,
+    };
+
+    private static ChromeHitTestRole NativePartToRole(int part) => part switch
+    {
+        WindowFrameHitTest.Caption => ChromeHitTestRole.Caption,
+        WindowFrameHitTest.SystemMenu => ChromeHitTestRole.SystemMenu,
+        WindowFrameHitTest.MinButton => ChromeHitTestRole.MinimizeButton,
+        WindowFrameHitTest.MaxButton => ChromeHitTestRole.MaximizeButton,
+        WindowFrameHitTest.Close => ChromeHitTestRole.CloseButton,
+        _ => ChromeHitTestRole.Default,
+    };
+
+    private static bool IsCaptionButtonRole(ChromeHitTestRole role) =>
+        role is ChromeHitTestRole.MinimizeButton
+            or ChromeHitTestRole.MaximizeButton
+            or ChromeHitTestRole.CloseButton;
 
     private int VisibleCaptionButtonCount => ResizeMode switch
     {
@@ -484,37 +759,100 @@ public class ChromeWindow : Window
 
     private void ApplyVisualState()
     {
-        if (_titleBar is null || _title is null || _minimize is null || _maximize is null || _close is null) return;
-        var foreground = IsActive ? ActiveTitleBarForeground : InactiveTitleBarForeground;
-        _titleBar.Background = IsActive ? ActiveTitleBarBackground : InactiveTitleBarBackground;
-        _titleBar.BorderBrush = TitleBarBorderBrush;
-        _title.Foreground = foreground;
-        SetButtonVisual(_minimize, WindowFrameHitTest.MinButton, foreground, false);
-        SetButtonVisual(_maximize, WindowFrameHitTest.MaxButton, foreground, false);
-        SetButtonVisual(_close, WindowFrameHitTest.Close, foreground, true);
+        var hoveredRole = NativePartToRole(_hotPart);
+        var pressedOrigin = NativePartToRole(_pressedPart);
+        var pressedRole = pressedOrigin == hoveredRole ? pressedOrigin : ChromeHitTestRole.Default;
+        SetValue(HoveredChromeRolePropertyKey, hoveredRole);
+        SetValue(PressedChromeRolePropertyKey, pressedRole);
+
+        _ = VisualStateManager.GoToState(this, IsActive ? "Active" : "Inactive", true);
+        _ = VisualStateManager.GoToState(this, WindowState switch
+        {
+            WindowState.Maximized => "Maximized",
+            WindowState.Minimized => "Minimized",
+            _ => "NormalWindow",
+        }, true);
+        GoToCaptionButtonState(ChromeHitTestRole.MinimizeButton, "Minimize", hoveredRole, pressedRole);
+        GoToCaptionButtonState(ChromeHitTestRole.MaximizeButton, "Maximize", hoveredRole, pressedRole);
+        GoToCaptionButtonState(ChromeHitTestRole.CloseButton, "Close", hoveredRole, pressedRole);
     }
 
-    private void SetButtonVisual(Border button, int part, Brush foreground, bool close)
+    private void GoToCaptionButtonState(
+        ChromeHitTestRole role,
+        string prefix,
+        ChromeHitTestRole hoveredRole,
+        ChromeHitTestRole pressedRole)
     {
-        button.SetValue(TextElement.ForegroundProperty, foreground);
-        if (!button.IsEnabled)
-        {
-            button.Background = Brushes.Transparent;
-            return;
-        }
-        button.Background = _pressedPart == part
-            ? close ? ClosePressed : ButtonPressed
-            : _hotPart == part
-                ? close ? CloseHover : ButtonHover
-                : Brushes.Transparent;
+        var suffix = !IsRoleEnabled(role)
+            ? "Disabled"
+            : pressedRole == role
+                ? "Pressed"
+                : hoveredRole == role ? "PointerOver" : "Normal";
+        _ = VisualStateManager.GoToState(this, prefix + suffix, true);
+    }
+
+    private void ExecuteMinimizeCommand(object sender, ExecutedRoutedEventArgs eventArgs)
+    {
+        SystemCommands.MinimizeWindow(this);
+        eventArgs.Handled = true;
+    }
+
+    private void CanExecuteMinimizeCommand(object sender, CanExecuteRoutedEventArgs eventArgs)
+    {
+        eventArgs.CanExecute = ResizeMode != ResizeMode.NoResize;
+        eventArgs.Handled = true;
+    }
+
+    private void ExecuteMaximizeCommand(object sender, ExecutedRoutedEventArgs eventArgs)
+    {
+        SystemCommands.MaximizeWindow(this);
+        eventArgs.Handled = true;
+    }
+
+    private void CanExecuteMaximizeCommand(object sender, CanExecuteRoutedEventArgs eventArgs)
+    {
+        eventArgs.CanExecute = IsResizable && WindowState != WindowState.Maximized;
+        eventArgs.Handled = true;
+    }
+
+    private void ExecuteRestoreCommand(object sender, ExecutedRoutedEventArgs eventArgs)
+    {
+        SystemCommands.RestoreWindow(this);
+        eventArgs.Handled = true;
+    }
+
+    private void CanExecuteRestoreCommand(object sender, CanExecuteRoutedEventArgs eventArgs)
+    {
+        eventArgs.CanExecute = WindowState != WindowState.Normal;
+        eventArgs.Handled = true;
+    }
+
+    private void ExecuteCloseCommand(object sender, ExecutedRoutedEventArgs eventArgs)
+    {
+        SystemCommands.CloseWindow(this);
+        eventArgs.Handled = true;
+    }
+
+    private static void CanExecuteAlways(object sender, CanExecuteRoutedEventArgs eventArgs)
+    {
+        eventArgs.CanExecute = true;
+        eventArgs.Handled = true;
+    }
+
+    private void ExecuteShowSystemMenuCommand(object sender, ExecutedRoutedEventArgs eventArgs)
+    {
+        var bounds = _systemMenu is null ? default : GetScreenBounds(_systemMenu);
+        var location = bounds.Width > 0 && bounds.Height > 0
+            ? new Point(bounds.Left, bounds.Bottom)
+            : PointToScreen(new Point(0, TitleBarHeight));
+        SystemCommands.ShowSystemMenu(this, location);
+        eventArgs.Handled = true;
     }
 
     private void OnActivationChanged(object? sender, EventArgs eventArgs) => ApplyVisualState();
 
     private void OnChromeStateChanged(object? sender, EventArgs eventArgs)
     {
-        if (_maximizeGlyph is not null)
-            _maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
         UpdateDpiVisuals();
         ApplyVisualState();
         ScheduleNativeFrameRefresh();
@@ -540,6 +878,53 @@ public class ChromeWindow : Window
         if (changed) ApplyVisualState();
     }
 
+    private void UpdateCapturedCaptionButtonPointer()
+    {
+        var part = GetCaptionButtonPartAtCursor();
+        if (_hotPart == part) return;
+        _hotPart = part;
+        ApplyVisualState();
+    }
+
+    private int GetCaptionButtonPartAtCursor()
+    {
+        if (!NativeWindowMethods.GetCursorPos(out var pointer)) return 0;
+        try
+        {
+            var role = GetRoleAtPoint(pointer);
+            return IsCaptionButtonRole(role) ? RoleToNativePart(role) : 0;
+        }
+        catch (InvalidOperationException)
+        {
+            return 0;
+        }
+        catch (ArgumentException)
+        {
+            return 0;
+        }
+    }
+
+    private void CompleteCaptionButtonPress(int releasedPart)
+    {
+        var pressedPart = _pressedPart;
+        _trackingCaptionButtonPress = false;
+        _ = NativeWindowMethods.ReleaseCapture();
+        _pressedPart = 0;
+        _hotPart = releasedPart;
+        ApplyVisualState();
+        _ = TryExecuteCaptionButton(
+            NativePartToRole(pressedPart),
+            NativePartToRole(releasedPart));
+    }
+
+    private void CancelCaptionButtonPress()
+    {
+        var releaseCapture = _trackingCaptionButtonPress;
+        _trackingCaptionButtonPress = false;
+        if (releaseCapture) _ = NativeWindowMethods.ReleaseCapture();
+        ResetPointerVisualState();
+    }
+
     private void ResetPointerVisualState()
     {
         var changed = _hotPart != 0 || _pressedPart != 0;
@@ -551,9 +936,10 @@ public class ChromeWindow : Window
 
     private void UpdateDpiVisuals()
     {
-        if (_titleBar is null) return;
         var scaleY = VisualTreeHelper.GetDpi(this).DpiScaleY;
-        _titleBar.BorderThickness = new Thickness(0, 0, 0, 1 / (scaleY <= 0 ? 1 : scaleY));
+        SetValue(
+            TitleBarBorderThicknessPropertyKey,
+            new Thickness(0, 0, 0, 1 / (scaleY <= 0 ? 1 : scaleY)));
     }
 
     private void ScheduleNativeFrameRefresh()
@@ -607,11 +993,6 @@ public class ChromeWindow : Window
         }
     }
 
-    private T RequirePart<T>(string name) where T : DependencyObject =>
-        GetTemplateChild(name) as T
-        ?? throw new InvalidOperationException(
-            $"ChromeWindow template must define {name} as {typeof(T).Name}.");
-
     private static NativePoint GetScreenPoint(IntPtr longParameter)
     {
         var packed = longParameter.ToInt64();
@@ -648,6 +1029,12 @@ public class ChromeWindow : Window
 
     private static bool IsPositiveFiniteDouble(object value) => value is double number && IsFinitePositive(number);
 
+    private static bool IsUnitDouble(object value) =>
+        value is double number && number >= 0 && number <= 1 && !double.IsNaN(number);
+
+    private static bool IsDefinedChromeHitTestRole(object value) =>
+        value is ChromeHitTestRole role && Enum.IsDefined(role);
+
     private static bool IsFinitePositive(double value) => value > 0 && !double.IsNaN(value) && !double.IsInfinity(value);
 
     private static Brush FrozenBrush(byte alpha, byte red, byte green, byte blue)
@@ -661,6 +1048,7 @@ public class ChromeWindow : Window
     {
         if (_disposed) return;
         _disposed = true;
+        CancelCaptionButtonPress();
         _resizeOverlay?.Dispose();
         _resizeOverlay = null;
         _source?.RemoveHook(WindowProcedure);
