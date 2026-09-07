@@ -39,11 +39,4 @@ public partial class MainWindow : ChromeWindow
         child.CenterOnTargetMonitor();
         child.ShowDialog();
     }
-
-    private void OnOpenCustomTitleBarClicked(object sender, RoutedEventArgs eventArgs)
-    {
-        var window = new CustomTitleBarWindow { Owner = this };
-        window.CenterOnTargetMonitor();
-        window.Show();
-    }
 }

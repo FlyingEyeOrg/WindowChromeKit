@@ -44,10 +44,6 @@
                 <Button Margin="0,0,12,0" Padding="16,8" Click="OnCenterClicked" Content="Center on target monitor" />
                 <Button Margin="0,0,12,0" Padding="16,8" Click="OnConstrainClicked" Content="Constrain to work area" />
                 <Button Padding="16,8" Click="OnOpenOwnedWindowClicked" Content="Open owned window" />
-                <Button Margin="12,0,0,0"
-                        Padding="16,8"
-                        Click="OnOpenCustomTitleBarClicked"
-                        Content="Open custom title bar" />
             </WrapPanel>
             <TextBox Margin="0,28,0,0"
                      MinHeight="100"

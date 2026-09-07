@@ -64,17 +64,6 @@ internal static class NativeWindowMethods
     internal static extern bool SetForegroundWindow(IntPtr windowHandle);
 
     [DllImport("user32.dll")]
-    internal static extern IntPtr SetCapture(IntPtr windowHandle);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool ReleaseCapture();
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool GetCursorPos(out NativePoint point);
-
-    [DllImport("user32.dll")]
     internal static extern IntPtr MonitorFromWindow(IntPtr windowHandle, uint flags);
 
     [DllImport("user32.dll")]
