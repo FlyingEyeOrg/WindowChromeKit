@@ -120,6 +120,7 @@ public class ChromeWindow : Window
     {
         AllowsTransparency = false;
         WindowStyle = WindowStyle.SingleBorderWindow;
+        ResizeMode = ResizeMode.CanResize;
         UseLayoutRounding = true;
         SnapsToDevicePixels = true;
 

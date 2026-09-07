@@ -18,6 +18,7 @@ public sealed class ChromeWindowTests
 
         Assert.Equal(35, window.TitleBarHeight);
         Assert.Equal(46, window.CaptionButtonWidth);
+        Assert.Equal(ResizeMode.CanResize, window.ResizeMode);
         Assert.IsType<SolidColorBrush>(window.ActiveTitleBarBackground);
         Assert.Throws<ArgumentException>(() => window.TitleBarHeight = 0);
         Assert.Throws<ArgumentException>(() => window.CaptionButtonWidth = double.NaN);
