@@ -324,8 +324,15 @@ public class ChromeWindow : Window
                 ApplyVisualState();
                 break;
             case WmNcLButtonUp:
+                var releasedPart = wordParameter.ToInt32();
+                var pressedPart = _pressedPart;
                 _pressedPart = 0;
                 ApplyVisualState();
+                if (TryExecuteMinimizeButton(pressedPart, releasedPart))
+                {
+                    handled = true;
+                    return IntPtr.Zero;
+                }
                 break;
             case WmNcMouseLeave:
             case WmCancelMode:
@@ -417,10 +424,29 @@ public class ChromeWindow : Window
 
     private void ApplyResizeMode()
     {
+        var canMinimize = ResizeMode != ResizeMode.NoResize;
+        var canMaximize = IsResizable;
+
         if (_minimize is not null)
-            _minimize.Visibility = ResizeMode == ResizeMode.NoResize ? Visibility.Collapsed : Visibility.Visible;
+            _minimize.Visibility = canMinimize ? Visibility.Visible : Visibility.Collapsed;
         if (_maximize is not null)
-            _maximize.Visibility = IsResizable ? Visibility.Visible : Visibility.Collapsed;
+        {
+            _maximize.Visibility = canMinimize ? Visibility.Visible : Visibility.Collapsed;
+            _maximize.IsEnabled = canMaximize;
+            _maximize.Opacity = canMaximize ? 1 : 0.4;
+        }
+
+        if (!canMinimize)
+        {
+            if (_hotPart == WindowFrameHitTest.MinButton) _hotPart = 0;
+            if (_pressedPart == WindowFrameHitTest.MinButton) _pressedPart = 0;
+        }
+        if (!canMaximize)
+        {
+            if (_hotPart == WindowFrameHitTest.MaxButton) _hotPart = 0;
+            if (_pressedPart == WindowFrameHitTest.MaxButton) _pressedPart = 0;
+        }
+        ApplyVisualState();
 
         if (_handle == IntPtr.Zero) return;
         if (IsResizable)
@@ -437,10 +463,22 @@ public class ChromeWindow : Window
 
     private bool IsResizable => ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip;
 
+    internal bool TryExecuteMinimizeButton(int pressedPart, int releasedPart)
+    {
+        if (ResizeMode == ResizeMode.NoResize
+            || pressedPart != WindowFrameHitTest.MinButton
+            || releasedPart != WindowFrameHitTest.MinButton)
+        {
+            return false;
+        }
+
+        SystemCommands.MinimizeWindow(this);
+        return true;
+    }
+
     private int VisibleCaptionButtonCount => ResizeMode switch
     {
         ResizeMode.NoResize => 1,
-        ResizeMode.CanMinimize => 2,
         _ => 3,
     };
 
@@ -459,6 +497,11 @@ public class ChromeWindow : Window
     private void SetButtonVisual(Border button, int part, Brush foreground, bool close)
     {
         button.SetValue(TextElement.ForegroundProperty, foreground);
+        if (!button.IsEnabled)
+        {
+            button.Background = Brushes.Transparent;
+            return;
+        }
         button.Background = _pressedPart == part
             ? close ? ClosePressed : ButtonPressed
             : _hotPart == part

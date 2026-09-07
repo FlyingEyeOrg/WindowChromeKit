@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace WindowChromeKit.Wpf.Tests;
 
@@ -91,18 +92,41 @@ public sealed class ChromeWindowTests
         window.ResizeMode = ResizeMode.CanMinimize;
         window.UpdateLayout();
         Assert.Equal(Visibility.Visible, minimize.Visibility);
-        Assert.Equal(Visibility.Collapsed, maximize.Visibility);
+        Assert.True(minimize.IsEnabled);
+        Assert.Equal(Visibility.Visible, maximize.Visibility);
+        Assert.False(maximize.IsEnabled);
+        Assert.Equal(0.4, maximize.Opacity, 3);
+        Assert.Equal(46 * 3, captionButtons.ActualWidth, 3);
+        var minimizeCenter = minimize.PointToScreen(new Point(minimize.ActualWidth / 2, minimize.ActualHeight / 2));
+        var minimizeHit = NativeWindowMethods.SendMessage(
+            handle,
+            0x0084,
+            IntPtr.Zero,
+            PackScreenPoint(minimizeCenter));
+        Assert.Equal(WindowFrameHitTest.MinButton, minimizeHit.ToInt32());
         Assert.Equal(IntPtr.Zero, window.ResizeOverlayHandle);
         Assert.False(NativeWindowMethods.IsWindow(overlay));
+        Assert.False(window.TryExecuteMinimizeButton(WindowFrameHitTest.MinButton, WindowFrameHitTest.Close));
+        Assert.Equal(WindowState.Normal, window.WindowState);
+        Assert.True(window.TryExecuteMinimizeButton(WindowFrameHitTest.MinButton, WindowFrameHitTest.MinButton));
+        window.Dispatcher.Invoke(DispatcherPriority.Background, () => { });
+        Assert.Equal(WindowState.Minimized, window.WindowState);
+        window.WindowState = WindowState.Normal;
+        window.UpdateLayout();
 
         window.ResizeMode = ResizeMode.NoResize;
         Assert.Equal(Visibility.Collapsed, minimize.Visibility);
         Assert.Equal(Visibility.Collapsed, maximize.Visibility);
+        Assert.False(window.TryExecuteMinimizeButton(WindowFrameHitTest.MinButton, WindowFrameHitTest.MinButton));
+        Assert.Equal(WindowState.Normal, window.WindowState);
 
         window.ResizeMode = ResizeMode.CanResizeWithGrip;
         window.UpdateLayout();
         window.SynchronizeResizeOverlay();
         Assert.NotEqual(IntPtr.Zero, window.ResizeOverlayHandle);
+        Assert.Equal(Visibility.Visible, maximize.Visibility);
+        Assert.True(maximize.IsEnabled);
+        Assert.Equal(1, maximize.Opacity, 3);
         var grip = Assert.IsType<ResizeGrip>(window.Template.FindName("PART_ResizeGrip", window));
         Assert.Equal(Visibility.Visible, grip.Visibility);
 
@@ -147,6 +171,13 @@ public sealed class ChromeWindowTests
             window.Close();
         }
     });
+
+    private static IntPtr PackScreenPoint(Point point)
+    {
+        var x = unchecked((ushort)(short)Math.Round(point.X));
+        var y = unchecked((ushort)(short)Math.Round(point.Y));
+        return new IntPtr(unchecked((int)((uint)x | ((uint)y << 16))));
+    }
 
     private static void RunSta(Action action)
     {
