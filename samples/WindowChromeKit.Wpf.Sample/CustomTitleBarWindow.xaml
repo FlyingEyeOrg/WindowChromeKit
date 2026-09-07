@@ -43,10 +43,11 @@
             </StackPanel>
             <TextBox Grid.Column="2"
                      Width="220"
-                     Height="20"
+                     Height="27"
                      Margin="18,0,8,0"
                      Padding="8,0"
                      FontSize="12"
+                     TextBlock.LineHeight="15"
                      HorizontalAlignment="Right"
                      VerticalAlignment="Center"
                      VerticalContentAlignment="Center"
@@ -54,7 +55,22 @@
                      Background="#F0F4F8"
                      Foreground="#102A43"
                      Text="标题栏中的可交互输入框"
-                     chrome:ChromeWindow.HitTestRole="Client" />
+                     chrome:ChromeWindow.HitTestRole="Client">
+                <TextBox.Template>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          Height="{Binding Path=(TextBlock.LineHeight), RelativeSource={RelativeSource TemplatedParent}}"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </TextBox.Template>
+            </TextBox>
         </Grid>
     </chrome:ChromeWindow.TitleBarContent>
 
