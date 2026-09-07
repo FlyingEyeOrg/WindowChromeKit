@@ -30,18 +30,16 @@ internal sealed class WindowResizeOverlay : IDisposable
     private static bool _classRegistered;
 
     private readonly IntPtr _owner;
-    private readonly Func<NativePoint, ChromeHitTestRole> _getChromeHitTestRole;
+    private readonly Func<NativePoint, bool> _isCaptionButton;
     private IntPtr _handle;
     private bool _disposed;
 
-    internal WindowResizeOverlay(
-        IntPtr owner,
-        Func<NativePoint, ChromeHitTestRole> getChromeHitTestRole)
+    internal WindowResizeOverlay(IntPtr owner, Func<NativePoint, bool> isCaptionButton)
     {
         if (owner == IntPtr.Zero) throw new ArgumentException("Owner HWND 不能为空。", nameof(owner));
-        ArgumentNullException.ThrowIfNull(getChromeHitTestRole);
+        ArgumentNullException.ThrowIfNull(isCaptionButton);
         _owner = owner;
-        _getChromeHitTestRole = getChromeHitTestRole;
+        _isCaptionButton = isCaptionButton;
         RegisterWindowClass();
         _handle = NativeWindowMethods.CreateWindowEx(
             WindowExStyleNoRedirectionBitmap | WindowExStyleNoActivate | WindowExStyleToolWindow,
@@ -163,42 +161,11 @@ internal sealed class WindowResizeOverlay : IDisposable
         var pointer = new NativePoint(
             unchecked((short)(packed & 0xffff)),
             unchecked((short)((packed >> 16) & 0xffff)));
+        if (_isCaptionButton(pointer)) return HitTransparent;
         if (!NativeWindowMethods.GetWindowRect(_handle, out var bounds)) return WindowFrameHitTest.Client;
         var (borderX, borderY) = GetResizeBorder();
-        var hit = EvaluateHit(pointer, bounds, borderX, borderY);
-        return IsResizeHit(hit) && ShouldPassThroughToOwner(pointer)
-            ? HitTransparent
-            : hit;
+        return EvaluateHit(pointer, bounds, borderX, borderY);
     }
-
-    private bool ShouldPassThroughToOwner(NativePoint pointer)
-    {
-        // Overlay 的左右和底部位于 owner 外侧；这些位置不能查询 WPF 角色，
-        // 否则落空的 InputHitTest 可能被误判为 Client 并破坏正常缩放。
-        if (!NativeWindowMethods.GetWindowRect(_owner, out var ownerBounds)
-            || !Contains(ownerBounds, pointer))
-        {
-            return false;
-        }
-
-        try
-        {
-            return IsInteractiveChromeRole(_getChromeHitTestRole(pointer));
-        }
-        catch (Exception exception)
-        {
-            // 模板重载或窗口销毁期间优先保留原 resize 命中，避免制造输入死区。
-            Debug.WriteLine(exception);
-            return false;
-        }
-    }
-
-    internal static bool IsInteractiveChromeRole(ChromeHitTestRole role) => role is
-        ChromeHitTestRole.Client
-        or ChromeHitTestRole.SystemMenu
-        or ChromeHitTestRole.MinimizeButton
-        or ChromeHitTestRole.MaximizeButton
-        or ChromeHitTestRole.CloseButton;
 
     internal static NativeRectangle CalculateBounds(NativeRectangle owner, int borderX, int borderY)
     {
@@ -249,10 +216,6 @@ internal sealed class WindowResizeOverlay : IDisposable
 
     private static bool IsResizeHit(int hit) =>
         hit is >= WindowFrameHitTest.Left and <= WindowFrameHitTest.BottomRight;
-
-    private static bool Contains(NativeRectangle bounds, NativePoint point) =>
-        point.X >= bounds.Left && point.X < bounds.Right
-        && point.Y >= bounds.Top && point.Y < bounds.Bottom;
 
     private static void RegisterWindowClass()
     {

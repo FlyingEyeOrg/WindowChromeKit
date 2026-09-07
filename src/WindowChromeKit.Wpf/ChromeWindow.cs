@@ -661,6 +661,25 @@ public class ChromeWindow : Window
         return ChromeHitTestRole.Client;
     }
 
+    private bool IsCaptionButtonPoint(NativePoint pointer)
+    {
+        try
+        {
+            var role = GetRoleAtPoint(pointer);
+            return role is ChromeHitTestRole.MinimizeButton
+                or ChromeHitTestRole.MaximizeButton
+                or ChromeHitTestRole.CloseButton;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
     private void ApplyResizeMode()
     {
         var canMinimize = ResizeMode != ResizeMode.NoResize;
@@ -684,8 +703,7 @@ public class ChromeWindow : Window
         if (_handle == IntPtr.Zero) return;
         if (IsResizable)
         {
-            // Overlay 与 owner 均由当前 Dispatcher 线程创建，HTTRANSPARENT 才能继续命中主窗口。
-            _resizeOverlay ??= new WindowResizeOverlay(_handle, GetRoleAtPoint);
+            _resizeOverlay ??= new WindowResizeOverlay(_handle, IsCaptionButtonPoint);
             _resizeOverlay.Synchronize();
         }
         else
