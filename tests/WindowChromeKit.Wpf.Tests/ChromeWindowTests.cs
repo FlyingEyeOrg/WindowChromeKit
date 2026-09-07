@@ -43,11 +43,13 @@ public sealed class ChromeWindowTests
         window.SynchronizeResizeOverlay();
 
         var titleBar = Assert.IsType<Border>(window.Template.FindName(ChromeWindow.PartTitleBar, window));
+        var title = Assert.IsType<TextBlock>(window.Template.FindName(ChromeWindow.PartTitle, window));
         var minimize = Assert.IsType<Border>(window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
         var maximize = Assert.IsType<Border>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
         var close = Assert.IsType<Border>(window.Template.FindName(ChromeWindow.PartCloseButton, window));
         Assert.Equal(35, titleBar.ActualHeight, 3);
         Assert.Equal(46, close.ActualWidth, 3);
+        Assert.Same(window.InactiveTitleBarForeground, title.Foreground);
         Assert.True(content.ActualWidth > 0);
         Assert.True(content.ActualHeight > 0);
         Assert.Equal(Visibility.Visible, minimize.Visibility);
@@ -60,6 +62,31 @@ public sealed class ChromeWindowTests
         Assert.True(NativeWindowMethods.GetClientRect(handle, out var client));
         Assert.Equal(bounds.Width, client.Width);
         Assert.Equal(bounds.Height, client.Height);
+        var clientOrigin = new NativePoint(0, 0);
+        Assert.True(NativeWindowMethods.ClientToScreen(handle, ref clientOrigin));
+        var titleOrigin = titleBar.PointToScreen(new Point());
+        var titleBottom = titleBar.PointToScreen(new Point(0, titleBar.ActualHeight));
+        var contentOrigin = content.PointToScreen(new Point());
+        var contentOpposite = content.PointToScreen(new Point(content.ActualWidth, content.ActualHeight));
+        Assert.InRange(Math.Abs(titleOrigin.X - clientOrigin.X), 0, 1);
+        Assert.InRange(Math.Abs(titleOrigin.Y - clientOrigin.Y), 0, 1);
+        Assert.InRange(Math.Abs(contentOrigin.X - clientOrigin.X), 0, 1);
+        Assert.InRange(Math.Abs(contentOrigin.Y - titleBottom.Y), 0, 1);
+        Assert.InRange(Math.Abs(contentOpposite.X - (clientOrigin.X + client.Width)), 0, 1);
+        Assert.InRange(Math.Abs(contentOpposite.Y - (clientOrigin.Y + client.Height)), 0, 1);
+
+        window.Width = 1;
+        window.UpdateLayout();
+        var captionButtons = Assert.IsType<StackPanel>(VisualTreeHelper.GetParent(minimize));
+        Assert.Equal(46 * 3, captionButtons.ActualWidth, 3);
+        Assert.True(NativeWindowMethods.GetClientRect(handle, out var narrowClient));
+        var narrowOrigin = new NativePoint(0, 0);
+        Assert.True(NativeWindowMethods.ClientToScreen(handle, ref narrowOrigin));
+        var captionRight = captionButtons.PointToScreen(new Point(captionButtons.ActualWidth, 0));
+        Assert.InRange(Math.Abs(captionRight.X - (narrowOrigin.X + narrowClient.Width)), 0, 1);
+
+        window.Width = 800;
+        window.UpdateLayout();
 
         window.ResizeMode = ResizeMode.CanMinimize;
         window.UpdateLayout();

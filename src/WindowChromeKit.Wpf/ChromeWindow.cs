@@ -15,6 +15,7 @@ namespace WindowChromeKit.Wpf;
 /// </summary>
 [TemplatePart(Name = PartTitleBar, Type = typeof(Border))]
 [TemplatePart(Name = PartIcon, Type = typeof(FrameworkElement))]
+[TemplatePart(Name = PartTitle, Type = typeof(TextBlock))]
 [TemplatePart(Name = PartMinimizeButton, Type = typeof(Border))]
 [TemplatePart(Name = PartMaximizeButton, Type = typeof(Border))]
 [TemplatePart(Name = PartCloseButton, Type = typeof(Border))]
@@ -22,6 +23,7 @@ public class ChromeWindow : Window
 {
     internal const string PartTitleBar = "PART_TitleBar";
     internal const string PartIcon = "PART_Icon";
+    internal const string PartTitle = "PART_Title";
     internal const string PartMinimizeButton = "PART_MinimizeButton";
     internal const string PartMaximizeButton = "PART_MaximizeButton";
     internal const string PartCloseButton = "PART_CloseButton";
@@ -90,6 +92,7 @@ public class ChromeWindow : Window
 
     private Border? _titleBar;
     private FrameworkElement? _icon;
+    private TextBlock? _title;
     private Border? _minimize;
     private Border? _maximize;
     private Border? _close;
@@ -182,6 +185,7 @@ public class ChromeWindow : Window
         base.OnApplyTemplate();
         _titleBar = RequirePart<Border>(PartTitleBar);
         _icon = RequirePart<FrameworkElement>(PartIcon);
+        _title = RequirePart<TextBlock>(PartTitle);
         _minimize = RequirePart<Border>(PartMinimizeButton);
         _maximize = RequirePart<Border>(PartMaximizeButton);
         _close = RequirePart<Border>(PartCloseButton);
@@ -442,10 +446,11 @@ public class ChromeWindow : Window
 
     private void ApplyVisualState()
     {
-        if (_titleBar is null || _minimize is null || _maximize is null || _close is null) return;
+        if (_titleBar is null || _title is null || _minimize is null || _maximize is null || _close is null) return;
         var foreground = IsActive ? ActiveTitleBarForeground : InactiveTitleBarForeground;
         _titleBar.Background = IsActive ? ActiveTitleBarBackground : InactiveTitleBarBackground;
         _titleBar.BorderBrush = TitleBarBorderBrush;
+        _title.Foreground = foreground;
         SetButtonVisual(_minimize, WindowFrameHitTest.MinButton, foreground, false);
         SetButtonVisual(_maximize, WindowFrameHitTest.MaxButton, foreground, false);
         SetButtonVisual(_close, WindowFrameHitTest.Close, foreground, true);

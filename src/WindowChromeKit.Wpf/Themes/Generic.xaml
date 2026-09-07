@@ -13,7 +13,7 @@
                           ClipToBounds="True"
                           SnapsToDevicePixels="True">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="{TemplateBinding TitleBarHeight}" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
@@ -36,7 +36,8 @@
                                                IsHitTestVisible="False"
                                                Source="{TemplateBinding Icon}"
                                                Stretch="Uniform" />
-                                        <TextBlock Margin="0"
+                                        <TextBlock x:Name="PART_Title"
+                                                   Margin="0"
                                                    VerticalAlignment="Center"
                                                    HorizontalAlignment="Left"
                                                    FontFamily="Segoe UI"
