@@ -133,6 +133,23 @@ dotnet test WindowChromeKit.sln
 dotnet run --project samples/WindowChromeKit.Wpf.Sample/WindowChromeKit.Wpf.Sample.csproj
 ```
 
+## CI/CD 与 NuGet 发布
+
+仓库通过 GitHub Actions 在 `main` 分支推送和 Pull Request 时执行 Release 构建、测试及
+NuGet 打包校验。构建产物会以 `nuget-packages` 上传到对应的工作流运行记录。
+
+自动发布沿用 FlyingEyeOrg 项目的统一约定：在仓库的 `production` environment 中配置
+`NUGET_API_KEY` secret，然后推送 `v` 开头的 SemVer 标签：
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+发布工作流也支持手动运行；可填写 `package_version`，留空时使用项目中的
+`VersionPrefix`。工作流会生成 `WindowChromeKit.Wpf.<版本>.nupkg` 和对应的 `.snupkg`，并
+发布到 NuGet.org。已经存在的相同版本会通过 `--skip-duplicate` 安全跳过。
+
 建议手动验证所有边缘和四个角的缩放行为，并检查 Snap、最大化/还原，以及窗口在
 100%、125%、150% 和 200% 缩放的多显示器之间移动时的表现。标题栏按钮应始终能在其
 完整高度范围内点击。

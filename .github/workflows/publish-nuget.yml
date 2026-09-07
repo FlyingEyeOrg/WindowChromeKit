@@ -1,0 +1,98 @@
+name: Publish NuGet
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      package_version:
+        description: "手动发布的包版本，例如 1.0.1；留空时使用 VersionPrefix"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-nuget-${{ github.ref }}-${{ inputs.package_version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pack and publish
+    runs-on: windows-latest
+    environment: production
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Determine package version
+        id: version
+        shell: pwsh
+        run: |
+          $manualVersion = "${{ inputs.package_version }}"
+
+          if (-not [string]::IsNullOrWhiteSpace($manualVersion)) {
+              $packageVersion = $manualVersion.Trim()
+          }
+          elseif ($env:GITHUB_REF -like "refs/tags/v*") {
+              $packageVersion = $env:GITHUB_REF_NAME.Substring(1)
+          }
+          else {
+              [xml]$project = Get-Content "src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj"
+              $packageVersion = [string]$project.Project.PropertyGroup.VersionPrefix
+          }
+
+          if ($packageVersion -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+              throw "无效的 NuGet 版本：$packageVersion"
+          }
+
+          "value=$packageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Validate NuGet API key
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) {
+              throw "production environment 未配置 NUGET_API_KEY。"
+          }
+
+      - name: Restore
+        run: dotnet restore WindowChromeKit.sln
+
+      - name: Build
+        run: dotnet build WindowChromeKit.sln -c Release --no-restore -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        run: dotnet test WindowChromeKit.sln -c Release --no-build --no-restore
+
+      - name: Pack WindowChromeKit.Wpf
+        run: dotnet pack src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.value }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: WindowChromeKit.Wpf-${{ steps.version.outputs.value }}
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+
+      - name: Push to NuGet.org
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "artifacts/WindowChromeKit.Wpf.${{ steps.version.outputs.value }}.nupkg" `
+            --source "https://api.nuget.org/v3/index.json" `
+            --api-key $env:NUGET_API_KEY `
+            --skip-duplicate
