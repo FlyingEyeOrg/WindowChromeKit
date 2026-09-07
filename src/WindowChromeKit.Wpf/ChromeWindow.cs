@@ -186,7 +186,8 @@ public class ChromeWindow : Window
         AllowsTransparency = false;
         WindowStyle = WindowStyle.SingleBorderWindow;
         ResizeMode = ResizeMode.CanResize;
-        UseLayoutRounding = true;
+        // 不在窗口根级强制布局取整，否则奇数标题栏中嵌套偶数高度控件时，
+        // 两层居中产生的半像素会分别取整，最终累积为一个像素的垂直偏差。
         SnapsToDevicePixels = true;
 
         SourceInitialized += OnChromeSourceInitialized;

@@ -21,6 +21,7 @@ public sealed class ChromeWindowTests
         Assert.Equal(35, window.TitleBarHeight);
         Assert.Equal(46, window.CaptionButtonWidth);
         Assert.Equal(ResizeMode.CanResize, window.ResizeMode);
+        Assert.False(window.UseLayoutRounding);
         Assert.Equal(ChromeHitTestRole.Default, window.HoveredChromeRole);
         Assert.Equal(ChromeHitTestRole.Default, window.PressedChromeRole);
         Assert.Equal(0.4, window.CaptionButtonDisabledOpacity);
@@ -67,6 +68,58 @@ public sealed class ChromeWindowTests
 
         ChromeWindow.SetHitTestRole(interactive, ChromeHitTestRole.SystemMenu);
         Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, interactive));
+        window.Close();
+    });
+
+    [Fact]
+    public void EvenHeightTitleBarTextBoxKeepsItsTextAlignedWithButtonText() => RunSta(() =>
+    {
+        var textBox = new TextBox
+        {
+            Width = 220,
+            Height = 20,
+            Padding = new Thickness(8, 0, 8, 0),
+            FontSize = 12,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Text = "标题栏输入框",
+        };
+        ChromeWindow.SetHitTestRole(textBox, ChromeHitTestRole.Client);
+        var titleContent = new Grid { Background = Brushes.Transparent };
+        titleContent.Children.Add(textBox);
+        var action = new Button
+        {
+            Width = 74,
+            Height = 27,
+            Padding = new Thickness(8, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Content = "操作",
+        };
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            TitleBarContent = titleContent,
+            TitleBarActions = action,
+        };
+
+        _ = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var textBoxView = Assert.IsAssignableFrom<UIElement>(
+            FindVisualDescendant(textBox, element => element.GetType().Name == "TextBoxView"));
+        var buttonText = Assert.IsType<TextBlock>(
+            FindVisualDescendant(action, element => element is TextBlock));
+        var textBoxCenter = textBoxView.PointToScreen(
+            new Point(0, textBoxView.RenderSize.Height / 2));
+        var buttonTextCenter = buttonText.PointToScreen(
+            new Point(0, buttonText.RenderSize.Height / 2));
+
+        Assert.InRange(Math.Abs(textBoxCenter.Y - buttonTextCenter.Y), 0, 0.25);
         window.Close();
     });
 
@@ -335,6 +388,19 @@ public sealed class ChromeWindowTests
 
     private static int SendHitTest(IntPtr handle, Point point) =>
         NativeWindowMethods.SendMessage(handle, 0x0084, IntPtr.Zero, PackScreenPoint(point)).ToInt32();
+
+    private static DependencyObject? FindVisualDescendant(
+        DependencyObject root,
+        Func<DependencyObject, bool> predicate)
+    {
+        if (predicate(root)) return root;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var result = FindVisualDescendant(VisualTreeHelper.GetChild(root, index), predicate);
+            if (result is not null) return result;
+        }
+        return null;
+    }
 
     private static void RunSta(Action action)
     {
