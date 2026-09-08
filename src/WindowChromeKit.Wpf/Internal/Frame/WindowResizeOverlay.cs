@@ -45,7 +45,8 @@ internal sealed class WindowResizeOverlay : IDisposable
         Func<NativePoint, ChromeHitTestRole> getChromeHitTestRole)
     {
         if (owner == IntPtr.Zero) throw new ArgumentException("Owner HWND 不能为空。", nameof(owner));
-        ArgumentNullException.ThrowIfNull(getChromeHitTestRole);
+        if (getChromeHitTestRole is null)
+            throw new ArgumentNullException(nameof(getChromeHitTestRole));
         _owner = owner;
         _getChromeHitTestRole = getChromeHitTestRole;
         RegisterWindowClass();

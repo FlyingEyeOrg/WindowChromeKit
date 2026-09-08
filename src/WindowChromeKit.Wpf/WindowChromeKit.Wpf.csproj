@@ -1,32 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
-    <PackageId>WindowChromeKit.Wpf</PackageId>
-    <VersionPrefix>1.0.0</VersionPrefix>
-    <Authors>FlyingEyeOrg</Authors>
-    <Title>WindowChromeKit.Wpf</Title>
-    <Description>面向 .NET 8 的可模板化 WPF 自定义窗口程序集，支持原生窗口拖动、缩放、系统菜单、DWM 阴影和 Snap Layout。</Description>
-    <PackageTags>WPF;Window;WindowChrome;Desktop</PackageTags>
-    <PackageProjectUrl>https://github.com/FlyingEyeOrg/WindowChromeKit</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/FlyingEyeOrg/WindowChromeKit.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>net6.0-windows;net8.0-windows;net472;net48</TargetFrameworks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWPF>true</UseWPF>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+		<PackageId>WindowChromeKit.Wpf</PackageId>
+		<VersionPrefix>1.0.0</VersionPrefix>
+		<Authors>FlyingEyeOrg</Authors>
+		<Title>WindowChromeKit.Wpf</Title>
+		<Description>面向 .NET 8 的可模板化 WPF 自定义窗口程序集，支持原生窗口拖动、缩放、系统菜单、DWM 阴影和 Snap Layout。</Description>
+		<PackageTags>WPF;Window;WindowChrome;Desktop</PackageTags>
+		<PackageProjectUrl>https://github.com/FlyingEyeOrg/WindowChromeKit</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/FlyingEyeOrg/WindowChromeKit.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Resource Include="Assets\Windows7WindowIcon.ico" />
-    <Resource Include="Assets\Windows10WindowIcon.ico" />
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
-  </ItemGroup>
+	<ItemGroup>
+		<Resource Include="Assets\Windows7WindowIcon.ico" />
+		<Resource Include="Assets\Windows10WindowIcon.ico" />
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
 
 </Project>

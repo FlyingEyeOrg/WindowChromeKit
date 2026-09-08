@@ -377,14 +377,16 @@ public class ChromeWindow : Window
     /// <summary>设置元素参与标题栏原生命中测试的角色。</summary>
     public static void SetHitTestRole(DependencyObject element, ChromeHitTestRole value)
     {
-        ArgumentNullException.ThrowIfNull(element);
+        if (element is null)
+            throw new ArgumentNullException(nameof(element));
         element.SetValue(HitTestRoleProperty, value);
     }
 
     /// <summary>获取元素当前生效的标题栏原生命中测试角色。</summary>
     public static ChromeHitTestRole GetHitTestRole(DependencyObject element)
     {
-        ArgumentNullException.ThrowIfNull(element);
+        if (element is null)
+            throw new ArgumentNullException(nameof(element));
         return (ChromeHitTestRole)element.GetValue(HitTestRoleProperty);
     }
 
@@ -1069,7 +1071,7 @@ public class ChromeWindow : Window
         value is double number && number >= 0 && number <= 1 && !double.IsNaN(number);
 
     private static bool IsDefinedChromeHitTestRole(object value) =>
-        value is ChromeHitTestRole role && Enum.IsDefined(role);
+        value is ChromeHitTestRole role && Enum.IsDefined(typeof(ChromeHitTestRole), role);
 
     private static bool IsFinitePositive(double value) => value > 0 && !double.IsNaN(value) && !double.IsInfinity(value);
 
