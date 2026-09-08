@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace WindowChromeKit.Wpf.Sample;
 
@@ -33,10 +32,10 @@ public partial class CustomTitleBarWindow : ChromeWindow
     private void OnUseWpfIconClicked(object sender, RoutedEventArgs eventArgs) => Icon = null;
 
     private void OnUseWindows7IconClicked(object sender, RoutedEventArgs eventArgs) =>
-        Icon = LoadLibraryIcon("Windows7WindowIcon.ico");
+        Icon = WindowChromeIcons.Windows7;
 
     private void OnUseWindows10IconClicked(object sender, RoutedEventArgs eventArgs) =>
-        Icon = LoadLibraryIcon("Windows10WindowIcon.ico");
+        Icon = WindowChromeIcons.Windows10;
 
     private void OnShowTitleBarIconClicked(object sender, RoutedEventArgs eventArgs)
     {
@@ -55,12 +54,4 @@ public partial class CustomTitleBarWindow : ChromeWindow
     private static Brush BrushFrom(string value) =>
         (Brush)new BrushConverter().ConvertFromString(value)!;
 
-    private static BitmapFrame LoadLibraryIcon(string fileName)
-    {
-        var icon = BitmapFrame.Create(new Uri(
-            $"pack://application:,,,/WindowChromeKit.Wpf;component/Assets/{fileName}",
-            UriKind.Absolute));
-        if (icon.CanFreeze) icon.Freeze();
-        return icon;
-    }
 }

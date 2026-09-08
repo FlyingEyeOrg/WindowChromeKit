@@ -27,7 +27,7 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
     x:Class="MyApp.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:chrome="clr-namespace:WindowChromeKit.Wpf;assembly=WindowChromeKit.Wpf"
+    xmlns:chrome="https://windowchromekit.dev/wpf"
     Title="My application"
     Width="900"
     Height="600"
@@ -37,13 +37,35 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
 </chrome:ChromeWindow>
 ```
 
+`https://windowchromekit.dev/wpf` 是程序集注册的 XAML 命名空间标识，仅用于将 XAML 类型映射到
+`WindowChromeKit.Wpf` 命名空间，不会访问网络。使用 NuGet 包或项目引用时都可以保持不变。
+
 `ChromeWindow` 不会为 `Window.Icon` 注入默认值：未设置 `Icon` 或显式使用
 `Icon="{x:Null}"` 时，仍由 WPF 使用项目的 `<ApplicationIcon>`；项目没有配置应用程序图标时，
-则使用 Windows 默认图标。程序集额外提供两个可选资源，应用可按需显式引用：
+则使用 Windows 默认图标。
+
+推荐由宿主应用配置自己的应用程序图标：
 
 ```xml
-Icon="/WindowChromeKit.Wpf;component/Assets/Windows7WindowIcon.ico"
-Icon="/WindowChromeKit.Wpf;component/Assets/Windows10WindowIcon.ico"
+<!-- MyApp.csproj -->
+<PropertyGroup>
+    <ApplicationIcon>Assets\App.ico</ApplicationIcon>
+</PropertyGroup>
+```
+
+然后在窗口中省略 `Icon`，或显式使用 `Icon="{x:Null}"`。程序集也额外提供两个可选资源，应用
+可以通过 `WindowChromeIcons` 按需显式引用。图标采用独立的懒加载，只有首次访问对应属性时才会
+加载对应的 `.ico` 文件：
+
+```xml
+Icon="{x:Static chrome:WindowChromeIcons.Windows7}"
+Icon="{x:Static chrome:WindowChromeIcons.Windows10}"
+```
+
+也可以在后台代码中使用：
+
+```csharp
+Icon = WindowChromeIcons.Windows10;
 ```
 
 后台代码继承相同的基类：

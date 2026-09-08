@@ -54,6 +54,20 @@ public sealed class ChromeWindowTests
     });
 
     [Fact]
+    public void BuiltInWindowIconsAreLoadedLazilyAndCached() => RunSta(() =>
+    {
+        var windows7 = WindowChromeIcons.Windows7;
+        var windows10 = WindowChromeIcons.Windows10;
+
+        Assert.Same(windows7, WindowChromeIcons.Windows7);
+        Assert.Same(windows10, WindowChromeIcons.Windows10);
+        Assert.True(windows7.Width > 0);
+        Assert.True(windows7.Height > 0);
+        Assert.True(windows10.Width > 0);
+        Assert.True(windows10.Height > 0);
+    });
+
+    [Fact]
     public void TitleBarSlotsAndInheritedRolesKeepInteractiveControlsInClientArea() => RunSta(() =>
     {
         var interactive = new Border
@@ -222,7 +236,7 @@ public sealed class ChromeWindowTests
             <ControlTemplate
                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                xmlns:chrome="clr-namespace:WindowChromeKit.Wpf;assembly=WindowChromeKit.Wpf"
+                xmlns:chrome="https://windowchromekit.dev/wpf"
                 TargetType="{x:Type chrome:ChromeWindow}">
                 <Grid Background="White" />
             </ControlTemplate>
