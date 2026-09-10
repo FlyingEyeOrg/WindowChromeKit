@@ -30,7 +30,8 @@ internal sealed class ChromeFrameController
     private const uint WmDwmCompositionChanged = 0x031E;
     private const uint WmDpiChanged = 0x02E0;
     private const int SpiSetWorkArea = 0x002F;
-    private readonly ChromeWindow _owner;
+    private readonly IChromeFrameHost _host;
+    private readonly ChromeInputController _input;
     private HwndSource? _source;
     private WindowResizeOverlay? _resizeOverlay;
     private IntPtr _handle;
@@ -39,7 +40,11 @@ internal sealed class ChromeFrameController
     private bool _refreshingNativeFrame;
     private bool _disposed;
 
-    internal ChromeFrameController(ChromeWindow owner) => _owner = owner;
+    internal ChromeFrameController(IChromeFrameHost host, ChromeInputController input)
+    {
+        _host = host;
+        _input = input;
+    }
 
     internal IntPtr Handle => _handle;
 
@@ -52,7 +57,7 @@ internal sealed class ChromeFrameController
         _handle = handle;
         // 未渲染区域用窗口背景色兜底，避免 resize 时露出默认帧或桌面。
         if (_source?.CompositionTarget is { } target)
-            target.BackgroundColor = ResolveCompositionBackgroundColor();
+            target.BackgroundColor = _host.CompositionBackgroundColor;
         _source?.AddHook(WindowProcedure);
     }
 
@@ -62,7 +67,7 @@ internal sealed class ChromeFrameController
         if (_disposed)
             return;
         _disposed = true;
-        _owner.CancelCaptionButtonPress();
+        _input.CancelCaptionButtonPress();
         _resizeOverlay?.Dispose();
         _resizeOverlay = null;
         _source?.RemoveHook(WindowProcedure);
@@ -79,7 +84,7 @@ internal sealed class ChromeFrameController
         if (isResizable)
         {
             // Overlay 与 owner 均由当前 Dispatcher 线程创建，HTTRANSPARENT 才能继续命中主窗口。
-            _resizeOverlay ??= new WindowResizeOverlay(_handle, _owner.GetRoleAtPoint);
+            _resizeOverlay ??= new WindowResizeOverlay(_handle, _input.GetRoleAtPoint);
             _resizeOverlay.Synchronize();
         }
         else
@@ -95,7 +100,7 @@ internal sealed class ChromeFrameController
         if (_disposed || _handle == IntPtr.Zero || _nativeFrameRefreshPending)
             return;
         _nativeFrameRefreshPending = true;
-        _owner.Dispatcher.BeginInvoke(
+        _host.Dispatcher.BeginInvoke(
             DispatcherPriority.Render,
             new Action(() =>
             {
@@ -133,7 +138,7 @@ internal sealed class ChromeFrameController
                     | NativeWindowMethods.SwpNoSize
                     | NativeWindowMethods.SwpNoMove
             );
-            _owner.RefreshLayout();
+            _host.RefreshLayout();
             _resizeOverlay?.Synchronize();
         }
         finally
@@ -141,12 +146,6 @@ internal sealed class ChromeFrameController
             _refreshingNativeFrame = false;
         }
     }
-
-    /// <summary>窗口背景不透明时，用窗口背景色兜底未渲染区域；否则保留玻璃透明。</summary>
-    private Color ResolveCompositionBackgroundColor() =>
-        _owner.Background is SolidColorBrush { Color.A: 0xFF } brush
-            ? brush.Color
-            : Colors.Transparent;
 
     /// <summary>原生窗口过程：只处理 frame 与输入路由，业务逻辑仍留在 ChromeWindow。</summary>
     private IntPtr WindowProcedure(
@@ -170,11 +169,11 @@ internal sealed class ChromeFrameController
                 if (wordParameter == IntPtr.Zero)
                     _resizeOverlay?.Hide();
                 else if (!_inSizeMove)
-                    _owner.Dispatcher.BeginInvoke(() => _resizeOverlay?.Synchronize());
+                    _host.Dispatcher.BeginInvoke(() => _resizeOverlay?.Synchronize());
                 break;
             case WmNcHitTest:
                 handled = true;
-                return new IntPtr(_owner.HitTest(GetScreenPoint(longParameter)));
+                return new IntPtr(_input.HitTest(GetScreenPoint(longParameter)));
             case WmWindowPosChanged:
                 if (!_inSizeMove)
                     _resizeOverlay?.Synchronize();
@@ -191,65 +190,65 @@ internal sealed class ChromeFrameController
                 _resizeOverlay?.Synchronize();
                 break;
             case WmDpiChanged:
-                _owner.Dispatcher.BeginInvoke(() =>
+                _host.Dispatcher.BeginInvoke(() =>
                 {
-                    _owner.UpdateDpiVisuals();
+                    _host.OnFrameDpiChanged();
                     ScheduleNativeFrameRefresh();
                 });
                 break;
             case WmDisplayChange:
             case WmSettingChange:
-                _owner.Dispatcher.BeginInvoke(() =>
+                _host.Dispatcher.BeginInvoke(() =>
                 {
-                    _owner.UpdateDpiVisuals();
+                    _host.OnFrameDpiChanged();
                     ScheduleNativeFrameRefresh();
                     if (
                         (uint)message == WmDisplayChange
                         || wordParameter.ToInt64() == SpiSetWorkArea
                     )
-                        _owner.NotifyDisplayConfigurationChanged();
+                        _host.OnDisplayConfigurationChanged();
                 });
                 break;
             case WmNcMouseMove:
-                _owner.ObserveNonClientMove(wordParameter.ToInt32());
+                _input.ObserveNonClientMove(wordParameter.ToInt32());
                 break;
             case WmNcLButtonDown:
-                if (_owner.HandleNcLButtonDown(window, wordParameter.ToInt32()))
+                if (_input.HandleNcLButtonDown(window, wordParameter.ToInt32()))
                 {
                     handled = true;
                     return IntPtr.Zero;
                 }
                 break;
             case WmNcLButtonUp:
-                if (_owner.HandleNcLButtonUp(wordParameter.ToInt32()))
+                if (_input.HandleNcLButtonUp(wordParameter.ToInt32()))
                 {
                     handled = true;
                     return IntPtr.Zero;
                 }
                 break;
             case WmMouseMove:
-                if (_owner.HandleMouseMove())
+                if (_input.HandleMouseMove())
                 {
                     handled = true;
                     return IntPtr.Zero;
                 }
                 break;
             case WmLButtonUp:
-                if (_owner.HandleLButtonUp())
+                if (_input.HandleLButtonUp())
                 {
                     handled = true;
                     return IntPtr.Zero;
                 }
                 break;
             case WmNcMouseLeave:
-                if (!_owner.IsTrackingCaptionButtonPress)
-                    _owner.ResetPointerVisualState();
+                if (!_input.IsTrackingCaptionButtonPress)
+                    _input.ResetPointerVisualState();
                 break;
             case WmCancelMode:
-                _owner.CancelCaptionButtonPress();
+                _input.CancelCaptionButtonPress();
                 break;
             case WmCaptureChanged:
-                _owner.HandleCaptureChanged();
+                _input.HandleCaptureChanged();
                 break;
         }
         return IntPtr.Zero;
@@ -275,8 +274,8 @@ internal sealed class ChromeFrameController
             WindowFrameHitTest.CalculateMinimumTrackWidth(
                 limits.MinTrackSize.X,
                 systemMinimum,
-                _owner.IsResizable ? resizeBorderWidth : 0,
-                _owner.CaptionButtonWidth * _owner.VisibleCaptionButtonCount,
+                _host.IsResizable ? resizeBorderWidth : 0,
+                _host.CaptionButtonsWidth,
                 dpi
             ),
             limits.MinTrackSize.Y

@@ -9,13 +9,16 @@ internal sealed class ChromeInputController
 {
     private const uint TmeLeave = 0x00000002;
     private const uint TmeNonClient = 0x00000010;
-    private readonly ChromeWindow _owner;
+    private readonly IChromeFrameHost _host;
     private int _hotPart;
     private int _pressedPart;
     private bool _trackingCaptionButtonPress;
     private bool _trackingMouse;
 
-    internal ChromeInputController(ChromeWindow owner) => _owner = owner;
+    internal ChromeInputController(IChromeFrameHost host) => _host = host;
+
+    /// <summary>返回屏幕点的语义角色，供外置 resize overlay 判断是否需要穿透。</summary>
+    internal ChromeHitTestRole GetRoleAtPoint(NativePoint point) => _host.HitTestFrame(point);
 
     internal bool IsTrackingCaptionButtonPress => _trackingCaptionButtonPress;
 
@@ -28,7 +31,7 @@ internal sealed class ChromeInputController
     {
         try
         {
-            return RoleToNativePart(_owner.GetRoleAtPoint(pointer));
+            return RoleToNativePart(_host.HitTestFrame(pointer));
         }
         catch (InvalidOperationException)
         {
@@ -43,8 +46,8 @@ internal sealed class ChromeInputController
     /// <summary>ResizeMode 变化时清理已失效的最小化/最大化按钮状态。</summary>
     internal void PrepareResizeModeChange()
     {
-        var canMinimize = _owner.ResizeMode != ResizeMode.NoResize;
-        var canMaximize = _owner.IsResizable;
+        var canMinimize = _host.ResizeMode != ResizeMode.NoResize;
+        var canMaximize = _host.IsResizable;
         var cancelPress = false;
         if (!canMinimize)
         {
@@ -61,7 +64,7 @@ internal sealed class ChromeInputController
         if (cancelPress)
             CancelCaptionButtonPress();
         else
-            _owner.ApplyVisualState();
+            _host.ApplyVisualState();
     }
 
     /// <summary>处理非客户区按钮按下，必要时接管鼠标捕获。</summary>
@@ -71,11 +74,11 @@ internal sealed class ChromeInputController
         if (!IsCaptionButtonRole(pressedRole))
             return false;
         _hotPart = part;
-        _pressedPart = _owner.IsRoleEnabled(pressedRole) ? part : 0;
+        _pressedPart = _host.IsRoleEnabled(pressedRole) ? part : 0;
         _trackingCaptionButtonPress = _pressedPart != 0;
         if (_trackingCaptionButtonPress)
             _ = NativeWindowMethods.SetCapture(window);
-        _owner.ApplyVisualState();
+        _host.ApplyVisualState();
         // 系统默认过程会独占跟踪非客户区按钮，导致自定义按钮收不到抬起消息。
         // 这里接管捕获，确保移出、移回、取消和最终命令具有普通 Button 一致的语义。
         return true;
@@ -123,12 +126,12 @@ internal sealed class ChromeInputController
             {
                 Size = Marshal.SizeOf<NativeTrackMouseEvent>(),
                 Flags = TmeLeave | TmeNonClient,
-                WindowHandle = _owner.FrameHandle,
+                WindowHandle = _host.FrameHandle,
             };
             _trackingMouse = NativeWindowMethods.TrackMouseEvent(ref tracking);
         }
         if (changed)
-            _owner.ApplyVisualState();
+            _host.ApplyVisualState();
     }
 
     /// <summary>鼠标被捕获时更新当前悬停的标题栏按钮。</summary>
@@ -138,7 +141,7 @@ internal sealed class ChromeInputController
         if (_hotPart == part)
             return;
         _hotPart = part;
-        _owner.ApplyVisualState();
+        _host.ApplyVisualState();
     }
 
     /// <summary>读取光标位置并转换成原生标题栏按钮部件值；失败时返回 0。</summary>
@@ -148,7 +151,7 @@ internal sealed class ChromeInputController
             return 0;
         try
         {
-            var role = _owner.GetRoleAtPoint(pointer);
+            var role = _host.HitTestFrame(pointer);
             return IsCaptionButtonRole(role) ? RoleToNativePart(role) : 0;
         }
         catch (InvalidOperationException)
@@ -169,8 +172,8 @@ internal sealed class ChromeInputController
         _ = NativeWindowMethods.ReleaseCapture();
         _pressedPart = 0;
         _hotPart = releasedPart;
-        _owner.ApplyVisualState();
-        _ = _owner.TryExecuteCaptionButton(
+        _host.ApplyVisualState();
+        _ = _host.TryExecuteCaptionButton(
             NativePartToRole(pressedPart),
             NativePartToRole(releasedPart)
         );
@@ -194,7 +197,7 @@ internal sealed class ChromeInputController
         _hotPart = 0;
         _pressedPart = 0;
         if (changed)
-            _owner.ApplyVisualState();
+            _host.ApplyVisualState();
     }
 
     private int RoleToNativePart(ChromeHitTestRole role) =>
@@ -202,9 +205,9 @@ internal sealed class ChromeInputController
         {
             ChromeHitTestRole.Caption => WindowFrameHitTest.Caption,
             ChromeHitTestRole.SystemMenu => WindowFrameHitTest.SystemMenu,
-            ChromeHitTestRole.MinimizeButton when _owner.ResizeMode != ResizeMode.NoResize =>
+            ChromeHitTestRole.MinimizeButton when _host.ResizeMode != ResizeMode.NoResize =>
                 WindowFrameHitTest.MinButton,
-            ChromeHitTestRole.MaximizeButton when _owner.ResizeMode != ResizeMode.NoResize =>
+            ChromeHitTestRole.MaximizeButton when _host.ResizeMode != ResizeMode.NoResize =>
                 WindowFrameHitTest.MaxButton,
             ChromeHitTestRole.CloseButton => WindowFrameHitTest.Close,
             _ => WindowFrameHitTest.Client,

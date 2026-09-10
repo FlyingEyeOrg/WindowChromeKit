@@ -16,10 +16,8 @@ namespace WindowChromeKit.Wpf;
 [TemplatePart(Name = PartMinimizeButton, Type = typeof(FrameworkElement))]
 [TemplatePart(Name = PartMaximizeButton, Type = typeof(FrameworkElement))]
 [TemplatePart(Name = PartCloseButton, Type = typeof(FrameworkElement))]
-public partial class ChromeWindow : Window
+public partial class ChromeWindow : ChromeFrame
 {
-    private readonly ChromeInputController _input;
-
     static ChromeWindow()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -30,19 +28,8 @@ public partial class ChromeWindow : Window
 
     public ChromeWindow()
     {
-        _input = new ChromeInputController(this);
-        AllowsTransparency = false;
-        WindowStyle = WindowStyle.SingleBorderWindow;
-        ResizeMode = ResizeMode.CanResize;
-        // 不在窗口根级强制布局取整，否则奇数标题栏中嵌套偶数高度控件时，
-        // 两层居中产生的半像素会分别取整，最终累积为一个像素的垂直偏差。
-        SnapsToDevicePixels = true;
-        SourceInitialized += OnChromeSourceInitialized;
         Activated += OnActivationChanged;
         Deactivated += OnActivationChanged;
-        StateChanged += OnChromeStateChanged;
-        ContentRendered += OnChromeContentRendered;
-        Closed += OnChromeClosed;
         CommandBindings.Add(
             new CommandBinding(
                 SystemCommands.MinimizeWindowCommand,

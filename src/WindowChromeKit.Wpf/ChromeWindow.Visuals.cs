@@ -31,7 +31,7 @@ public partial class ChromeWindow
 
     public override void OnApplyTemplate()
     {
-        CancelCaptionButtonPress();
+        _input.CancelCaptionButtonPress();
         _titleBar = null;
         _systemMenu = null;
         _minimize = null;
@@ -48,7 +48,7 @@ public partial class ChromeWindow
         ApplyVisualState();
     }
 
-    internal void ApplyVisualState()
+    protected override void ApplyVisualState()
     {
         var hoveredRole = _input.HotRole;
         var pressedOrigin = _input.PressedRole;
