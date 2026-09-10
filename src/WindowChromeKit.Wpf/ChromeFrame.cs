@@ -34,14 +34,22 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
 
     internal void SynchronizeResizeOverlay() => _frame?.SynchronizeResizeOverlay();
 
+    /// <summary>按当前 <see cref="IsResizable"/> 重新创建或同步外置 resize overlay。</summary>
+    protected void RefreshResizeOverlay() => _frame?.UpdateResizeMode(IsResizable);
+
     /// <summary>当前窗口是否允许八方向缩放；无标题栏窗口也可直接复用。</summary>
     protected virtual bool IsResizable => ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip;
 
     /// <summary>标题栏按钮占用的宽度（DIP）；frame-only 窗口没有系统按钮时返回 0。</summary>
     protected virtual double CaptionButtonsWidth => 0d;
 
-    /// <summary>把屏幕坐标映射为语义角色；没有标题栏的窗口默认整窗都是 Client。</summary>
-    protected virtual ChromeHitTestRole HitTestFrame(Point screenPoint) => ChromeHitTestRole.Client;
+    /// <summary>
+    /// 把屏幕坐标映射为语义角色。默认返回 <see cref="ChromeHitTestRole.Default"/>，
+    /// 让 resize overlay 能优先命中窗口四边（包括顶部内侧条带）；子类可覆写，
+    /// 把自定义标题栏标记为 Caption，把可交互控件标记为 Client。
+    /// </summary>
+    protected virtual ChromeHitTestRole HitTestFrame(Point screenPoint) =>
+        ChromeHitTestRole.Default;
 
     /// <summary>判断指定角色当前是否可用；frame-only 窗口默认没有可执行角色。</summary>
     protected virtual bool IsRoleEnabled(ChromeHitTestRole role) => false;
@@ -61,8 +69,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     /// <summary>显示器拓扑或工作区变化通知钩子。</summary>
     protected virtual void OnDisplayConfigurationChanged() { }
 
-    /// <summary>窗口句柄和 frame controller 初始化完成后的扩展点。</summary>
-    protected virtual void OnFrameAttached() { }
+    /// <summary>窗口句柄和 frame controller 初始化完成后的扩展点；默认初始化 resize overlay。</summary>
+    protected virtual void OnFrameAttached() => RefreshResizeOverlay();
 
     /// <summary>窗口状态变化时的扩展点，派生类可在此刷新视觉和 resize overlay。</summary>
     protected virtual void OnFrameStateChanged() { }
@@ -77,6 +85,20 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
         InvalidateArrange();
         InvalidateVisual();
         UpdateLayout();
+    }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs eventArgs)
+    {
+        base.OnPropertyChanged(eventArgs);
+        if (eventArgs.Property == ResizeModeProperty)
+            OnFrameResizeModeChanged();
+    }
+
+    /// <summary>ResizeMode 变化时更新 resize overlay；派生类可覆写为完整的视觉/状态刷新。</summary>
+    protected virtual void OnFrameResizeModeChanged()
+    {
+        _input.PrepareResizeModeChange();
+        _frame?.UpdateResizeMode(IsResizable);
     }
 
     private void OnFrameSourceInitialized(object? sender, EventArgs eventArgs)
@@ -98,7 +120,6 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
 
     private void OnFrameClosed(object? sender, EventArgs eventArgs)
     {
-        _input.CancelCaptionButtonPress();
         _frame?.Detach();
         _frame = null;
         SourceInitialized -= OnFrameSourceInitialized;

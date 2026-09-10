@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 
 namespace WindowChromeKit.Wpf.Sample;
@@ -44,6 +44,12 @@ public partial class MainWindow : ChromeWindow
     {
         var window = new CustomTitleBarWindow { Owner = this };
         window.CenterOnTargetMonitor();
+        window.Show();
+    }
+
+    private void OnOpenChromeFrameClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        var window = new ChromeFrameWindow { Owner = this };
         window.Show();
     }
 }

@@ -72,11 +72,11 @@ public partial class ChromeWindow : ChromeFrame
     protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs eventArgs)
     {
         base.OnPropertyChanged(eventArgs);
-        if (eventArgs.Property == ResizeModeProperty)
-            ApplyResizeMode();
         if (eventArgs.Property == IconProperty)
             ScheduleEffectiveTitleBarIconRefresh();
     }
+
+    protected override void OnFrameResizeModeChanged() => ApplyResizeMode();
 
     private void ExecuteMinimizeCommand(object sender, ExecutedRoutedEventArgs eventArgs)
     {
