@@ -470,7 +470,8 @@ public class ChromeWindow : Window
         ApplyTemplate();
         _handle = new WindowInteropHelper(this).Handle;
         _source = HwndSource.FromHwnd(_handle);
-        if (_source?.CompositionTarget is { } target) target.BackgroundColor = Colors.Transparent;
+        // 未渲染区域用窗口背景色兜底，避免 resize 时露出默认帧或桌面。
+        if (_source?.CompositionTarget is { } target) target.BackgroundColor = ResolveCompositionBackgroundColor();
         _source?.AddHook(WindowProcedure);
         UpdateDpiVisuals();
         RefreshNativeFrame();
@@ -997,7 +998,11 @@ public class ChromeWindow : Window
         _refreshingNativeFrame = true;
         try
         {
-            var margins = new NativeMargins(-1, -1, -1, -1);
+            // 只向内扩展 1 像素：保留 DWM 阴影，又不会像 -1 那样把系统
+            // 默认标题栏/按钮铺满整个客户区。这里和 WM_NCCALCSIZE 返回 0
+            // 是两个独立的层：后者只决定 Win32 客户区，前者决定 DWM frame
+            // 的合成范围；改成 0 会丢失 DWM 阴影。
+            var margins = new NativeMargins(1, 1, 1, 1);
             _ = NativeWindowMethods.DwmExtendFrameIntoClientArea(_handle, ref margins);
             _ = NativeWindowMethods.SetWindowPos(
                 _handle, IntPtr.Zero, 0, 0, 0, 0,
@@ -1074,6 +1079,11 @@ public class ChromeWindow : Window
         value is ChromeHitTestRole role && Enum.IsDefined(typeof(ChromeHitTestRole), role);
 
     private static bool IsFinitePositive(double value) => value > 0 && !double.IsNaN(value) && !double.IsInfinity(value);
+
+    private Color ResolveCompositionBackgroundColor() =>
+        Background is SolidColorBrush { Color.A: 0xFF } brush
+            ? brush.Color
+            : Colors.Transparent;
 
     private static Brush FrozenBrush(byte alpha, byte red, byte green, byte blue)
     {
