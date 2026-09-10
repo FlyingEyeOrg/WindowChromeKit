@@ -1,6 +1,6 @@
-namespace WindowChromeKit.Wpf;
+﻿namespace WindowChromeKit.Wpf;
 
-/// <summary>指定 <see cref="ChromeWindow"/> 标题栏元素参与原生命中测试的方式。</summary>
+/// <summary>指定标题栏/Frame 元素参与原生命中测试的方式，ChromeFrame 和 ChromeWindow 都可使用。</summary>
 public enum ChromeHitTestRole
 {
     /// <summary>未指定特殊角色，由命中位置或模板部件决定。</summary>
