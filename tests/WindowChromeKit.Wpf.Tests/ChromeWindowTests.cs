@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -503,6 +503,43 @@ public sealed class ChromeWindowTests
             window.Close();
         }
     });
+
+    [Fact]
+    public void ChromeFrameCreatesResizeOverlayByDefault()
+    {
+        RunSta(() =>
+        {
+            var frame = new TestChromeFrame
+            {
+                Width = 600,
+                Height = 400,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+            };
+
+            _ = new WindowInteropHelper(frame).EnsureHandle();
+            frame.Show();
+            frame.UpdateLayout();
+            frame.SynchronizeResizeOverlay();
+
+            var overlay = frame.ResizeOverlayHandle;
+            Assert.NotEqual(IntPtr.Zero, overlay);
+            Assert.True(NativeWindowMethods.IsWindowVisible(overlay));
+
+            Assert.True(NativeWindowMethods.GetWindowRect(overlay, out var overlayBounds));
+            var topBorderPoint = PackScreenPoint(
+                new Point(overlayBounds.Left + 100, overlayBounds.Top));
+            Assert.Equal(
+                WindowFrameHitTest.Top,
+                NativeWindowMethods.SendMessage(
+                    overlay, 0x0084, IntPtr.Zero, topBorderPoint).ToInt32());
+
+            frame.Close();
+            Assert.False(NativeWindowMethods.IsWindow(overlay));
+        });
+    }
+
+    private sealed class TestChromeFrame : ChromeFrame { }
 
     private static IntPtr PackScreenPoint(Point point)
     {
