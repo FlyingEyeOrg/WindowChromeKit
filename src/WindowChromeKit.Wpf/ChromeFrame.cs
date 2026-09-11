@@ -72,8 +72,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     /// <summary>窗口句柄和 frame controller 初始化完成后的扩展点；默认初始化 resize overlay。</summary>
     protected virtual void OnFrameAttached() => RefreshResizeOverlay();
 
-    /// <summary>窗口状态变化时的扩展点，派生类可在此刷新视觉和 resize overlay。</summary>
-    protected virtual void OnFrameStateChanged() { }
+    /// <summary>窗口状态变化时的扩展点；默认刷新 DWM frame，以处理最大化/还原时的边距切换。</summary>
+    protected virtual void OnFrameStateChanged() => _frame?.ScheduleNativeFrameRefresh();
 
     /// <summary>窗口关闭后的扩展点，派生类可在此退订自己的事件。</summary>
     protected virtual void OnFrameClosed() { }

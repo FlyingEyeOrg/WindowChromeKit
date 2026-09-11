@@ -38,7 +38,7 @@ public partial class ChromeWindow
     {
         UpdateDpiVisuals();
         ApplyVisualState();
-        _frame?.ScheduleNativeFrameRefresh();
+        base.OnFrameStateChanged();
         ApplyResizeMode();
     }
 

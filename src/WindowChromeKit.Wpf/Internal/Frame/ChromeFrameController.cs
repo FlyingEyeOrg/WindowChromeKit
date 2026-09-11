@@ -118,11 +118,12 @@ internal sealed class ChromeFrameController
         _refreshingNativeFrame = true;
         try
         {
-            // 只向内扩展 1 像素：保留 DWM 阴影，又不会像 -1 那样把系统
-            // 默认标题栏/按钮铺满整个客户区。这里和 WM_NCCALCSIZE 返回 0
-            // 是两个独立的层：后者只决定 Win32 客户区，前者决定 DWM frame
-            // 的合成范围；改成 0 会丢失 DWM 阴影。
-            var margins = new NativeMargins(1, 1, 1, 1);
+            // 普通窗口向内扩展 1 像素：保留 DWM 阴影，又不会像 -1 那样把系统
+            // 默认标题栏/按钮铺满整个客户区。最大化时窗口紧贴工作区，这 1 像素
+            // DWM frame 会在屏幕边缘显示成白边；此时不需要可见阴影，改用 0 边距。
+            var margins = NativeWindowMethods.IsZoomed(_handle)
+                ? new NativeMargins(0, 0, 0, 0)
+                : new NativeMargins(1, 1, 1, 1);
             _ = NativeWindowMethods.DwmExtendFrameIntoClientArea(_handle, ref margins);
             _ = NativeWindowMethods.SetWindowPos(
                 _handle,
