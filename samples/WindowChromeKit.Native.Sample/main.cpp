@@ -76,6 +76,8 @@ struct TitleBarStyleSettings
     COLORREF captionTextInactive;
     COLORREF buttonHot;
     COLORREF buttonPressed;
+    COLORREF closeHot;
+    COLORREF closePressed;
     bool darkFrame;   // DWM 的深色模式是否要打开
 };
 
@@ -86,16 +88,20 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
         case TitleBarStyle::VsCode:
             return {35, 46, 34, 12, RGB(0x32, 0x32, 0x33), RGB(0x2D, 0x2D, 0x2D),
                     RGB(0xCC, 0xCC, 0xCC), RGB(0x9D, 0x9D, 0x9D),
-                    RGB(0x50, 0x50, 0x50), RGB(0x5F, 0x5F, 0x5F), true};
+                    RGB(0x50, 0x50, 0x50), RGB(0x5F, 0x5F, 0x5F),
+                    RGB(0xE8, 0x11, 0x23), RGB(0xF1, 0x70, 0x7A), true};
         case TitleBarStyle::Windows:
             // 原生 WPF Window 实测（96dpi）：标题栏可见高 31、按钮 36×22
+            // 关闭按钮红用原生实测值（悬停 #C42B1C）
             return {31, 36, 22, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
-                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0), false};
+                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
+                    RGB(0xC4, 0x2B, 0x1C), RGB(0xA9, 0x23, 0x16), false};
         default:
             return {40, 46, 39, 12, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
-                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0), false};
+                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
+                    RGB(0xE8, 0x11, 0x23), RGB(0xF1, 0x70, 0x7A), false};
     }
 }
 
@@ -104,8 +110,6 @@ TitleBarStyleSettings g_style = SettingsFor(TitleBarStyle::Chrome);
 
 // 浅色主题（白色标题栏）：文字与按钮描边都是深色，悬停底色是浅灰。
 // DWM 的深色模式要同步关掉（见 ApplyChromeFrameAttributes），否则边线与阴影还是深色。
-const COLORREF kCloseHot = RGB(0xE8, 0x11, 0x23);
-const COLORREF kClosePressed = RGB(0xF1, 0x70, 0x7A);
 // 顶边线颜色。Win10 的 DWM 只在非客户区画边框，而我们把客户区顶到了窗口顶边，
 // 所以顶边这条线必须自己补，颜色取 DWM 画在左/右/下三边的实测值，四条边才一致：
 //   激活 rgb(112,112,112) / 失焦 rgb(170,170,170)
@@ -534,7 +538,7 @@ COLORREF DrawButton(HDC dc, const RECT& rect, int part, int hotPart, int pressed
     if (!hot && !pressed)
         return glyph;
     const bool isClose = part == HTCLOSE;
-    const COLORREF background = isClose ? (pressed ? kClosePressed : kCloseHot)
+    const COLORREF background = isClose ? (pressed ? g_style.closePressed : g_style.closeHot)
                                         : (pressed ? g_style.buttonPressed : g_style.buttonHot);
     FillRectColor(dc, rect, background);
     return isClose ? RGB(0xFF, 0xFF, 0xFF) : g_style.captionText;

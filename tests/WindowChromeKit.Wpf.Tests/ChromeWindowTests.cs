@@ -320,9 +320,14 @@ public sealed class ChromeWindowTests
                 : Color.FromRgb(0x32, 0x32, 0x33);
             Assert.Equal(expected, chrome.Color);
 
-            // 关闭按钮三套样式都沿用系统标准红
+            // 关闭按钮的红分两套：Chrome / VsCode 用经典 #E81123
             var close = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
             Assert.Equal(Color.FromRgb(0xE8, 0x11, 0x23), close.Color);
+
+            // Windows 样式用原生实测值（悬停 #C42B1C）
+            window.TitleBarStyle = ChromeTitleBarStyle.Windows;
+            var nativeClose = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
+            Assert.Equal(Color.FromRgb(0xC4, 0x2B, 0x1C), nativeClose.Color);
         }
         finally
         {

@@ -241,9 +241,18 @@ public partial class ChromeForm
         InactiveCaptionTextColor = palette.InactiveCaptionText;
         CaptionButtonHoverColor = palette.ButtonHover;
         CaptionButtonPressedColor = palette.ButtonPressed;
-        // 关闭按钮三套样式都沿用系统标准红，顶边线三套都画
-        CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
-        CloseButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
+        // 关闭按钮的红分两套：Windows 样式用原生实测值（悬停 #C42B1C），
+        // Chrome / VS Code 用经典的 #E81123。顶边线三套都画。
+        if (style == ChromeTitleBarStyle.Windows)
+        {
+            CloseButtonHoverColor = Color.FromArgb(0xC4, 0x2B, 0x1C);
+            CloseButtonPressedColor = Color.FromArgb(0xA9, 0x23, 0x16);
+        }
+        else
+        {
+            CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
+            CloseButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
+        }
         ShowTitleBarIcon = true;
         ShowTopBorderLine = true;
     }

@@ -77,9 +77,18 @@ public partial class ChromeWindow
         InactiveTitleBarForeground = palette.InactiveCaptionText;
         CaptionButtonHoverBackground = palette.ButtonHover;
         CaptionButtonPressedBackground = palette.ButtonPressed;
-        // 关闭按钮与顶边线三套样式都沿用系统标准值
-        CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
-        CloseButtonPressedBackground = FrozenBrush(0xFF, 0xF1, 0x70, 0x7A);
+        // 关闭按钮的红分两套：Windows 样式用原生实测值（悬停 #C42B1C），
+        // Chrome / VS Code 用经典的 #E81123
+        if (style == ChromeTitleBarStyle.Windows)
+        {
+            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xC4, 0x2B, 0x1C);
+            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xA9, 0x23, 0x16);
+        }
+        else
+        {
+            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
+            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xF1, 0x70, 0x7A);
+        }
         // 顶边线：与 DWM 画在其余三边的实测值一致，三套样式统一
         TitleBarBorderBrush = FrozenBrush(0xFF, 0x70, 0x70, 0x70);
         ShowTitleBarIcon = true;
