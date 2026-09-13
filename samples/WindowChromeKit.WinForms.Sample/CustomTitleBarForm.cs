@@ -28,33 +28,6 @@ public sealed class CustomTitleBarForm : ChromeForm
         MinimumSize = new Size(460, 260);
         StartPosition = FormStartPosition.CenterScreen;
 
-        // 标题栏菜单：放进内容插槽，标记为可交互
-        _menu = new MenuStrip
-        {
-            Dock = DockStyle.None,
-            AutoSize = false,
-            GripStyle = ToolStripGripStyle.Hidden,
-            Padding = new Padding(0),
-            // 默认标题栏是 VS Code 深色（#323233），菜单用浅色文字 + 扁平渲染器；
-            // 系统渲染器会画渐变底和 3D 边框，在标题栏底部露出一条白边。
-            BackColor = Color.FromArgb(0x32, 0x32, 0x33),
-            ForeColor = Color.FromArgb(0xCC, 0xCC, 0xCC),
-            Renderer = new TitleBarMenuRenderer(
-                Color.FromArgb(0x32, 0x32, 0x33),
-                Color.FromArgb(0xCC, 0xCC, 0xCC),
-                Color.FromArgb(0x50, 0x50, 0x50)),
-        };
-        _menu.Items.Add(new ToolStripMenuItem("文件"));
-        _menu.Items.Add(new ToolStripMenuItem("视图"));
-        _menu.Items.Add(new ToolStripMenuItem("帮助"));
-        ChromeForm.SetHitTestRole(_menu, ChromeHitTestRole.Client);
-        // 插槽铺满标题栏；只有菜单自己标记为可交互，插槽里其余空白仍可拖动窗口
-        // （与 WPF 的 TitleBarContent + HitTestRole=Client 语义一致）。
-        _contentHost = new Panel { BackColor = Color.Transparent, Height = 39 };
-        _contentHost.Controls.Add(_menu);
-        _contentHost.SizeChanged += (_, _) => LayoutMenu();
-        TitleBarContent = _contentHost;
-
         // 标题栏操作：右对齐、紧挨三个窗口按钮
         _actionButton = new Button
         {
@@ -107,6 +80,59 @@ public sealed class CustomTitleBarForm : ChromeForm
         _windows7IconCheck.CheckedChanged += (_, _) =>
             Icon = _windows7IconCheck.Checked ? WindowChromeIcons.Windows7 : WindowChromeIcons.Windows10;
 
+        // 标题栏菜单：放进内容插槽，标记为可交互
+        _menu = new MenuStrip
+        {
+            Dock = DockStyle.None,
+            AutoSize = false,
+            GripStyle = ToolStripGripStyle.Hidden,
+            Padding = new Padding(0),
+            // 默认标题栏是 VS Code 深色（#323233），菜单用浅色文字 + 扁平渲染器；
+            // 系统渲染器会画渐变底和 3D 边框，在标题栏底部露出一条白边。
+            BackColor = Color.FromArgb(0x32, 0x32, 0x33),
+            ForeColor = Color.FromArgb(0xCC, 0xCC, 0xCC),
+            Renderer = new TitleBarMenuRenderer(
+                Color.FromArgb(0x32, 0x32, 0x33),
+                Color.FromArgb(0xCC, 0xCC, 0xCC),
+                Color.FromArgb(0x50, 0x50, 0x50)),
+        };
+        // 每个顶级菜单都要有下拉项，否则点开是个空菜单
+        var fileMenu = new ToolStripMenuItem("文件");
+        fileMenu.DropDownItems.Add(new ToolStripMenuItem(
+            "再开一个自定义标题栏窗口",
+            null,
+            (_, _) => new CustomTitleBarForm { Owner = this }.Show()));
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
+        fileMenu.DropDownItems.Add(new ToolStripMenuItem("关闭", null, (_, _) => Close()));
+
+        var viewMenu = new ToolStripMenuItem("视图");
+        var customItem = new ToolStripMenuItem("完全自绘标题栏");
+        customItem.Click += (_, _) => _fullyCustomCheck.Checked = !_fullyCustomCheck.Checked;
+        var iconItem = new ToolStripMenuItem("使用 Windows 7 风格图标");
+        iconItem.Click += (_, _) => _windows7IconCheck.Checked = !_windows7IconCheck.Checked;
+        viewMenu.DropDownItems.Add(customItem);
+        viewMenu.DropDownItems.Add(iconItem);
+
+        var helpMenu = new ToolStripMenuItem("帮助");
+        helpMenu.DropDownItems.Add(new ToolStripMenuItem(
+            "关于",
+            null,
+            (_, _) => MessageBox.Show(
+                this,
+                "标题栏里的菜单就是普通的 MenuStrip，放在 TitleBarContent 插槽并用 SetHitTestRole 标记为 Client。",
+                "关于")));
+
+        _menu.Items.Add(fileMenu);
+        _menu.Items.Add(viewMenu);
+        _menu.Items.Add(helpMenu);
+        ChromeForm.SetHitTestRole(_menu, ChromeHitTestRole.Client);
+        // 插槽铺满标题栏；只有菜单自己标记为可交互，插槽里其余空白仍可拖动窗口
+        // （与 WPF 的 TitleBarContent + HitTestRole=Client 语义一致）。
+        _contentHost = new Panel { BackColor = Color.Transparent, Height = 39 };
+        _contentHost.Controls.Add(_menu);
+        _contentHost.SizeChanged += (_, _) => LayoutMenu();
+        TitleBarContent = _contentHost;
+
         var options = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -141,6 +167,14 @@ public sealed class CustomTitleBarForm : ChromeForm
         var preferred = _menu.PreferredSize;
         _contentHost.Size = new Size(preferred.Width + 24, _contentHost.Height);
         _menu.SetBounds(0, 0, preferred.Width, _contentHost.ClientSize.Height);
+        // 顶级菜单项撑满标题栏高度：命中区与悬停高亮覆盖整条，点标题栏里任意高度都能展开
+        var itemHeight = Math.Max(1, CaptionHeight - 1);
+        foreach (ToolStripItem item in _menu.Items)
+        {
+            item.AutoSize = false;
+            item.Height = itemHeight;
+            item.Width = item.GetPreferredSize(Size.Empty).Width;
+        }
     }
 
     protected override void OnLoad(EventArgs e)
@@ -188,6 +222,13 @@ public sealed class CustomTitleBarForm : ChromeForm
                 return;
             using var brush = new SolidBrush(_hover);
             e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            var y = e.Item.Height / 2;
+            using var pen = new Pen(_hover);
+            e.Graphics.DrawLine(pen, 4, y, Math.Max(4, e.Item.Width - 6), y);
         }
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
