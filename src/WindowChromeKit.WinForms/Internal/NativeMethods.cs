@@ -9,6 +9,7 @@ internal static class NativeMethods
     internal const int WmNcHitTest = 0x0084;
     internal const int WmNcMouseMove = 0x00A0;
     internal const int WmNcLButtonDown = 0x00A1;
+    internal const int WmNcLButtonDblClk = 0x00A3;
     internal const int WmNcMouseLeave = 0x02A2;
     internal const int WmMouseMove = 0x0200;
     internal const int WmLButtonUp = 0x0202;
@@ -108,6 +109,9 @@ internal static class NativeMethods
     [DllImport("user32.dll", EntryPoint = "LoadIconW")]
     internal static extern IntPtr LoadIcon(IntPtr instance, IntPtr iconName);
 
+    [DllImport("shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode)]
+    private static extern uint ExtractIconEx(string? fileName, int iconIndex, out IntPtr large, out IntPtr small, uint count);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(
@@ -119,6 +123,10 @@ internal static class NativeMethods
         int height,
         uint flags);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr icon);
+
     [DllImport("dwmapi.dll", EntryPoint = "DwmExtendFrameIntoClientArea")]
     private static extern int DwmExtendFrameIntoClientAreaCore(IntPtr window, ref NativeMargins margins);
 
@@ -129,6 +137,33 @@ internal static class NativeMethods
     private static extern int DwmGetWindowAttributeCore(IntPtr window, int attribute, out int value, int size);
 
     private static readonly IntPtr IdiApplication = new(32512);
+    private static IntPtr _applicationIcon;
+    private static bool _applicationIconResolved;
+
+    /// <summary>取可执行文件自己的小图标（壳层 API，只在首次调用时解析并缓存）。</summary>
+    private static IntPtr GetApplicationIcon()
+    {
+        if (_applicationIconResolved)
+            return _applicationIcon;
+        _applicationIconResolved = true;
+        try
+        {
+            var path = System.Windows.Forms.Application.ExecutablePath;
+            if (string.IsNullOrEmpty(path))
+                return IntPtr.Zero;
+            // 返回值为图标数量，0 表示文件里没有图标
+            if (ExtractIconEx(path, 0, out var large, out var small, 1) == 0)
+                return IntPtr.Zero;
+            if (large != IntPtr.Zero)
+                _ = DestroyIcon(large);
+            _applicationIcon = small;
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
+        {
+            _applicationIcon = IntPtr.Zero;
+        }
+        return _applicationIcon;
+    }
 
     /// <summary>按 DPI 取系统度量；老系统上没有 <c>GetSystemMetricsForDpi</c> 时按比例缩放回退。</summary>
     internal static int GetSystemMetricsForDpi(int index, uint dpi)
@@ -166,6 +201,11 @@ internal static class NativeMethods
         if (icon != IntPtr.Zero)
             return icon;
         icon = GetClassSmallIcon(window);
+        if (icon != IntPtr.Zero)
+            return icon;
+        // 最后回退到 exe 自己的图标（<ApplicationIcon> 嵌进去的那个），
+        // 相当于 C++ 示例里 app.rc 提供的窗口图标；再不行才用系统默认图标。
+        icon = GetApplicationIcon();
         return icon != IntPtr.Zero ? icon : LoadIcon(IntPtr.Zero, IdiApplication);
     }
 

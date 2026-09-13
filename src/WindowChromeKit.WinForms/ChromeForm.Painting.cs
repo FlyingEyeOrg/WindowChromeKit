@@ -38,8 +38,14 @@ public partial class ChromeForm
             return;
 
         var active = ActiveForm == this;
-        var maximized = _metrics.Maximized;
-        var caption = new Rectangle(0, 0, client.Width, _metrics.CaptionHeight);
+        var maximized = Metrics.Maximized;
+        var caption = new Rectangle(0, 0, client.Width, Metrics.CaptionHeight);
+        if (!ShowDefaultTitleBar)
+        {
+            // 完全自定义：底色、边框线与按钮都由 OnPaintTitleBar 负责
+            OnPaintTitleBar(new TitleBarPaintEventArgs(graphics, caption, active, maximized));
+            return;
+        }
 
         using (var background = new SolidBrush(active ? ActiveCaptionColor : InactiveCaptionColor))
             graphics.FillRectangle(background, caption);
@@ -68,50 +74,48 @@ public partial class ChromeForm
         var icon = NativeMethods.GetWindowSmallIcon(Handle);
         if (icon == IntPtr.Zero)
             return;
-        var top = caption.Top + (caption.Height - _metrics.IconSize) / 2;
-        var hdc = graphics.GetHdc();
-        try
-        {
-            _ = NativeMethods.DrawIconEx(
-                hdc,
-                _metrics.IconMargin,
-                top,
-                icon,
-                _metrics.IconSize,
-                _metrics.IconSize,
-                0,
-                IntPtr.Zero,
-                DiNormal);
-        }
-        finally
-        {
-            graphics.ReleaseHdc(hdc);
-        }
+        var top = caption.Top + (caption.Height - Metrics.IconSize) / 2;
+        // 图标通常是 32bpp 带 alpha：直接 DrawIconEx 到设备相关位图上会忽略 alpha，
+        // 只剩 AND 掩码（看起来是纯白剪影）。这里先转成 ARGB 位图再画，保留颜色与透明。
+        var source = Icon.FromHandle(icon);
+        using var bitmap = source.ToBitmap();
+        graphics.DrawImage(
+            bitmap,
+            new Rectangle(Metrics.IconMargin, top, Metrics.IconSize, Metrics.IconSize));
     }
 
     private void PaintTitleBarText(Graphics graphics, Rectangle client, Color color)
     {
-        var left = _metrics.IconMargin + (ShowTitleBarIcon ? _metrics.IconSize + ScaleDip(8, _metrics.Dpi) : 0);
-        var right = client.Width - _metrics.CaptionButtonWidth * 3 - ScaleDip(8, _metrics.Dpi);
+        // 与 WPF 版一致：设置了标题栏内容插槽后，默认标题文字不再绘制（避免和自定义内容重叠）
+        if (TitleBarContent is not null)
+            return;
+        var left = Metrics.IconMargin + (ShowTitleBarIcon ? Metrics.IconSize + ScaleDip(8, Metrics.Dpi) : 0);
+        // 右侧避让：设置了操作插槽时贴到插槽左侧，否则避让三个窗口按钮
+        var right = TitleBarActionsBounds.IsEmpty
+            ? client.Width - Metrics.CaptionButtonWidth * 3 - ScaleDip(8, Metrics.Dpi)
+            : TitleBarActionsBounds.Left - ScaleDip(8, Metrics.Dpi);
         if (right <= left)
             return;
-        var bounds = new Rectangle(left, 0, right - left, _metrics.CaptionHeight);
-        TextRenderer.DrawText(
-            graphics,
-            Text,
-            ResolveCaptionFont(),
-            bounds,
-            color,
-            TextFormatFlags.SingleLine
-                | TextFormatFlags.VerticalCenter
-                | TextFormatFlags.EndEllipsis
-                | TextFormatFlags.NoPrefix);
+        var bounds = new Rectangle(left, 0, right - left, Metrics.CaptionHeight);
+        var flags = TextFormatFlags.SingleLine
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.NoPrefix;
+        flags |= CaptionTextAlignment switch
+        {
+            ContentAlignment.MiddleLeft or ContentAlignment.TopLeft or ContentAlignment.BottomLeft =>
+                TextFormatFlags.Left,
+            ContentAlignment.MiddleRight or ContentAlignment.TopRight or ContentAlignment.BottomRight =>
+                TextFormatFlags.Right,
+            _ => TextFormatFlags.HorizontalCenter,
+        };
+        TextRenderer.DrawText(graphics, Text, ResolveCaptionFont(), bounds, color, flags);
     }
 
     private void PaintCaptionButtons(Graphics graphics, Color glyphColor)
     {
         // 用实时度量判断：最大化时按钮画"还原"双框
-        var actualMaximized = _metrics.Maximized;
+        var actualMaximized = Metrics.Maximized;
         for (var index = 0; index < 3; index++)
         {
             var button = index switch
@@ -140,10 +144,10 @@ public partial class ChromeForm
 
     private Rectangle GetCaptionButtonPaintRect(int index) =>
         new(
-            ClientRectangle.Right - (index + 1) * _metrics.CaptionButtonWidth,
-            _metrics.CaptionButtonPaintTop,
-            _metrics.CaptionButtonWidth,
-            _metrics.CaptionButtonHeight);
+            ClientRectangle.Right - (index + 1) * Metrics.CaptionButtonWidth,
+            Metrics.CaptionButtonPaintTop,
+            Metrics.CaptionButtonWidth,
+            Metrics.CaptionButtonHeight);
 
     private void DrawCaptionGlyph(
         Graphics graphics,
@@ -154,7 +158,7 @@ public partial class ChromeForm
     {
         var centerX = (bounds.Left + bounds.Right) / 2;
         var centerY = (bounds.Top + bounds.Bottom) / 2;
-        var half = ScaleDip(5, _metrics.Dpi);
+        var half = ScaleDip(5, Metrics.Dpi);
         using var pen = new Pen(color);
         pen.Alignment = PenAlignment.Center;
         switch (button)
@@ -183,16 +187,16 @@ public partial class ChromeForm
     {
         if (CaptionFont is not null)
             return CaptionFont;
-        if (_scaledCaptionFont is not null && _scaledCaptionFontDpi == _metrics.Dpi)
+        if (_scaledCaptionFont is not null && _scaledCaptionFontDpi == Metrics.Dpi)
             return _scaledCaptionFont;
         _scaledCaptionFont?.Dispose();
         var baseFont = SystemFonts.CaptionFont ?? DefaultFont;
         _scaledCaptionFont = new Font(
             baseFont.FontFamily,
-            baseFont.SizeInPoints * _metrics.Dpi / 96f,
+            baseFont.SizeInPoints * Metrics.Dpi / 96f,
             baseFont.Style,
             GraphicsUnit.Point);
-        _scaledCaptionFontDpi = _metrics.Dpi;
+        _scaledCaptionFontDpi = Metrics.Dpi;
         return _scaledCaptionFont;
     }
 
@@ -200,7 +204,7 @@ public partial class ChromeForm
     {
         if (!IsHandleCreated)
             return;
-        Invalidate(new Rectangle(0, 0, ClientSize.Width, _metrics.CaptionHeight));
+        Invalidate(new Rectangle(0, 0, ClientSize.Width, Metrics.CaptionHeight));
     }
 }
 

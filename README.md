@@ -147,7 +147,10 @@ public partial class MainWindow : ChromeWindow
 - `src/WindowChromeKit.Wpf`：可复用的 WPF 类库。
 - `src/WindowChromeKit.WinForms`：可复用的 WinForms 类库（`ChromeForm`），与 C++ 参考示例同一套
   原生 frame 模型：保留 `WS_CAPTION | WS_THICKFRAME`，客户区从窗口矩形内缩出 frame，
-  `WM_NCHITTEST` 按 Chrome 实测的优先级判定。
+  `WM_NCHITTEST` 按 Chrome 实测的优先级判定。标题栏自定义能力与 WPF 版对齐：
+  `TitleBarContent` / `TitleBarActions` 内容插槽、`SetHitTestRole` 逐控件命中角色
+  （标记为 `Client` 的标题栏控件会自己接收鼠标，不会被当成拖动区）、
+  以及 `ShowDefaultTitleBar = false` + `OnPaintTitleBar` 的完全自绘。
 - `samples/WindowChromeKit.Wpf.Sample`：交互式示例应用程序。
 - `samples/WindowChromeKit.WinForms.Sample`：WinForms 示例应用程序。
 - `samples/WindowChromeKit.Native.Sample`：纯 Win32（C++）参考示例，按真实 Chrome 窗口实测的参数

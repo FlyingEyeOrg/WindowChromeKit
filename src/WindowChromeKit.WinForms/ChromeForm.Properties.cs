@@ -14,12 +14,14 @@ public partial class ChromeForm
     private int _topResizeBandDip = 6;
     private bool _showTitleBarIcon = true;
     private Font? _captionFont;
-    private Color _activeCaptionColor = Color.White;
-    private Color _inactiveCaptionColor = Color.FromArgb(0xF1, 0xF3, 0xF4);
-    private Color _captionTextColor = Color.FromArgb(0x20, 0x21, 0x24);
-    private Color _inactiveCaptionTextColor = Color.FromArgb(0x80, 0x86, 0x8B);
-    private Color _captionButtonHoverColor = Color.FromArgb(0xE8, 0xEA, 0xED);
-    private Color _captionButtonPressedColor = Color.FromArgb(0xDA, 0xDC, 0xE0);
+    // 默认配色取 VS Code 的深色标题栏：底色 #323233、文字 #CCCCCC、
+    // 悬停 #505050、按下 #5F5F5F，关闭仍用系统标准红。
+    private Color _activeCaptionColor = Color.FromArgb(0x32, 0x32, 0x33);
+    private Color _inactiveCaptionColor = Color.FromArgb(0x2D, 0x2D, 0x2D);
+    private Color _captionTextColor = Color.FromArgb(0xCC, 0xCC, 0xCC);
+    private Color _inactiveCaptionTextColor = Color.FromArgb(0x9D, 0x9D, 0x9D);
+    private Color _captionButtonHoverColor = Color.FromArgb(0x50, 0x50, 0x50);
+    private Color _captionButtonPressedColor = Color.FromArgb(0x5F, 0x5F, 0x5F);
     private Color _closeButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
     private Color _closeButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
     private Color _topBorderLineActiveColor = Color.FromArgb(0x70, 0x70, 0x70);

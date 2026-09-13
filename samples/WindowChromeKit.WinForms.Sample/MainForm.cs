@@ -23,8 +23,7 @@ public sealed class MainForm : ChromeForm
 
         var info = new Label
         {
-            Dock = DockStyle.Top,
-            Height = 132,
+            Dock = DockStyle.Fill,
             Padding = new Padding(16, 12, 16, 0),
             Text =
                 "窗口样式：保留 WS_CAPTION | WS_THICKFRAME，DWM 提供阴影与\"阴影里那圈\"不可见缩放带。\r\n" +
@@ -39,10 +38,17 @@ public sealed class MainForm : ChromeForm
             Text = "打开第二个窗口",
             Width = 180,
             Height = 32,
-            Left = 16,
-            Top = 200,
+            Margin = new Padding(0, 0, 12, 0),
         };
         openButton.Click += (_, _) => new MainForm { StartPosition = FormStartPosition.Manual, Location = new Point(Left + 48, Top + 48) }.Show();
+
+        var customButton = new Button
+        {
+            Text = "自定义标题栏窗口",
+            Width = 180,
+            Height = 32,
+        };
+        customButton.Click += (_, _) => new CustomTitleBarForm { Owner = this }.Show();
 
         _edgeButton = new Button
         {
@@ -52,9 +58,31 @@ public sealed class MainForm : ChromeForm
             Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
         };
 
-        Controls.Add(info);
-        Controls.Add(openButton);
+        var buttonRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(16, 6, 0, 0),
+        };
+        buttonRow.Controls.Add(openButton);
+        buttonRow.Controls.Add(customButton);
+
+        // 内容区用表格布局分行，避免绝对坐标与 Dock 的标签互相覆盖
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 148));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        layout.Controls.Add(info, 0, 0);
+        layout.Controls.Add(buttonRow, 0, 1);
+
+        // 先加 _edgeButton，保证它在布局之上（WinForms 里索引越小越靠前）
         Controls.Add(_edgeButton);
+        Controls.Add(layout);
     }
 
     protected override void OnLoad(EventArgs e)
@@ -65,5 +93,10 @@ public sealed class MainForm : ChromeForm
         _edgeButton.Location = new Point(
             content.Right - _edgeButton.Width,
             content.Bottom - _edgeButton.Height);
+    }
+
+    private void InitializeComponent()
+    {
+
     }
 }
