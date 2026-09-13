@@ -52,4 +52,10 @@ public partial class MainWindow : ChromeWindow
         var window = new ChromeFrameWindow { Owner = this };
         window.Show();
     }
+
+    private void OnOpenWhiteTitleBarClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        var window = new WhiteTitleBarWindow { Owner = this };
+        window.Show();
+    }
 }
