@@ -12,6 +12,9 @@ namespace WindowChromeKit.WinForms;
 /// </summary>
 public partial class ChromeForm
 {
+    /// <summary>图标区与标题栏内容之间的间距（DIP）。</summary>
+    private const int CaptionContentGapDip = 8;
+
     private Control? _titleBarContent;
     private Control? _titleBarActions;
     private bool _showDefaultTitleBar = true;
@@ -118,12 +121,16 @@ public partial class ChromeForm
 
         if (_titleBarContent is not null)
         {
-            var left = ShowTitleBarIcon ? Metrics.IconMargin + Metrics.IconSize : 0;
+            // 图标与标题栏内容之间留出间距（与 WPF 主题里标题文字的 8px 边距一致），
+            // 否则菜单会贴着图标，视觉上太挤
+            var left = ShowTitleBarIcon
+                ? Metrics.IconMargin + Metrics.IconSize + ScaleDip(CaptionContentGapDip, Metrics.Dpi)
+                : 0;
             var width = MeasureSlot(_titleBarContent, Math.Max(0, right - left));
             _titleBarContent.SetBounds(left, slotTop, width, slotHeight);
         }
-
     }
+
     /// <summary>插槽宽度：控件自身宽度优先（未设置时用首选宽度），并夹到可用空间内。</summary>
     private static int MeasureSlot(Control control, int available)
     {
