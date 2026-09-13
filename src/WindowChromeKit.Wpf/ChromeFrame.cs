@@ -30,13 +30,6 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
 
     internal IntPtr FrameHandle => _frame?.Handle ?? IntPtr.Zero;
 
-    internal IntPtr ResizeOverlayHandle => _frame?.ResizeOverlayHandle ?? IntPtr.Zero;
-
-    internal void SynchronizeResizeOverlay() => _frame?.SynchronizeResizeOverlay();
-
-    /// <summary>按当前 <see cref="IsResizable"/> 重新创建或同步外置 resize overlay。</summary>
-    protected void RefreshResizeOverlay() => _frame?.UpdateResizeMode(IsResizable);
-
     /// <summary>当前窗口是否允许八方向缩放；无标题栏窗口也可直接复用。</summary>
     protected virtual bool IsResizable => ResizeMode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip;
 
@@ -45,7 +38,7 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
 
     /// <summary>
     /// 把屏幕坐标映射为语义角色。默认返回 <see cref="ChromeHitTestRole.Default"/>，
-    /// 让 resize overlay 能优先命中窗口四边（包括顶部内侧条带）；子类可覆写，
+    /// 让窗口自身的缩放带（左/右/下 8px、顶部 6px）优先命中；子类可覆写，
     /// 把自定义标题栏标记为 Caption，把可交互控件标记为 Client。
     /// </summary>
     protected virtual ChromeHitTestRole HitTestFrame(Point screenPoint) =>
@@ -69,8 +62,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     /// <summary>显示器拓扑或工作区变化通知钩子。</summary>
     protected virtual void OnDisplayConfigurationChanged() { }
 
-    /// <summary>窗口句柄和 frame controller 初始化完成后的扩展点；默认初始化 resize overlay。</summary>
-    protected virtual void OnFrameAttached() => RefreshResizeOverlay();
+    /// <summary>窗口句柄和 frame controller 初始化完成后的扩展点。</summary>
+    protected virtual void OnFrameAttached() { }
 
     /// <summary>窗口状态变化时的扩展点；默认刷新 DWM frame，以处理最大化/还原时的边距切换。</summary>
     protected virtual void OnFrameStateChanged() => _frame?.ScheduleNativeFrameRefresh();
@@ -94,12 +87,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
             OnFrameResizeModeChanged();
     }
 
-    /// <summary>ResizeMode 变化时更新 resize overlay；派生类可覆写为完整的视觉/状态刷新。</summary>
-    protected virtual void OnFrameResizeModeChanged()
-    {
-        _input.PrepareResizeModeChange();
-        _frame?.UpdateResizeMode(IsResizable);
-    }
+    /// <summary>ResizeMode 变化时的扩展点；客户区缩放带是否生效由 <see cref="IsResizable"/> 决定。</summary>
+    protected virtual void OnFrameResizeModeChanged() => _input.PrepareResizeModeChange();
 
     private void OnFrameSourceInitialized(object? sender, EventArgs eventArgs)
     {
@@ -109,14 +98,13 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
         _frame = new ChromeFrameController(this, _input);
         _frame.Attach(source, handle);
         OnFrameDpiChanged();
-        _frame.RefreshNativeFrame();
+        _frame.RefreshNativeFrame(notifyClientSize: true);
         OnFrameAttached();
     }
 
     private void OnFrameStateChanged(object? sender, EventArgs eventArgs) => OnFrameStateChanged();
 
-    private void OnFrameContentRendered(object? sender, EventArgs eventArgs) =>
-        _frame?.SynchronizeResizeOverlay();
+    private void OnFrameContentRendered(object? sender, EventArgs eventArgs) { }
 
     private void OnFrameClosed(object? sender, EventArgs eventArgs)
     {

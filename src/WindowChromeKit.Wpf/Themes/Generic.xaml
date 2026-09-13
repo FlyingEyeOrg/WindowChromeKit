@@ -7,6 +7,7 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Background" Value="Transparent" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
@@ -20,6 +21,12 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <!-- 最大化时客户区顶到工作区，按钮与 Chrome 一样贴到第 0 行 -->
+            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="Maximized">
+                <Setter Property="VerticalAlignment" Value="Top" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="{x:Type local:ChromeWindow}">
@@ -87,18 +94,21 @@
                                     <StackPanel x:Name="PART_DefaultTitleContent"
                                                 Orientation="Horizontal"
                                                 Visibility="Collapsed">
+                                        <!-- 实测 Chrome：图标 16px、左边距 12px（0..28 是系统菜单命中区），标题文字从 36px 起 -->
                                         <Border x:Name="PART_SystemMenu"
-                                                Width="36"
+                                                Width="28"
                                                 Background="Transparent"
                                                 local:ChromeWindow.HitTestRole="SystemMenu">
                                             <Image Width="16"
                                                    Height="16"
-                                                   HorizontalAlignment="Center"
+                                                   Margin="12,0,0,0"
+                                                   HorizontalAlignment="Left"
                                                    VerticalAlignment="Center"
                                                    Source="{TemplateBinding EffectiveTitleBarIcon}"
                                                    Stretch="Uniform" />
                                         </Border>
-                                        <TextBlock VerticalAlignment="Center"
+                                        <TextBlock Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
                                                    Text="{TemplateBinding Title}"
                                                    TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
@@ -124,7 +134,7 @@
                                             HorizontalAlignment="Right">
                                     <Button x:Name="PART_MinimizeButton"
                                             Width="{TemplateBinding CaptionButtonWidth}"
-                                            Height="{TemplateBinding TitleBarHeight}"
+                                            Height="{TemplateBinding CaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.MinimizeWindowCommand}"
@@ -135,7 +145,7 @@
                                     </Button>
                                     <Button x:Name="PART_MaximizeButton"
                                             Width="{TemplateBinding CaptionButtonWidth}"
-                                            Height="{TemplateBinding TitleBarHeight}"
+                                            Height="{TemplateBinding CaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.MaximizeWindowCommand}"
@@ -149,7 +159,7 @@
                                     </Button>
                                     <Button x:Name="PART_CloseButton"
                                             Width="{TemplateBinding CaptionButtonWidth}"
-                                            Height="{TemplateBinding TitleBarHeight}"
+                                            Height="{TemplateBinding CaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.CloseWindowCommand}"

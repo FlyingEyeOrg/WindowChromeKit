@@ -71,9 +71,18 @@ public partial class ChromeWindow
         nameof(TitleBarHeight),
         typeof(double),
         typeof(ChromeWindow),
-        new FrameworkPropertyMetadata(35d, OnChromeMetricChanged),
+        new FrameworkPropertyMetadata(40d, OnChromeMetricChanged),
         IsPositiveFiniteDouble
     );
+
+    public static readonly DependencyProperty CaptionButtonHeightProperty =
+        DependencyProperty.Register(
+            nameof(CaptionButtonHeight),
+            typeof(double),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(39d, OnChromeMetricChanged),
+            IsPositiveFiniteDouble
+        );
 
     public static readonly DependencyProperty CaptionButtonWidthProperty =
         DependencyProperty.Register(
@@ -223,7 +232,7 @@ public partial class ChromeWindow
             nameof(TitleBarBorderThickness),
             typeof(Thickness),
             typeof(ChromeWindow),
-            new FrameworkPropertyMetadata(new Thickness(0, 0, 0, 1))
+            new FrameworkPropertyMetadata(new Thickness(0))
         );
 
     public static readonly DependencyProperty TitleBarBorderThicknessProperty =
@@ -263,6 +272,13 @@ public partial class ChromeWindow
     {
         get => (double)GetValue(TitleBarHeightProperty);
         set => SetValue(TitleBarHeightProperty, value);
+    }
+
+    /// <summary>标题栏按钮高度（DIP）。实测 Chrome 为 39：比标题栏矮 1px，上沿让出 1px 的边框线。</summary>
+    public double CaptionButtonHeight
+    {
+        get => (double)GetValue(CaptionButtonHeightProperty);
+        set => SetValue(CaptionButtonHeightProperty, value);
     }
 
     public double CaptionButtonWidth

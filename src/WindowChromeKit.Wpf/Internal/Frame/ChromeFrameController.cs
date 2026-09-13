@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -7,16 +7,22 @@ using WindowChromeKit.Wpf;
 
 namespace WindowChromeKit.Wpf.Internal;
 
-/// <summary>负责单个 ChromeWindow 的原生 frame 机制：消息钩子、DWM frame、resize overlay、DPI 与最大化工作区。</summary>
+/// <summary>
+/// 负责单个 ChromeWindow 的原生 frame 机制：消息钩子、客户区内缩、命中判定、DPI 与最大化度量。
+///
+/// 与 C++ 示例（<c>WindowChromeKit.Native.Sample</c>）同一套模型：保留
+/// <c>WS_CAPTION | WS_THICKFRAME</c>，由 DWM 提供阴影与可见边框；
+/// <c>WM_NCCALCSIZE</c> 把客户区从窗口矩形内缩出 frame 区域（普通态顶部不内缩），
+/// <c>WM_NCHITTEST</c> 按 Chrome 的优先级自行判定，不再需要外置 overlay 子窗口。
+/// </summary>
 internal sealed class ChromeFrameController
 {
+    private const uint WmSize = 0x0005;
     private const uint WmCancelMode = 0x001F;
     private const uint WmMouseMove = 0x0200;
     private const uint WmLButtonUp = 0x0202;
-    private const uint WmShowWindow = 0x0018;
     private const uint WmSettingChange = 0x001A;
     private const uint WmGetMinMaxInfo = 0x0024;
-    private const uint WmWindowPosChanged = 0x0047;
     private const uint WmDisplayChange = 0x007E;
     private const uint WmNcCalcSize = 0x0083;
     private const uint WmNcHitTest = 0x0084;
@@ -24,18 +30,14 @@ internal sealed class ChromeFrameController
     private const uint WmNcLButtonDown = 0x00A1;
     private const uint WmNcLButtonUp = 0x00A2;
     private const uint WmCaptureChanged = 0x0215;
-    private const uint WmEnterSizeMove = 0x0231;
-    private const uint WmExitSizeMove = 0x0232;
     private const uint WmNcMouseLeave = 0x02A2;
-    private const uint WmDwmCompositionChanged = 0x031E;
     private const uint WmDpiChanged = 0x02E0;
+    private const uint WmDwmCompositionChanged = 0x031E;
     private const int SpiSetWorkArea = 0x002F;
     private readonly IChromeFrameHost _host;
     private readonly ChromeInputController _input;
     private HwndSource? _source;
-    private WindowResizeOverlay? _resizeOverlay;
     private IntPtr _handle;
-    private bool _inSizeMove;
     private bool _nativeFrameRefreshPending;
     private bool _refreshingNativeFrame;
     private bool _disposed;
@@ -48,8 +50,6 @@ internal sealed class ChromeFrameController
 
     internal IntPtr Handle => _handle;
 
-    internal IntPtr ResizeOverlayHandle => _resizeOverlay?.Handle ?? IntPtr.Zero;
-
     /// <summary>挂载窗口过程钩子，并初始化未渲染区域的合成背景。</summary>
     internal void Attach(HwndSource? source, IntPtr handle)
     {
@@ -61,40 +61,18 @@ internal sealed class ChromeFrameController
         _source?.AddHook(WindowProcedure);
     }
 
-    /// <summary>卸载窗口过程钩子，并释放 resize overlay。</summary>
+    /// <summary>卸载窗口过程钩子。</summary>
     internal void Detach()
     {
         if (_disposed)
             return;
         _disposed = true;
         _input.CancelCaptionButtonPress();
-        _resizeOverlay?.Dispose();
-        _resizeOverlay = null;
         _source?.RemoveHook(WindowProcedure);
         _source = null;
     }
 
-    internal void SynchronizeResizeOverlay() => _resizeOverlay?.Synchronize();
-
-    /// <summary>按窗口是否可缩放创建或销毁外置 resize overlay。</summary>
-    internal void UpdateResizeMode(bool isResizable)
-    {
-        if (_handle == IntPtr.Zero)
-            return;
-        if (isResizable)
-        {
-            // Overlay 与 owner 均由当前 Dispatcher 线程创建，HTTRANSPARENT 才能继续命中主窗口。
-            _resizeOverlay ??= new WindowResizeOverlay(_handle, _input.GetRoleAtPoint);
-            _resizeOverlay.Synchronize();
-        }
-        else
-        {
-            _resizeOverlay?.Dispose();
-            _resizeOverlay = null;
-        }
-    }
-
-    /// <summary>异步安排一次 DWM frame 刷新，避免在窗口消息中重复调用。</summary>
+    /// <summary>异步安排一次 frame 刷新，避免在窗口消息中重复调用。</summary>
     internal void ScheduleNativeFrameRefresh()
     {
         if (_disposed || _handle == IntPtr.Zero || _nativeFrameRefreshPending)
@@ -110,21 +88,22 @@ internal sealed class ChromeFrameController
         );
     }
 
-    /// <summary>重新应用 DWM frame 边距与 FRAMECHANGED，并同步 resize overlay。</summary>
-    internal void RefreshNativeFrame()
+    /// <summary>
+    /// 重新应用原生 frame 并让 WPF 重新布局。
+    /// <paramref name="notifyClientSize"/> 为 true 时补发一次 WM_SIZE：
+    /// 初始化阶段客户区刚被 WM_NCCALCSIZE 改过，而 SWP_FRAMECHANGED 本身不产生 WM_SIZE，
+    /// WPF 会继续按旧客户区布局（内容比客户区宽/高）。最大化、还原这类状态切换本身
+    /// 会带真实的 WM_SIZE，补发反而会用过期尺寸覆盖，因此只在初始化时补。
+    /// </summary>
+    internal void RefreshNativeFrame(bool notifyClientSize = false)
     {
         if (_disposed || _handle == IntPtr.Zero || _refreshingNativeFrame)
             return;
         _refreshingNativeFrame = true;
         try
         {
-            // 普通窗口向内扩展 1 像素：保留 DWM 阴影，又不会像 -1 那样把系统
-            // 默认标题栏/按钮铺满整个客户区。最大化时窗口紧贴工作区，这 1 像素
-            // DWM frame 会在屏幕边缘显示成白边；此时不需要可见阴影，改用 0 边距。
-            var margins = NativeWindowMethods.IsZoomed(_handle)
-                ? new NativeMargins(0, 0, 0, 0)
-                : new NativeMargins(1, 1, 1, 1);
-            _ = NativeWindowMethods.DwmExtendFrameIntoClientArea(_handle, ref margins);
+            // 客户区由 WM_NCCALCSIZE 内缩，DWM 因此会渲染窗口 frame（阴影、可见边框、
+            // 不可见缩放带都来自它）；这里只需要让系统重算一次 frame。
             _ = NativeWindowMethods.SetWindowPos(
                 _handle,
                 IntPtr.Zero,
@@ -139,8 +118,16 @@ internal sealed class ChromeFrameController
                     | NativeWindowMethods.SwpNoSize
                     | NativeWindowMethods.SwpNoMove
             );
+            if (notifyClientSize && NativeWindowMethods.GetClientRect(_handle, out var client))
+            {
+                _ = NativeWindowMethods.SendMessage(
+                    _handle,
+                    WmSize,
+                    IntPtr.Zero,
+                    new IntPtr(unchecked((client.Height << 16) | (client.Width & 0xFFFF)))
+                );
+            }
             _host.RefreshLayout();
-            _resizeOverlay?.Synchronize();
         }
         finally
         {
@@ -166,29 +153,11 @@ internal sealed class ChromeFrameController
                 HandleNcCalcSize(window, wordParameter, longParameter);
                 handled = true;
                 return IntPtr.Zero;
-            case WmShowWindow:
-                if (wordParameter == IntPtr.Zero)
-                    _resizeOverlay?.Hide();
-                else if (!_inSizeMove)
-                    _host.Dispatcher.BeginInvoke(() => _resizeOverlay?.Synchronize());
-                break;
             case WmNcHitTest:
                 handled = true;
-                return new IntPtr(_input.HitTest(GetScreenPoint(longParameter)));
-            case WmWindowPosChanged:
-                if (!_inSizeMove)
-                    _resizeOverlay?.Synchronize();
-                break;
+                return new IntPtr(HitTest(GetScreenPoint(longParameter)));
             case WmDwmCompositionChanged:
                 ScheduleNativeFrameRefresh();
-                break;
-            case WmEnterSizeMove:
-                _inSizeMove = true;
-                _resizeOverlay?.Hide();
-                break;
-            case WmExitSizeMove:
-                _inSizeMove = false;
-                _resizeOverlay?.Synchronize();
                 break;
             case WmDpiChanged:
                 _host.Dispatcher.BeginInvoke(() =>
@@ -255,7 +224,52 @@ internal sealed class ChromeFrameController
         return IntPtr.Zero;
     }
 
-    /// <summary>设置最大化尺寸/位置，并按标题栏按钮宽度计算最小跟踪宽度。</summary>
+    /// <summary>
+    /// 命中优先级与 C++ 示例一致：窗口矩形之外 → HTNOWHERE；标题栏按钮 → 各自的值；
+    /// 左/右/下与四角、顶部带 → 缩放值；图标区 → HTSYSMENU；标题栏 → HTCAPTION；其余 → HTCLIENT。
+    /// </summary>
+    private int HitTest(NativePoint pointer)
+    {
+        if (_handle == IntPtr.Zero || !NativeWindowMethods.GetWindowRect(_handle, out var windowRect))
+            return WindowFrameHitTest.Client;
+        // Chrome 实测：窗口矩形之外的任何点都返回 HTNOWHERE，绝不声明别人的像素
+        if (!WindowFrameHitTest.Contains(windowRect, pointer))
+            return WindowFrameHitTest.Nowhere;
+
+        // 1) 标题栏按钮优先（角色由 WPF 视觉树给出：按钮、图标区、标题栏、客户区）
+        var part = _input.ResolveNativePart(pointer);
+        if (WindowFrameHitTest.IsCaptionButtonHit(part))
+            return part;
+
+        // 2) 左/右/下三边与四角；顶部带最窄，最大化时纵向不可缩放
+        if (_host.IsResizable)
+        {
+            var dpi = ResolveDpi();
+            var (frameX, frameY) = WindowFrameHitTest.GetFrameThickness(dpi);
+            var hit = WindowFrameHitTest.EvaluateResizeHit(
+                pointer,
+                windowRect,
+                frameX,
+                frameY,
+                WindowFrameHitTest.GetTopResizeBand(dpi)
+            );
+            if (hit == WindowFrameHitTest.Top && NativeWindowMethods.IsZoomed(_handle))
+                hit = WindowFrameHitTest.Client;
+            if (hit != WindowFrameHitTest.Client)
+                return hit;
+        }
+
+        // 3) 系统菜单 / 标题栏 / 客户区
+        return part;
+    }
+
+    private uint ResolveDpi()
+    {
+        var dpi = NativeWindowMethods.GetDpiForWindow(_handle);
+        return dpi == 0 ? 96u : dpi;
+    }
+
+    /// <summary>按标题栏按钮宽度计算最小跟踪宽度；最大化位置交给系统默认值。</summary>
     private void HandleGetMinMaxInfo(IntPtr window, IntPtr longParameter)
     {
         if (longParameter == IntPtr.Zero)
@@ -264,80 +278,58 @@ internal sealed class ChromeFrameController
         var dpi = NativeWindowMethods.GetDpiForWindow(window);
         if (dpi == 0)
             dpi = 96;
-        var resizeBorderWidth =
-            NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCxFrame, dpi)
-            + NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCxPaddedBorder, dpi);
+        var (frameX, _) = WindowFrameHitTest.GetFrameThickness(dpi);
         var systemMinimum = NativeWindowMethods.GetSystemMetricsForDpi(
             NativeWindowMethods.SmCxMinTrack,
             dpi
         );
+        // 客户区左右各内缩一个 frame，所以最小宽度要留出两侧 frame，
+        // 否则缩到最窄时客户区放不下三个标题栏按钮。
         limits.MinTrackSize = new NativePoint(
             WindowFrameHitTest.CalculateMinimumTrackWidth(
                 limits.MinTrackSize.X,
                 systemMinimum,
-                _host.IsResizable ? resizeBorderWidth : 0,
+                _host.IsResizable ? frameX * 2 : 0,
                 _host.CaptionButtonsWidth,
                 dpi
             ),
             limits.MinTrackSize.Y
         );
-        var monitor = NativeWindowMethods.MonitorFromWindow(
-            window,
-            NativeWindowMethods.MonitorDefaultToNearest
-        );
-        var info = new NativeMonitorInfo { Size = Marshal.SizeOf<NativeMonitorInfo>() };
-        if (monitor != IntPtr.Zero && NativeWindowMethods.GetMonitorInfo(monitor, ref info))
-        {
-            var placement = WindowFrameHitTest.CalculateMaximizedPlacement(
-                info.Monitor,
-                info.WorkArea
-            );
-            limits.MaxPosition = placement.Position;
-            limits.MaxSize = placement.Size;
-        }
         Marshal.StructureToPtr(limits, longParameter, false);
     }
 
-    /// <summary>最大化或接近最大化时，把客户区限制在显示器工作区内。</summary>
+    /// <summary>
+    /// 客户区 = 窗口矩形内缩出 frame 区域（普通态顶部不内缩）。
+    /// 最大化时窗口矩形是工作区外扩一个 frame，内缩后客户区正好等于工作区。
+    /// </summary>
     private static void HandleNcCalcSize(IntPtr window, IntPtr wordParameter, IntPtr longParameter)
     {
         if (longParameter == IntPtr.Zero)
             return;
-        var monitor = NativeWindowMethods.MonitorFromWindow(
-            window,
-            NativeWindowMethods.MonitorDefaultToNearest
-        );
-        var info = new NativeMonitorInfo { Size = Marshal.SizeOf<NativeMonitorInfo>() };
-        if (monitor == IntPtr.Zero || !NativeWindowMethods.GetMonitorInfo(monitor, ref info))
-            return;
-        var proposed =
-            wordParameter != IntPtr.Zero
-                ? Marshal.PtrToStructure<NativeNcCalcSizeParameters>(longParameter).Proposed
-                : Marshal.PtrToStructure<NativeRectangle>(longParameter);
         var dpi = NativeWindowMethods.GetDpiForWindow(window);
         if (dpi == 0)
             dpi = 96;
-        var borderX =
-            NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCxFrame, dpi)
-            + NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCxPaddedBorder, dpi);
-        var borderY =
-            NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCyFrame, dpi)
-            + NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCxPaddedBorder, dpi);
-        if (
-            !NativeWindowMethods.IsZoomed(window)
-            && !WindowFrameHitTest.MatchesMaximizedBounds(proposed, info.WorkArea, borderX, borderY)
-        )
-            return;
-        var client = WindowFrameHitTest.ClampToWorkArea(proposed, info.WorkArea);
+        var (frameX, frameY) = WindowFrameHitTest.GetFrameThickness(dpi);
+        var maximized = NativeWindowMethods.IsZoomed(window);
         if (wordParameter != IntPtr.Zero)
         {
             var parameters = Marshal.PtrToStructure<NativeNcCalcSizeParameters>(longParameter);
-            parameters.Proposed = client;
+            parameters.Proposed = WindowFrameHitTest.InsetToClient(
+                parameters.Proposed,
+                frameX,
+                frameY,
+                maximized
+            );
             Marshal.StructureToPtr(parameters, longParameter, false);
         }
         else
         {
-            Marshal.StructureToPtr(client, longParameter, false);
+            var proposed = Marshal.PtrToStructure<NativeRectangle>(longParameter);
+            Marshal.StructureToPtr(
+                WindowFrameHitTest.InsetToClient(proposed, frameX, frameY, maximized),
+                longParameter,
+                false
+            );
         }
     }
 

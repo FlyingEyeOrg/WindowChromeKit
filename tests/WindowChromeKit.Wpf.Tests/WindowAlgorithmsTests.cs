@@ -3,21 +3,6 @@ namespace WindowChromeKit.Wpf.Tests;
 public sealed class WindowAlgorithmsTests
 {
     [Theory]
-    [InlineData(ChromeHitTestRole.Default, false)]
-    [InlineData(ChromeHitTestRole.Caption, false)]
-    [InlineData(ChromeHitTestRole.Client, true)]
-    [InlineData(ChromeHitTestRole.SystemMenu, true)]
-    [InlineData(ChromeHitTestRole.MinimizeButton, true)]
-    [InlineData(ChromeHitTestRole.MaximizeButton, true)]
-    [InlineData(ChromeHitTestRole.CloseButton, true)]
-    public void ResizeOverlayPassThroughMatchesChromeHitTestRole(
-        ChromeHitTestRole role,
-        bool expected)
-    {
-        Assert.Equal(expected, WindowResizeOverlay.IsInteractiveChromeRole(role));
-    }
-
-    [Theory]
     [InlineData(96, 136, 8, 146)]
     [InlineData(120, 170, 9, 182)]
     [InlineData(144, 202, 11, 218)]
@@ -31,79 +16,83 @@ public sealed class WindowAlgorithmsTests
         Assert.Equal(expected, result);
     }
 
-    [Theory]
-    [InlineData(8)]
-    [InlineData(10)]
-    [InlineData(12)]
-    [InlineData(16)]
-    public void ResizeOverlayUsesTopInsideAndOtherBordersOutside(int border)
+    /// <summary>客户区 = 窗口矩形内缩 frame；普通态顶部不内缩，最大化时四边都内缩。</summary>
+    [Fact]
+    public void ClientAreaInsetsFrameAndKeepsTopFlushWhenRestored()
     {
-        var owner = new NativeRectangle(-1800, -200, -800, 500);
-        var overlay = WindowResizeOverlay.CalculateBounds(owner, border, border);
+        var window = new NativeRectangle(100, 100, 876, 628);
 
-        Assert.Equal(owner.Left - border, overlay.Left);
-        Assert.Equal(owner.Top, overlay.Top);
-        Assert.Equal(owner.Right + border, overlay.Right);
-        Assert.Equal(owner.Bottom + border, overlay.Bottom);
-        Assert.Equal(WindowFrameHitTest.TopLeft, Hit(overlay.Left, overlay.Top));
-        Assert.Equal(WindowFrameHitTest.TopRight, Hit(overlay.Right - 1, overlay.Top));
-        Assert.Equal(WindowFrameHitTest.BottomLeft, Hit(overlay.Left, overlay.Bottom - 1));
-        Assert.Equal(WindowFrameHitTest.BottomRight, Hit(overlay.Right - 1, overlay.Bottom - 1));
-        Assert.Equal(WindowFrameHitTest.Left, Hit(overlay.Left, owner.Top + 100));
-        Assert.Equal(WindowFrameHitTest.Right, Hit(overlay.Right - 1, owner.Top + 100));
-        Assert.Equal(WindowFrameHitTest.Top, Hit(owner.Left + 100, owner.Top));
-        Assert.Equal(WindowFrameHitTest.Bottom, Hit(owner.Left + 100, overlay.Bottom - 1));
-        Assert.Equal(WindowFrameHitTest.Client, Hit(owner.Left + 100, owner.Top + border));
+        var restored = WindowFrameHitTest.InsetToClient(window, 8, 8, maximized: false);
+        Assert.Equal(new NativeRectangle(108, 100, 868, 620), restored);
 
-        int Hit(int x, int y) => WindowResizeOverlay.EvaluateHit(
-            new NativePoint(x, y), overlay, border, border);
+        var maximizedWindow = new NativeRectangle(-8, -8, 2568, 1400);
+        var maximized = WindowFrameHitTest.InsetToClient(maximizedWindow, 8, 8, maximized: true);
+        Assert.Equal(new NativeRectangle(0, 0, 2560, 1392), maximized);
+    }
+
+    /// <summary>
+    /// 缩放带在窗口矩形之内（"阴影里那圈"），左右下为 frame 厚度、顶部更窄；
+    /// 数值与 Chrome/C++ 示例实测一致。
+    /// </summary>
+    [Fact]
+    public void ResizeBandsMatchMeasuredChromeGeometry()
+    {
+        var window = new NativeRectangle(100, 100, 876, 628);
+        const int frame = 8;
+        const int topBand = 6;
+
+        int Hit(int x, int y) =>
+            WindowFrameHitTest.EvaluateResizeHit(
+                new NativePoint(x, y), window, frame, frame, topBand);
+
+        Assert.Equal(WindowFrameHitTest.Left, Hit(100, 300));
+        Assert.Equal(WindowFrameHitTest.Left, Hit(107, 300));
+        Assert.Equal(WindowFrameHitTest.Client, Hit(108, 300));
+        // 右侧/底部的 8px 带含最外一个像素，所以客户区从 R-9 / B-9 开始
+        Assert.Equal(WindowFrameHitTest.Right, Hit(875, 300));
+        Assert.Equal(WindowFrameHitTest.Right, Hit(868, 300));
+        Assert.Equal(WindowFrameHitTest.Client, Hit(867, 300));
+        Assert.Equal(WindowFrameHitTest.Bottom, Hit(400, 627));
+        Assert.Equal(WindowFrameHitTest.Bottom, Hit(400, 620));
+        Assert.Equal(WindowFrameHitTest.Client, Hit(400, 619));
+        Assert.Equal(WindowFrameHitTest.TopLeft, Hit(100, 100));
+        Assert.Equal(WindowFrameHitTest.TopLeft, Hit(107, 107));
+        Assert.Equal(WindowFrameHitTest.TopRight, Hit(875, 100));
+        Assert.Equal(WindowFrameHitTest.BottomLeft, Hit(100, 627));
+        Assert.Equal(WindowFrameHitTest.BottomRight, Hit(875, 627));
+        // 顶部带比四角矮：T+0..T+5 是 HTTOP，T+6 起交给标题栏
+        Assert.Equal(WindowFrameHitTest.Top, Hit(400, 100));
+        Assert.Equal(WindowFrameHitTest.Top, Hit(400, 105));
+        Assert.Equal(WindowFrameHitTest.Client, Hit(400, 106));
+    }
+
+    /// <summary>窗口矩形之外的任何点都不属于本窗口（HTNOWHERE），与 Chrome 实测一致。</summary>
+    [Fact]
+    public void PointsOutsideWindowRectangleAreNotClaimed()
+    {
+        var window = new NativeRectangle(100, 100, 876, 628);
+
+        Assert.False(WindowFrameHitTest.Contains(window, new NativePoint(99, 300)));
+        Assert.False(WindowFrameHitTest.Contains(window, new NativePoint(400, 99)));
+        Assert.False(WindowFrameHitTest.Contains(window, new NativePoint(876, 300)));
+        Assert.False(WindowFrameHitTest.Contains(window, new NativePoint(400, 628)));
+        Assert.True(WindowFrameHitTest.Contains(window, new NativePoint(100, 100)));
+        Assert.True(WindowFrameHitTest.Contains(window, new NativePoint(875, 627)));
     }
 
     [Fact]
-    public void CaptionPartsUseActualScreenRectangles()
+    public void NativePartClassificationSeparatesResizeFromCaptionButtons()
     {
-        var icon = new NativeRectangle(110, 109, 126, 125);
-        var minimize = new NativeRectangle(962, 100, 1008, 135);
-        var maximize = new NativeRectangle(1008, 100, 1054, 135);
-        var close = new NativeRectangle(1054, 100, 1100, 135);
+        Assert.True(WindowFrameHitTest.IsResizeHit(WindowFrameHitTest.Left));
+        Assert.True(WindowFrameHitTest.IsResizeHit(WindowFrameHitTest.Top));
+        Assert.True(WindowFrameHitTest.IsResizeHit(WindowFrameHitTest.BottomRight));
+        Assert.False(WindowFrameHitTest.IsResizeHit(WindowFrameHitTest.Caption));
+        Assert.False(WindowFrameHitTest.IsResizeHit(WindowFrameHitTest.Nowhere));
 
-        Assert.Equal(WindowFrameHitTest.SystemMenu, Hit(110, 109));
-        Assert.Equal(WindowFrameHitTest.MinButton, Hit(980, 125));
-        Assert.Equal(WindowFrameHitTest.MaxButton, Hit(1020, 125));
-        Assert.Equal(WindowFrameHitTest.Close, Hit(1080, 125));
-        Assert.Equal(WindowFrameHitTest.Caption, Hit(500, 125));
-        Assert.Equal(WindowFrameHitTest.Client, Hit(500, 135));
-
-        int Hit(int x, int y) => WindowFrameHitTest.Evaluate(
-            new NativePoint(x, y), icon, minimize, maximize, close, 135);
-    }
-
-    [Fact]
-    public void MaximizedPlacementSupportsNegativeCoordinateMonitors()
-    {
-        var monitor = new NativeRectangle(-2560, -200, 0, 1240);
-        var workArea = new NativeRectangle(-2560, -160, 0, 1200);
-
-        var result = WindowFrameHitTest.CalculateMaximizedPlacement(monitor, workArea);
-
-        Assert.Equal(0, result.Position.X);
-        Assert.Equal(40, result.Position.Y);
-        Assert.Equal(2560, result.Size.X);
-        Assert.Equal(1360, result.Size.Y);
-    }
-
-    [Theory]
-    [InlineData(0, 0, 1920, 1032)]
-    [InlineData(0, 48, 1920, 1080)]
-    [InlineData(48, 0, 1920, 1080)]
-    [InlineData(0, 0, 1872, 1080)]
-    public void MaximizedClientIsClampedForEveryTaskbarEdge(
-        int left, int top, int right, int bottom)
-    {
-        var workArea = new NativeRectangle(left, top, right, bottom);
-        var proposed = new NativeRectangle(left - 8, top - 8, right + 8, bottom + 8);
-
-        Assert.Equal(workArea, WindowFrameHitTest.ClampToWorkArea(proposed, workArea));
+        Assert.True(WindowFrameHitTest.IsCaptionButtonHit(WindowFrameHitTest.Close));
+        Assert.True(WindowFrameHitTest.IsCaptionButtonHit(WindowFrameHitTest.MinButton));
+        Assert.True(WindowFrameHitTest.IsCaptionButtonHit(WindowFrameHitTest.MaxButton));
+        Assert.False(WindowFrameHitTest.IsCaptionButtonHit(WindowFrameHitTest.SystemMenu));
     }
 
     [Fact]

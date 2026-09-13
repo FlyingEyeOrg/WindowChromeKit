@@ -7,9 +7,11 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
 ## 功能特性
 
 - 支持原生窗口拖动、系统菜单、最小化、最大化、关闭、双击标题栏和 Snap Layout。
-- 在窗口客户区覆盖完整窗口的同时保留 DWM 阴影。
-- 通过从属、不可激活的 Win32 覆盖窗口，实现支持 DPI 的八方向缩放。
-- 在任务栏位于屏幕任意边缘时，都能正确计算最大化工作区。
+- 保留 `WS_CAPTION | WS_THICKFRAME`，由 DWM 提供阴影、可见边框和「阴影里那圈」不可见缩放带；
+  客户区从窗口矩形内缩出 frame（普通态顶部不内缩，避免 Windows 10 画出原生标题栏）。
+- 八方向缩放按真实 Chrome 实测的几何自行判定命中（左/右/下 8px、顶部 6px），
+  不需要额外的覆盖窗口，也不会声明窗口矩形之外的像素。
+- 最大化时客户区正好等于工作区，任务栏位于屏幕任意边缘都能正确铺满。
 - 支持多显示器居中和工作区约束，包括负坐标显示器。
 - 提供可模板化的 `ChromeWindow`，其画刷和尺寸均可通过依赖属性绑定。
 - 提供 Windows 7 和 Windows 10 风格的可选多尺寸窗口图标资源，不改变 WPF 原有的窗口图标规则。
@@ -114,7 +116,7 @@ public partial class MainWindow : ChromeWindow
 `EffectiveTitleBarIcon`，它既支持显式 `Icon`，也能在窗口句柄创建后取得 WPF 实际选定的图标：
 
 ```xml
-<Border Width="36"
+<Border Width="28"
         Height="40"
         chrome:ChromeWindow.HitTestRole="SystemMenu">
     <Image Width="16"

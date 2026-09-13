@@ -101,10 +101,11 @@ public partial class ChromeWindow
     internal void UpdateDpiVisuals()
     {
         var scaleY = VisualTreeHelper.GetDpi(this).DpiScaleY;
-        SetValue(
-            TitleBarBorderThicknessPropertyKey,
-            new Thickness(0, 0, 0, 1 / (scaleY <= 0 ? 1 : scaleY))
-        );
+        // 顶边 1px 边框线：Windows 10 的 DWM 只在非客户区画边框，顶部这一条要自己补，
+        // 否则会出现"三条边有框、顶边缺一条"。最大化时客户区正好等于工作区，画了会在
+        // 屏幕顶端多出一条线（Chrome 最大化也没有）；Win11 上 DWM 会覆盖同一行，无副作用。
+        var topLine = WindowState == WindowState.Maximized ? 0 : 1 / (scaleY <= 0 ? 1 : scaleY);
+        SetValue(TitleBarBorderThicknessPropertyKey, new Thickness(0, topLine, 0, 0));
     }
 
     private void ScheduleEffectiveTitleBarIconRefresh()

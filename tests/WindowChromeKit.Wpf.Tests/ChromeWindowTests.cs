@@ -19,7 +19,8 @@ public sealed class ChromeWindowTests
     {
         var window = new ChromeWindow();
 
-        Assert.Equal(35, window.TitleBarHeight);
+        Assert.Equal(40, window.TitleBarHeight);
+        Assert.Equal(39, window.CaptionButtonHeight);
         Assert.Equal(46, window.CaptionButtonWidth);
         Assert.Equal(ResizeMode.CanResize, window.ResizeMode);
         Assert.Null(window.Icon);
@@ -158,75 +159,54 @@ public sealed class ChromeWindowTests
     });
 
     [Fact]
-    public void ResizeOverlaySynchronizesWithChromeHitTestRoles() => RunSta(() =>
+    public void HitTestFollowsChromePriorityOnWindowItself() => RunSta(() =>
     {
-        var textBox = new TextBox
-        {
-            Width = 140,
-            Height = 25,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Text = "标题栏输入框",
-        };
-        ChromeWindow.SetHitTestRole(textBox, ChromeHitTestRole.Client);
-        var titleContent = new Grid { Background = Brushes.Transparent };
-        titleContent.Children.Add(textBox);
-        var action = new Button
-        {
-            Width = 90,
-            Height = 35,
-            Content = "标题栏操作",
-        };
         var window = new ChromeWindow
         {
             Width = 700,
             Height = 400,
             ShowInTaskbar = false,
             ShowActivated = false,
-            Title = "Overlay hit test",
-            TitleBarContent = titleContent,
-            TitleBarActions = action,
+            Title = "hit test",
         };
-
         var handle = new WindowInteropHelper(window).EnsureHandle();
         window.Show();
         window.UpdateLayout();
-        window.SynchronizeResizeOverlay();
-
-        var overlay = window.ResizeOverlayHandle;
-        Assert.NotEqual(IntPtr.Zero, overlay);
-        Assert.Equal(
-            NativeWindowMethods.GetWindowThreadProcessId(handle, out _),
-            NativeWindowMethods.GetWindowThreadProcessId(overlay, out _));
+        Assert.True(NativeWindowMethods.GetWindowRect(handle, out var bounds));
 
         var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
             window.Template.FindName(ChromeWindow.PartTitleBar, window));
-        var minimize = Assert.IsAssignableFrom<FrameworkElement>(
-            window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
-        var actionPoint = action.PointToScreen(new Point(action.ActualWidth / 2, 1));
-        var minimizePoint = minimize.PointToScreen(new Point(minimize.ActualWidth / 2, 1));
-        var textBoxPoint = textBox.PointToScreen(new Point(textBox.ActualWidth / 2, 1));
-        var captionPoint = titleBar.PointToScreen(new Point(titleBar.ActualWidth / 2, 1));
+        var systemMenu = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartSystemMenu, window));
+        var minimize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
+        var maximize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
+        var close = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartCloseButton, window));
 
-        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, actionPoint));
-        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, minimizePoint));
-        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, textBoxPoint));
-        Assert.Equal(WindowFrameHitTest.Top, SendHitTest(overlay, captionPoint));
+        // 1) 窗口矩形之外：Chrome 实测返回 HTNOWHERE，绝不声明别人的像素
+        Assert.Equal(WindowFrameHitTest.Nowhere, SendHitTest(handle, new Point(bounds.Left - 1, bounds.Top + 100)));
+        Assert.Equal(WindowFrameHitTest.Nowhere, SendHitTest(handle, new Point(bounds.Left + 100, bounds.Bottom)));
+        Assert.Equal(WindowFrameHitTest.Nowhere, SendHitTest(handle, new Point(bounds.Right, bounds.Top + 100)));
 
-        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Caption);
-        Assert.Equal(WindowFrameHitTest.Top, SendHitTest(overlay, actionPoint));
-        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Client);
-        Assert.Equal(WindowResizeOverlay.HitTransparent, SendHitTest(overlay, actionPoint));
+        // 2) 左/右/下三边与四角：窗口矩形之内、可见窗口之外的缩放带
+        Assert.Equal(WindowFrameHitTest.Left, SendHitTest(handle, new Point(bounds.Left, bounds.Top + 100)));
+        Assert.Equal(WindowFrameHitTest.Right, SendHitTest(handle, new Point(bounds.Right - 1, bounds.Top + 100)));
+        Assert.Equal(WindowFrameHitTest.Bottom, SendHitTest(handle, new Point(bounds.Left + 300, bounds.Bottom - 1)));
+        Assert.Equal(WindowFrameHitTest.TopLeft, SendHitTest(handle, new Point(bounds.Left, bounds.Top)));
+        Assert.Equal(WindowFrameHitTest.TopRight, SendHitTest(handle, new Point(bounds.Right - 1, bounds.Top)));
 
-        Assert.True(NativeWindowMethods.GetWindowRect(handle, out var ownerBounds));
-        Assert.Equal(
-            WindowFrameHitTest.Left,
-            SendHitTest(overlay, new Point(ownerBounds.Left - 1, ownerBounds.Top + 100)));
-        Assert.Equal(
-            WindowFrameHitTest.Bottom,
-            SendHitTest(overlay, new Point(ownerBounds.Left + 100, ownerBounds.Bottom)));
+        // 3) 顶部带最窄（6px），其下交给标题栏
+        Assert.Equal(WindowFrameHitTest.Top, SendHitTest(handle, new Point(bounds.Left + 300, bounds.Top)));
+        Assert.Equal(WindowFrameHitTest.Caption, SendHitTest(handle, new Point(bounds.Left + 300, bounds.Top + 20)));
+        Assert.True(titleBar.ActualHeight > 20);
 
-        window.Close();
+        // 4) 图标区 → HTSYSMENU，三个按钮 → 各自的命中值
+        Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, systemMenu));
+        Assert.Equal(WindowFrameHitTest.MinButton, HitTest(handle, minimize));
+        Assert.Equal(WindowFrameHitTest.MaxButton, HitTest(handle, maximize));
+        Assert.Equal(WindowFrameHitTest.Close, HitTest(handle, close));
+
+        // 5) 客户区
+        Assert.Equal(WindowFrameHitTest.Client, SendHitTest(handle, new Point(bounds.Left + 300, bounds.Top + 300)));
     });
 
     [Fact]
@@ -323,7 +303,6 @@ public sealed class ChromeWindowTests
         var handle = new WindowInteropHelper(window).EnsureHandle();
         window.Show();
         window.UpdateLayout();
-        window.SynchronizeResizeOverlay();
 
         Assert.Null(window.Icon);
         Assert.NotNull(window.EffectiveTitleBarIcon);
@@ -332,14 +311,15 @@ public sealed class ChromeWindowTests
         var minimize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
         var maximize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
         var close = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartCloseButton, window));
-        Assert.Equal(35, titleBar.ActualHeight, 3);
+        Assert.Equal(40, titleBar.ActualHeight, 3);
         Assert.Equal(46, close.ActualWidth, 3);
         Assert.Same(window.InactiveTitleBarForeground, titleBar.GetValue(TextElement.ForegroundProperty));
         Assert.True(content.ActualWidth > 0);
         Assert.True(content.ActualHeight > 0);
         Assert.Equal(Visibility.Visible, minimize.Visibility);
         Assert.Equal(Visibility.Visible, maximize.Visibility);
-        Assert.Equal(36, systemMenu.ActualWidth, 3);
+        // 实测 Chrome：图标左边距 12 + 图标 16 = 28 的系统菜单命中区
+        Assert.Equal(28, systemMenu.ActualWidth, 3);
         Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, systemMenu));
 
         window.ShowTitleBarIcon = false;
@@ -361,13 +341,13 @@ public sealed class ChromeWindowTests
         window.Dispatcher.Invoke(DispatcherPriority.Loaded, () => { });
         Assert.NotNull(window.EffectiveTitleBarIcon);
 
-        var overlay = window.ResizeOverlayHandle;
-        Assert.NotEqual(IntPtr.Zero, overlay);
-        Assert.True(NativeWindowMethods.IsWindowVisible(overlay));
+        // 新模型：客户区从窗口矩形内缩出 frame（普通态顶部不内缩），不再有外置 overlay
         Assert.True(NativeWindowMethods.GetWindowRect(handle, out var bounds));
         Assert.True(NativeWindowMethods.GetClientRect(handle, out var client));
-        Assert.Equal(bounds.Width, client.Width);
-        Assert.Equal(bounds.Height, client.Height);
+        var frameThickness = WindowFrameHitTest.GetFrameThickness(
+            (uint)VisualTreeHelper.GetDpi(window).PixelsPerInchX);
+        Assert.Equal(bounds.Width - frameThickness.X * 2, client.Width);
+        Assert.Equal(bounds.Height - frameThickness.Y, client.Height);
         var clientOrigin = new NativePoint(0, 0);
         Assert.True(NativeWindowMethods.ClientToScreen(handle, ref clientOrigin));
         var titleOrigin = titleBar.PointToScreen(new Point());
@@ -378,8 +358,12 @@ public sealed class ChromeWindowTests
         Assert.InRange(Math.Abs(titleOrigin.Y - clientOrigin.Y), 0, 1);
         Assert.InRange(Math.Abs(contentOrigin.X - clientOrigin.X), 0, 1);
         Assert.InRange(Math.Abs(contentOrigin.Y - titleBottom.Y), 0, 1);
-        Assert.InRange(Math.Abs(contentOpposite.X - (clientOrigin.X + client.Width)), 0, 1);
-        Assert.InRange(Math.Abs(contentOpposite.Y - (clientOrigin.Y + client.Height)), 0, 1);
+        // 窗口尺寸在上面被改过，客户区要按当前值重新读，不能沿用 Show 之后的快照
+        Assert.True(NativeWindowMethods.GetClientRect(handle, out var liveClient));
+        var liveOrigin = new NativePoint(0, 0);
+        Assert.True(NativeWindowMethods.ClientToScreen(handle, ref liveOrigin));
+        Assert.InRange(Math.Abs(contentOpposite.X - (liveOrigin.X + liveClient.Width)), 0, 1);
+        Assert.InRange(Math.Abs(contentOpposite.Y - (liveOrigin.Y + liveClient.Height)), 0, 1);
 
         window.Width = 1;
         window.UpdateLayout();
@@ -435,8 +419,6 @@ public sealed class ChromeWindowTests
         window.UpdateLayout();
         _ = NativeWindowMethods.SendMessage(handle, 0x02A2, IntPtr.Zero, IntPtr.Zero);
         Assert.Equal(ChromeHitTestRole.Default, window.HoveredChromeRole);
-        Assert.Equal(IntPtr.Zero, window.ResizeOverlayHandle);
-        Assert.False(NativeWindowMethods.IsWindow(overlay));
         Assert.False(window.TryExecuteCaptionButton(ChromeHitTestRole.MinimizeButton, ChromeHitTestRole.CloseButton));
         Assert.Equal(WindowState.Normal, window.WindowState);
         Assert.True(window.TryExecuteCaptionButton(ChromeHitTestRole.MinimizeButton, ChromeHitTestRole.MinimizeButton));
@@ -454,17 +436,14 @@ public sealed class ChromeWindowTests
         window.ResizeMode = ResizeMode.CanResizeWithGrip;
         window.Dispatcher.Invoke(DispatcherPriority.Background, () => { });
         window.UpdateLayout();
-        window.SynchronizeResizeOverlay();
-        Assert.NotEqual(IntPtr.Zero, window.ResizeOverlayHandle);
         Assert.Equal(Visibility.Visible, maximize.Visibility);
         Assert.True(maximize.IsEnabled);
         Assert.Equal(1, maximize.Opacity, 3);
         var grip = Assert.IsType<ResizeGrip>(window.Template.FindName("PART_ResizeGrip", window));
         Assert.Equal(Visibility.Visible, grip.Visibility);
 
-        var finalOverlay = window.ResizeOverlayHandle;
         window.Close();
-        Assert.False(NativeWindowMethods.IsWindow(finalOverlay));
+        Assert.False(NativeWindowMethods.IsWindow(handle));
     });
 
     [Fact]
@@ -484,17 +463,20 @@ public sealed class ChromeWindowTests
         var monitor = NativeWindowMethods.MonitorFromWindow(handle, NativeWindowMethods.MonitorDefaultToNearest);
         var info = new NativeMonitorInfo { Size = Marshal.SizeOf<NativeMonitorInfo>() };
         Assert.True(NativeWindowMethods.GetMonitorInfo(monitor, ref info));
+        // 最小跟踪宽度：至少放下三个标题栏按钮 + 两侧 frame（最大化位置交给系统默认值）
+        var (frameX, _) = WindowFrameHitTest.GetFrameThickness(
+            (uint)VisualTreeHelper.GetDpi(window).PixelsPerInchX);
+        var systemMinimum = NativeWindowMethods.GetSystemMetricsForDpi(
+            NativeWindowMethods.SmCxMinTrack, 96);
+        var expectedMinimum = WindowFrameHitTest.CalculateMinimumTrackWidth(
+            0, systemMinimum, frameX * 2, 46 * 3, 96);
         var pointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
         try
         {
             Marshal.StructureToPtr(default(NativeMinMaxInfo), pointer, false);
             _ = NativeWindowMethods.SendMessage(handle, 0x0024, IntPtr.Zero, pointer);
             var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(pointer);
-            var expected = WindowFrameHitTest.CalculateMaximizedPlacement(info.Monitor, info.WorkArea);
-            Assert.Equal(expected.Position.X, limits.MaxPosition.X);
-            Assert.Equal(expected.Position.Y, limits.MaxPosition.Y);
-            Assert.Equal(expected.Size.X, limits.MaxSize.X);
-            Assert.Equal(expected.Size.Y, limits.MaxSize.Y);
+            Assert.Equal(expectedMinimum, limits.MinTrackSize.X);
             Assert.True(limits.MinTrackSize.X > 0);
         }
         finally
@@ -505,7 +487,7 @@ public sealed class ChromeWindowTests
     });
 
     [Fact]
-    public void ChromeFrameCreatesResizeOverlayByDefault()
+    public void ChromeFrameInsetsClientAndProvidesResizeBands()
     {
         RunSta(() =>
         {
@@ -517,25 +499,23 @@ public sealed class ChromeWindowTests
                 ShowActivated = false,
             };
 
-            _ = new WindowInteropHelper(frame).EnsureHandle();
+            var handle = new WindowInteropHelper(frame).EnsureHandle();
             frame.Show();
             frame.UpdateLayout();
-            frame.SynchronizeResizeOverlay();
 
-            var overlay = frame.ResizeOverlayHandle;
-            Assert.NotEqual(IntPtr.Zero, overlay);
-            Assert.True(NativeWindowMethods.IsWindowVisible(overlay));
-
-            Assert.True(NativeWindowMethods.GetWindowRect(overlay, out var overlayBounds));
-            var topBorderPoint = PackScreenPoint(
-                new Point(overlayBounds.Left + 100, overlayBounds.Top));
+            // 客户区 = 窗口矩形内缩 frame；顶部不内缩，因此顶部带落在客户区之内
+            Assert.True(NativeWindowMethods.GetWindowRect(handle, out var bounds));
+            Assert.True(NativeWindowMethods.GetClientRect(handle, out var client));
+            var (frameX, frameY) = WindowFrameHitTest.GetFrameThickness(
+                (uint)VisualTreeHelper.GetDpi(frame).PixelsPerInchX);
+            Assert.Equal(bounds.Width - frameX * 2, client.Width);
+            Assert.Equal(bounds.Height - frameY, client.Height);
             Assert.Equal(
                 WindowFrameHitTest.Top,
-                NativeWindowMethods.SendMessage(
-                    overlay, 0x0084, IntPtr.Zero, topBorderPoint).ToInt32());
+                SendHitTest(handle, new Point(bounds.Left + 100, bounds.Top)));
 
             frame.Close();
-            Assert.False(NativeWindowMethods.IsWindow(overlay));
+            Assert.False(NativeWindowMethods.IsWindow(handle));
         });
     }
 

@@ -10,7 +10,6 @@ public partial class ChromeWindow
     {
         _input.PrepareResizeModeChange();
         CommandManager.InvalidateRequerySuggested();
-        RefreshResizeOverlay();
     }
 
     protected override void OnFrameDpiChanged() => UpdateDpiVisuals();
@@ -19,7 +18,7 @@ public partial class ChromeWindow
 
     protected override void OnFrameAttached()
     {
-        // ChromeWindow 沿用原有顺序：先刷新输入状态，再创建/同步 overlay，然后刷新图标和延迟居中。
+        // 先刷新输入状态，再刷新图标和延迟居中。
         ApplyResizeMode();
         RefreshEffectiveTitleBarIcon();
         if (_centerWhenInitialized)

@@ -17,17 +17,17 @@ internal sealed class ChromeInputController
 
     internal ChromeInputController(IChromeFrameHost host) => _host = host;
 
-    /// <summary>返回屏幕点的语义角色，供外置 resize overlay 判断是否需要穿透。</summary>
-    internal ChromeHitTestRole GetRoleAtPoint(NativePoint point) => _host.HitTestFrame(point);
-
     internal bool IsTrackingCaptionButtonPress => _trackingCaptionButtonPress;
 
     internal ChromeHitTestRole HotRole => NativePartToRole(_hotPart);
 
     internal ChromeHitTestRole PressedRole => NativePartToRole(_pressedPart);
 
-    /// <summary>把屏幕命中点转换成 WM_NCHITTEST 使用的原生部件值。</summary>
-    internal int HitTest(NativePoint pointer)
+    /// <summary>
+    /// 把屏幕点的语义角色转换成 WM_NCHITTEST 部件值（按钮 / 系统菜单 / 标题栏 / 客户区）。
+    /// 边框缩放带由 frame controller 在同一优先级里判定，这里只负责角色。
+    /// </summary>
+    internal int ResolveNativePart(NativePoint pointer)
     {
         try
         {
