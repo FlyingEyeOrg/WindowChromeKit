@@ -1,0 +1,5 @@
+#include <windows.h>
+
+// Application icon: the window (and title bar) uses this icon the native way,
+// i.e. the same path WPF takes when <ApplicationIcon> is configured.
+101 ICON "app.ico"

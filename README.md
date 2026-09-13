@@ -144,6 +144,8 @@ public partial class MainWindow : ChromeWindow
 
 - `src/WindowChromeKit.Wpf`：可复用的 WPF 类库。
 - `samples/WindowChromeKit.Wpf.Sample`：交互式示例应用程序。
+- `samples/WindowChromeKit.Native.Sample`：纯 Win32（C++）参考示例，按真实 Chrome 窗口实测的参数
+  复刻「保留阴影 + 阴影中的 resize 带 + 自绘标题栏」，可作为库实现的对照基准。
 - `tests/WindowChromeKit.Wpf.Tests`：算法测试和真实 HWND 集成测试。
 - `legacy/SoftwareHub.DesktopAgent.Runtime/Windows`：供后续提取使用、不参与编译的源代码快照。
 
