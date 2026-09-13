@@ -36,6 +36,8 @@ internal static class NativeMethods
     internal const int SmCyFrame = 33;
     internal const int SmCxPaddedBorder = 92;
     internal const int SmCxMinTrack = 34;
+    internal const int SmCxSmSize = 52;   // 标题栏"小按钮"尺寸 = 系统菜单图标盒边长
+    internal const int SmCySmSize = 53;
     internal const int SmCyMinTrack = 35;
     internal const int SmCxSmIcon = 49;
     internal const int SmCySmIcon = 50;
@@ -75,6 +77,19 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern bool GetCursorPos(out NativePoint point);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetSystemMenu(IntPtr window, [MarshalAs(UnmanagedType.Bool)] bool revert);
+
+    [DllImport("user32.dll")]
+    internal static extern int TrackPopupMenuEx(
+        IntPtr menu, uint flags, int x, int y, IntPtr window, IntPtr parameters);
+
+    internal const int WmSysCommand = 0x0112;
+    internal const uint TpmLeftAlign = 0x0000;
+    internal const uint TpmLeftButton = 0x0000;
+    internal const uint TpmReturnCmd = 0x0100;
+    internal const uint TpmNonotify = 0x0080;
 
     [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
     private static extern IntPtr GetClassLongPtr64(IntPtr window, int index);

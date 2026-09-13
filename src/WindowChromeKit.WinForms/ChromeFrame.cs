@@ -214,19 +214,29 @@ public partial class ChromeFrame : Form
         var dpi = (uint)Math.Max(96, DeviceDpi);
         var (frameX, frameY) = ChromeFrameGeometry.GetFrameThickness(dpi);
         var maximized = IsMaximized;
+        var (menuBoxWidth, menuBoxHeight) = ChromeFrameGeometry.GetSystemMenuBoxSize(dpi);
+        var iconSize = ChromeFrameGeometry.GetSmallIconSize(dpi);
+        var iconLeft = ScaleDip(GetCaptionIconMarginDip(), dpi);
+        var captionHeight = ScaleDip(GetCaptionHeightDip(), dpi);
         Metrics = new FrameMetrics
         {
             Dpi = dpi,
             FrameX = frameX,
             FrameY = frameY,
             Maximized = maximized,
-            CaptionHeight = ScaleDip(GetCaptionHeightDip(), dpi),
+            CaptionHeight = captionHeight,
             CaptionButtonWidth = ScaleDip(GetCaptionButtonWidthDip(), dpi),
             CaptionButtonsWidth = ScaleDip(GetCaptionButtonWidthDip() * GetCaptionButtonCount(), dpi),
             CaptionButtonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi),
             CaptionLeadingWidth = ScaleDip(GetCaptionLeadingWidthDip(), dpi),
-            IconMargin = ScaleDip(GetCaptionIconMarginDip(), dpi),
-            IconSize = ChromeFrameGeometry.GetSmallIconSize(dpi),
+            // 命中盒子与原生一致（22×22 正方形、竖向居中），但以画出来的图标为中心，
+            // 所以图标仍留在 IconMargin（默认 12），不会因为对齐命中区而左移
+            SystemMenuLeft = iconLeft - Math.Max(0, (menuBoxWidth - iconSize) / 2),
+            SystemMenuWidth = menuBoxWidth,
+            SystemMenuTop = Math.Max(0, (captionHeight - menuBoxHeight) / 2),
+            SystemMenuHeight = menuBoxHeight,
+            IconMargin = iconLeft,
+            IconSize = iconSize,
             TopResizeBand = ScaleDip(GetTopResizeBandDip(), dpi),
             // 命中矩形固定用窗口坐标 T+1 起（Chrome 实测，最大化时也不变）
             CaptionButtonTop = 1,
@@ -373,12 +383,15 @@ public partial class ChromeFrame : Form
         if (insideCaption && TryGetInteractiveRoleAt(clientPoint, out var role))
             return ToHitTest(role);
 
-        // 4) 图标区是系统菜单入口，同样优先于缩放带（与 WPF 版的 SystemMenu 角色一致）；
-        //    命中范围严格贴合图标本身，图标左边与右边的标题栏仍然可拖动
+        // 4) 系统菜单命中盒子：与原生标题栏同形状 —— SM_CXSMSIZE × SM_CYSMSIZE
+        //    （96dpi 下 22×22 的正方形、竖向居中），中心对准画出来的图标。
+        //    盒子之外的标题栏（含图标左边那点空白）仍然可拖动。
         if (insideCaption
-            && Metrics.CaptionLeadingWidth > 0
-            && pointer.X >= client.Left + Metrics.IconMargin
-            && pointer.X < client.Left + Metrics.IconMargin + Metrics.IconSize)
+            && Metrics.SystemMenuWidth > 0
+            && pointer.X >= client.Left + Metrics.SystemMenuLeft
+            && pointer.X < client.Left + Metrics.SystemMenuLeft + Metrics.SystemMenuWidth
+            && pointer.Y >= captionTop + Metrics.SystemMenuTop
+            && pointer.Y < captionTop + Metrics.SystemMenuTop + Metrics.SystemMenuHeight)
         {
             return ChromeFrameGeometry.HtSysMenu;
         }
@@ -481,6 +494,10 @@ internal sealed class FrameMetrics
     internal int CaptionButtonsWidth { get; init; }
     internal int CaptionButtonHeight { get; init; }
     internal int CaptionLeadingWidth { get; init; }
+    internal int SystemMenuLeft { get; init; }
+    internal int SystemMenuWidth { get; init; }
+    internal int SystemMenuTop { get; init; }
+    internal int SystemMenuHeight { get; init; }
     internal int IconMargin { get; init; }
     internal int IconSize { get; init; }
     internal int TopResizeBand { get; init; } = 6;

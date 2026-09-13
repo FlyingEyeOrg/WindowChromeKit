@@ -34,6 +34,16 @@ internal static class ChromeFrameGeometry
                 + NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCxPaddedBorder, dpi))
         );
 
+    /// <summary>
+    /// 标题栏系统菜单（图标）命中盒子的尺寸：原生窗口用 SM_CXSMSIZE × SM_CYSMSIZE
+    /// （96dpi 下 22×22），是一个竖向居中的正方形，而不是贯穿整个标题栏高度。
+    /// </summary>
+    internal static (int Width, int Height) GetSystemMenuBoxSize(uint dpi) =>
+        (
+            NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCxSmSize, dpi),
+            NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCySmSize, dpi)
+        );
+
     /// <summary>小图标尺寸（96dpi 下为 16px）。</summary>
     internal static int GetSmallIconSize(uint dpi) =>
         NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCxSmIcon, dpi);

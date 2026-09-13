@@ -94,18 +94,28 @@
                                     <StackPanel x:Name="PART_DefaultTitleContent"
                                                 Orientation="Horizontal"
                                                 Visibility="Collapsed">
-                                        <!-- 实测 Chrome：图标 16px、左边距 12px（0..28 是系统菜单命中区），标题文字从 36px 起 -->
+                                        <!-- 图标：16px、左边距 12px（图标固定在 12..27），标题文字从 36px 起 -->
                                         <Border x:Name="PART_SystemMenu"
                                                 Width="28"
-                                                Background="Transparent"
-                                                local:ChromeWindow.HitTestRole="SystemMenu">
-                                            <Image Width="16"
-                                                   Height="16"
-                                                   Margin="12,0,0,0"
-                                                   HorizontalAlignment="Left"
-                                                   VerticalAlignment="Center"
-                                                   Source="{TemplateBinding EffectiveTitleBarIcon}"
-                                                   Stretch="Uniform" />
+                                                Background="Transparent">
+                                            <!-- 系统菜单命中盒子：与原生标题栏同形状 —— SM_CXSMSIZE × SM_CYSMSIZE
+                                                 （96dpi 下 22×22 的正方形、竖向居中），中心对准图标；
+                                                 盒子之外的标题栏（含图标左边那点空白）仍然可拖动 -->
+                                            <Border Width="22"
+                                                    Height="22"
+                                                    Margin="9,0,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Center"
+                                                    Background="Transparent"
+                                                    local:ChromeWindow.HitTestRole="SystemMenu">
+                                                <Image Width="16"
+                                                       Height="16"
+                                                       Margin="3,0,0,0"
+                                                       HorizontalAlignment="Left"
+                                                       VerticalAlignment="Center"
+                                                       Source="{TemplateBinding EffectiveTitleBarIcon}"
+                                                       Stretch="Uniform" />
+                                            </Border>
                                         </Border>
                                         <TextBlock Margin="8,0,0,0"
                                                    VerticalAlignment="Center"

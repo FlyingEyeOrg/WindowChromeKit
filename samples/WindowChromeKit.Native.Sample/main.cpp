@@ -87,6 +87,12 @@ struct FrameMetrics
     int topBand = 6;
     int iconSize = 16;
     int iconMargin = 12;
+    // 系统菜单命中盒子：与原生标题栏同形状（SM_CXSMSIZE × SM_CYSMSIZE，96dpi 下 22×22），
+    // 但中心对准画出来的图标，图标左边那点空白仍属于可拖动的标题栏
+    int menuBoxLeft = 9;
+    int menuBoxTop = 9;
+    int menuBoxWidth = 22;
+    int menuBoxHeight = 22;
 };
 
 struct WindowState
@@ -220,6 +226,10 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     metrics.topBand = ScaleDip(kTopResizeBandDip, metrics.dpi);
     metrics.iconSize = SystemMetricForDpi(SM_CXSMICON, metrics.dpi);
     metrics.iconMargin = ScaleDip(kIconMarginDip, metrics.dpi);
+    metrics.menuBoxWidth = SystemMetricForDpi(SM_CXSMSIZE, metrics.dpi);
+    metrics.menuBoxHeight = SystemMetricForDpi(SM_CYSMSIZE, metrics.dpi);
+    metrics.menuBoxLeft = metrics.iconMargin - (metrics.menuBoxWidth - metrics.iconSize) / 2;
+    metrics.menuBoxTop = (metrics.captionHeight - metrics.menuBoxHeight) / 2;
 
     // 顶边没有任何不可见边框，只有 DWM 画的可见边线。Win11 上 Chrome 让客户区
     // 直接顶到窗口顶部（DWM 把 1px 线画在客户区第一行上）；Win10 上不留这 1px
@@ -256,6 +266,26 @@ RECT ButtonRect(const RECT& windowRect, const FrameMetrics& metrics, int part)
     rect.top = windowRect.top + metrics.buttonTop;
     rect.bottom = rect.top + metrics.buttonHeight;
     return rect;
+}
+
+// 弹出系统菜单，并在选择后把命令发回窗口（行为与原生标题栏图标一致）。
+void ShowSystemMenu(HWND window)
+{
+    const HMENU menu = GetSystemMenu(window, FALSE);
+    if (menu == nullptr)
+        return;
+    POINT cursor{};
+    if (!GetCursorPos(&cursor))
+        return;
+    const UINT command = TrackPopupMenuEx(
+        menu,
+        TPM_LEFTALIGN | TPM_LEFTBUTTON | TPM_RETURNCMD,
+        cursor.x,
+        cursor.y,
+        window,
+        nullptr);
+    if (command != 0)
+        SendMessageW(window, WM_SYSCOMMAND, static_cast<WPARAM>(command), 0);
 }
 
 // 命中优先级：窗口内判断 -> 标题栏按钮 -> 三边与四角 -> 顶部带 -> 标题栏/客户区。
@@ -311,9 +341,15 @@ int HitTestFrame(HWND window, POINT screenPoint)
     const int captionBottom = windowRect.top + metrics.captionHeight;
     if (screenPoint.y < captionBottom)
     {
-        const int iconRight = windowRect.left + metrics.frameX + metrics.iconMargin + metrics.iconSize;
-        if (screenPoint.x < iconRight)
+        // 系统菜单盒子（与原生同形状：正方形、竖向居中），中心对准图标
+        const int boxLeft = windowRect.left + metrics.frameX + metrics.menuBoxLeft;
+        // 纵向不要加 frameX：标题栏是从客户区顶边开始的（左/右才需要 frame 内缩）
+        const int boxTop = windowRect.top + metrics.menuBoxTop;
+        if (screenPoint.x >= boxLeft && screenPoint.x < boxLeft + metrics.menuBoxWidth
+            && screenPoint.y >= boxTop && screenPoint.y < boxTop + metrics.menuBoxHeight)
+        {
             return HTSYSMENU;
+        }
         return HTCAPTION;
     }
     return HTCLIENT;
@@ -762,6 +798,13 @@ LRESULT CALLBACK WindowProcedure(HWND window, UINT message, WPARAM wParam, LPARA
             if (state == nullptr)
                 break;
             const int part = static_cast<int>(wParam);
+            if (part == HTSYSMENU)
+            {
+                // 命中盒子是自绘的（以图标为中心），系统内部那句"只在贴标题栏左缘的
+                // 系统菜单盒子里才弹菜单"会让盒子右侧点了毫无反应 —— 这里自己弹。
+                ShowSystemMenu(window);
+                return 0;
+            }
             if (part == HTMINBUTTON || part == HTMAXBUTTON || part == HTCLOSE)
             {
                 // 自己接管按压状态，行为与原生按钮一致：抬起时仍在同一按钮上才执行。

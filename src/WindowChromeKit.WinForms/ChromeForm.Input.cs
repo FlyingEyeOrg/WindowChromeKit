@@ -92,6 +92,8 @@ public partial class ChromeForm
     /// <summary>按下标题栏按钮时接管鼠标捕获，抬起时仍在同一按钮上才执行（与原生按钮一致）。</summary>
     private bool HandleCaptionButtonDown(int hit)
     {
+        if (hit == ChromeFrameGeometry.HtSysMenu)
+            return ShowSystemMenu();
         var button = FromHitTest(hit);
         if (button is null)
             return false;
@@ -100,6 +102,28 @@ public partial class ChromeForm
         if (_pressedButton is not null)
             _ = NativeMethods.SetCapture(Handle);
         InvalidateCaption();
+        return true;
+    }
+
+    /// <summary>
+    /// 自己弹出系统菜单。命中盒子是自绘的（以图标为中心），而系统内部那句
+    /// "只在系统菜单盒子里按下才弹菜单"用的是 SM_CXSMSIZE 贴在标题栏最左的盒子，
+    /// 直接交给 DefWindowProc 会让命中盒子右侧（图标右半边）点了毫无反应。
+    /// </summary>
+    private bool ShowSystemMenu()
+    {
+        var menu = NativeMethods.GetSystemMenu(Handle, false);
+        if (menu == IntPtr.Zero || !NativeMethods.GetCursorPos(out var point))
+            return true;
+        var command = NativeMethods.TrackPopupMenuEx(
+            menu,
+            NativeMethods.TpmLeftAlign | NativeMethods.TpmLeftButton | NativeMethods.TpmReturnCmd,
+            point.X,
+            point.Y,
+            Handle,
+            IntPtr.Zero);
+        if (command != 0)
+            _ = NativeMethods.SendMessage(Handle, NativeMethods.WmSysCommand, new IntPtr(command), IntPtr.Zero);
         return true;
     }
 

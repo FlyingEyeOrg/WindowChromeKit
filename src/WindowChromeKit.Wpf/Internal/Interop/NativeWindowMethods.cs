@@ -20,6 +20,12 @@ internal static class NativeWindowMethods
     internal const int SmCxMinTrack = 34;
     internal const int SmCyMinTrack = 35;
     internal const int SmCxPaddedBorder = 92;
+    internal const int SmCxSmSize = 52;
+    internal const int SmCySmSize = 53;
+    internal const int WmSysCommand = 0x0112;
+    internal const uint TpmLeftAlign = 0x0000;
+    internal const uint TpmLeftButton = 0x0000;
+    internal const uint TpmReturnCmd = 0x0100;
     internal const int SmXVirtualScreen = 76;
     internal const int SmYVirtualScreen = 77;
     internal const int SmCxVirtualScreen = 78;
@@ -37,6 +43,13 @@ internal static class NativeWindowMethods
     internal static extern bool EnableWindow(
         IntPtr windowHandle,
         [MarshalAs(UnmanagedType.Bool)] bool enabled);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetSystemMenu(IntPtr windowHandle, [MarshalAs(UnmanagedType.Bool)] bool revert);
+
+    [DllImport("user32.dll")]
+    internal static extern int TrackPopupMenuEx(
+        IntPtr menu, uint flags, int x, int y, IntPtr windowHandle, IntPtr parameters);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

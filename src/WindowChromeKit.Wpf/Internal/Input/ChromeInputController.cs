@@ -93,6 +93,10 @@ internal sealed class ChromeInputController
     /// <summary>处理非客户区按钮按下，必要时接管鼠标捕获。</summary>
     internal bool HandleNcLButtonDown(IntPtr window, int part)
     {
+        // 命中盒子是自绘的（以图标为中心），而系统只在"贴标题栏左缘的系统菜单盒子"里认
+        // HTSYSMENU：直接交给默认过程，盒子右侧（图标右半边）点了会毫无反应。自己弹。
+        if (part == WindowFrameHitTest.SystemMenu)
+            return ShowSystemMenu(window);
         var pressedRole = NativePartToRole(part);
         if (!IsCaptionButtonRole(pressedRole))
             return false;
@@ -104,6 +108,24 @@ internal sealed class ChromeInputController
         _host.ApplyVisualState();
         // 系统默认过程会独占跟踪非客户区按钮，导致自定义按钮收不到抬起消息。
         // 这里接管捕获，确保移出、移回、取消和最终命令具有普通 Button 一致的语义。
+        return true;
+    }
+
+    /// <summary>弹出系统菜单，并在选择后把命令发回窗口（与原生标题栏图标一致）。</summary>
+    private static bool ShowSystemMenu(IntPtr window)
+    {
+        var menu = NativeWindowMethods.GetSystemMenu(window, false);
+        if (menu == IntPtr.Zero || !NativeWindowMethods.GetCursorPos(out var point))
+            return true;
+        var command = NativeWindowMethods.TrackPopupMenuEx(
+            menu,
+            NativeWindowMethods.TpmLeftAlign | NativeWindowMethods.TpmLeftButton | NativeWindowMethods.TpmReturnCmd,
+            point.X,
+            point.Y,
+            window,
+            IntPtr.Zero);
+        if (command != 0)
+            _ = NativeWindowMethods.SendMessage(window, NativeWindowMethods.WmSysCommand, new IntPtr(command), IntPtr.Zero);
         return true;
     }
 
