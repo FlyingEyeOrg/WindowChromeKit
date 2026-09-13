@@ -55,7 +55,7 @@ public partial class ChromeWindow
                 // 图标盒子贴左且顶边在第 8 行（frame 内缩）
                 palette = SystemTheme.Current;
                 TitleBarHeight = 31d;
-                CaptionButtonWidth = 36d;
+                CaptionButtonWidth = 33d;   // 逐像素实测原生按钮宽 33
                 // 视觉上铺满整条标题栏：原生悬停高亮一直顶到顶边与右上圆角
                 CaptionButtonHeight = 31d;
                 // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
