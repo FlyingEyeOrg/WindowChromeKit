@@ -6,3 +6,6 @@
 TestResults/
 artifacts/
 mcp-shell.log
+
+# Visual Studio 自动生成的发布配置（每个开发者本地不同）
+**/PublishProfiles/
