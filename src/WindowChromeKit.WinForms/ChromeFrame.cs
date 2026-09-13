@@ -233,7 +233,9 @@ public partial class ChromeFrame : Form
             // 所以图标仍留在 IconMargin（默认 12），不会因为对齐命中区而左移
             SystemMenuLeft = iconLeft - Math.Max(0, (menuBoxWidth - iconSize) / 2),
             SystemMenuWidth = menuBoxWidth,
-            SystemMenuTop = Math.Max(0, (captionHeight - menuBoxHeight) / 2),
+            // 盒子在标题栏内垂直居中，但不会高过原生标题栏内容区的起点（frame 内缩）：
+            // 原生窗口的系统菜单盒子正贴着那条线（实测占标题栏第 8..29 行，而居中是 5..26）
+            SystemMenuTop = Math.Max((captionHeight - menuBoxHeight) / 2, frameY),
             SystemMenuHeight = menuBoxHeight,
             IconMargin = iconLeft,
             IconSize = iconSize,

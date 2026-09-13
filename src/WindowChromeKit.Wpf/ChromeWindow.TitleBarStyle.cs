@@ -42,7 +42,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
-                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 8d, 0d, 0d);
                 break;
 
             case ChromeTitleBarStyle.Windows:
@@ -52,7 +52,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 32d;
                 CaptionButtonWidth = 44d;
                 CaptionButtonHeight = 32d;
-                CaptionIconBoxMargin = new Thickness(0d);
+                CaptionIconBoxMargin = new Thickness(0d, 8d, 0d, 0d);
                 break;
 
             default:
@@ -61,7 +61,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 40d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 39d;
-                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 9d, 0d, 0d);
                 break;
         }
 

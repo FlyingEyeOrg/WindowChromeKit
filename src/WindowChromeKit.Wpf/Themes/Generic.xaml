@@ -105,7 +105,7 @@
                                                     Height="22"
                                                     Margin="{TemplateBinding CaptionIconBoxMargin}"
                                                     HorizontalAlignment="Left"
-                                                    VerticalAlignment="Center"
+                                                    VerticalAlignment="Top"
                                                     Background="Transparent"
                                                     local:ChromeWindow.HitTestRole="SystemMenu">
                                                 <Image Width="16"
