@@ -40,6 +40,17 @@ internal struct NativeMargins(int left, int right, int top, int bottom)
     internal int Bottom = bottom;
 }
 
+/// <summary>WM_GETMINMAXINFO 的参数。</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMinMaxInfo
+{
+    internal NativePoint Reserved;
+    internal NativePoint MaxSize;
+    internal NativePoint MaxPosition;
+    internal NativePoint MinTrackSize;
+    internal NativePoint MaxTrackSize;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeTrackMouseEvent
 {

@@ -14,6 +14,17 @@ internal static class NativeMethods
     internal const int WmLButtonUp = 0x0202;
     internal const int WmCaptureChanged = 0x0215;
     internal const int WmDpiChanged = 0x02E0;
+    internal const int WmGetMinMaxInfo = 0x0024;
+    internal const int WmSizing = 0x0214;
+
+    internal const int WmszLeft = 1;
+    internal const int WmszRight = 2;
+    internal const int WmszTop = 3;
+    internal const int WmszTopLeft = 4;
+    internal const int WmszTopRight = 5;
+    internal const int WmszBottom = 6;
+    internal const int WmszBottomLeft = 7;
+    internal const int WmszBottomRight = 8;
     internal const int WmSize = 0x0005;
     internal const int WmActivate = 0x0006;
     internal const int WmSettingChange = 0x001A;
@@ -23,6 +34,8 @@ internal static class NativeMethods
     internal const int SmCxFrame = 32;
     internal const int SmCyFrame = 33;
     internal const int SmCxPaddedBorder = 92;
+    internal const int SmCxMinTrack = 34;
+    internal const int SmCyMinTrack = 35;
     internal const int SmCxSmIcon = 49;
     internal const int SmCySmIcon = 50;
 

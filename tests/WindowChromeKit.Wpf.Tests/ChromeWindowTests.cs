@@ -209,6 +209,120 @@ public sealed class ChromeWindowTests
         Assert.Equal(WindowFrameHitTest.Client, SendHitTest(handle, new Point(bounds.Left + 300, bounds.Top + 300)));
     });
 
+    /// <summary>
+    /// 标记为 Client 的标题栏自定义内容（例如标题栏里的菜单）必须占满整个标题栏高度：
+    /// 它们落在顶部 6px 缩放带内时也要返回 HTCLIENT，不能被 HTTOP 切掉。
+    /// </summary>
+    [Fact]
+    public void InteractiveTitleBarContentWinsOverResizeBands() => RunSta(() =>
+    {
+        var menu = new Border
+        {
+            Width = 240,
+            Height = 40,
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        ChromeWindow.SetHitTestRole(menu, ChromeHitTestRole.Client);
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Title = "title bar menu",
+            TitleBarContent = menu,
+        };
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+        var origin = menu.PointToScreen(new Point(0, 0));
+
+        // 标题栏顶部有 1px 边框线，菜单顶边落在窗口第 1 行；
+        // 第 1、4 行都在顶部 6px 缩放带之内，但菜单是可交互元素，必须返回 HTCLIENT。
+        Assert.Equal(
+            WindowFrameHitTest.Client,
+            SendHitTest(handle, new Point(origin.X + 40, origin.Y)));
+        Assert.Equal(
+            WindowFrameHitTest.Client,
+            SendHitTest(handle, new Point(origin.X + 40, origin.Y + 3)));
+
+        // 同一行的标题栏空白处：这里仍然让给缩放带
+        Assert.Equal(
+            WindowFrameHitTest.Top,
+            SendHitTest(handle, new Point(origin.X + 420, origin.Y + 3)));
+        // 顶部带只有 6px，其下是标题栏
+        Assert.Equal(
+            WindowFrameHitTest.Caption,
+            SendHitTest(handle, new Point(origin.X + 420, origin.Y + 8)));
+        window.Close();
+    });
+
+    /// <summary>
+    /// 最小尺寸必须把自绘标题栏与 frame 算进去：系统默认的 SM_CYMINTRACK（39）按标准窗口
+    /// 的原生标题栏算，直接沿用会把 40 高的标题栏压扁；WM_SIZING 再兜一次底。
+    /// </summary>
+    [Fact]
+    public void MinimumSizeKeepsCaptionAndFrameUsable() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Title = "minimum size",
+        };
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var (frameX, frameY) = WindowFrameHitTest.GetFrameThickness(96);
+        // 图标区（28 = 12 边距 + 16 图标）+ 三个标题栏按钮 + 两侧 frame：
+        // 缩到最小时图标（系统菜单入口）不能被挤没。
+        var expectedMinimumWidth = 28 + (int)Math.Ceiling(window.CaptionButtonWidth * 3) + frameX * 2;
+        var expectedMinimumHeight = frameY + (int)Math.Ceiling(window.TitleBarHeight);
+
+        var limitsPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
+        try
+        {
+            Marshal.StructureToPtr(default(NativeMinMaxInfo), limitsPointer, false);
+            _ = NativeWindowMethods.SendMessage(handle, 0x0024, IntPtr.Zero, limitsPointer);
+            var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(limitsPointer);
+            Assert.True(
+                limits.MinTrackSize.X >= expectedMinimumWidth,
+                $"MinTrackSize.X={limits.MinTrackSize.X} 应至少覆盖三个标题栏按钮与两侧 frame（{expectedMinimumWidth}）");
+            Assert.True(
+                limits.MinTrackSize.Y > expectedMinimumHeight,
+                $"MinTrackSize.Y={limits.MinTrackSize.Y} 应大于标题栏与 frame 之和（{expectedMinimumHeight}）");
+            Assert.True(
+                limits.MinTrackSize.Y > NativeWindowMethods.GetSystemMetricsForDpi(NativeWindowMethods.SmCyMinTrack, 96),
+                "最小高度必须大于系统默认的 SM_CYMINTRACK（那是按原生标题栏算的）");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(limitsPointer);
+        }
+
+        // 拖动缩放：过小的矩形要被夹回最小尺寸，且保持被拖动的那条边
+        var rectPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeRectangle>());
+        try
+        {
+            Marshal.StructureToPtr(new NativeRectangle(100, 100, 140, 118), rectPointer, false);
+            _ = NativeWindowMethods.SendMessage(handle, 0x0214, new IntPtr(8), rectPointer);
+            var rect = Marshal.PtrToStructure<NativeRectangle>(rectPointer);
+            Assert.True(rect.Width >= expectedMinimumWidth, $"WM_SIZING 后的宽度 {rect.Width} 太小");
+            Assert.True(rect.Height > expectedMinimumHeight, $"WM_SIZING 后的高度 {rect.Height} 太小");
+            Assert.Equal(100, rect.Left);
+            Assert.Equal(100, rect.Top);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(rectPointer);
+        }
+        window.Close();
+    });
+
     [Fact]
     public void OptionalTemplatePartsCanBeMissingAndTemplateCanBeReapplied() => RunSta(() =>
     {
@@ -468,8 +582,9 @@ public sealed class ChromeWindowTests
             (uint)VisualTreeHelper.GetDpi(window).PixelsPerInchX);
         var systemMinimum = NativeWindowMethods.GetSystemMetricsForDpi(
             NativeWindowMethods.SmCxMinTrack, 96);
+        // 46*3 是三个标题栏按钮，28 是左侧图标区（12 边距 + 16 图标）
         var expectedMinimum = WindowFrameHitTest.CalculateMinimumTrackWidth(
-            0, systemMinimum, frameX * 2, 46 * 3, 96);
+            0, systemMinimum, frameX * 2, 46 * 3 + 28, 96);
         var pointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
         try
         {

@@ -18,6 +18,7 @@ internal static class NativeWindowMethods
     internal const int SmCxFrame = 32;
     internal const int SmCyFrame = 33;
     internal const int SmCxMinTrack = 34;
+    internal const int SmCyMinTrack = 35;
     internal const int SmCxPaddedBorder = 92;
     internal const int SmXVirtualScreen = 76;
     internal const int SmYVirtualScreen = 77;

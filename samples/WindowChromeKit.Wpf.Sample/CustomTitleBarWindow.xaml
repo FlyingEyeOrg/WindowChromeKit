@@ -21,8 +21,9 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border Width="36"
-                    Height="35"
+            <!-- 图标区宽 12+16=28、撑满标题栏高度：可交互元素要占满整个标题栏，
+                 否则它上方的空白会被顶部缩放带（HTTOP）接管。 -->
+            <Border Width="28"
                     Background="Transparent"
                     chrome:ChromeWindow.HitTestRole="SystemMenu">
                 <Border.Style>
@@ -70,9 +71,7 @@
     </chrome:ChromeWindow.TitleBarContent>
 
     <chrome:ChromeWindow.TitleBarActions>
-        <Menu Height="35"
-              Margin="4,0,8,0"
-              VerticalAlignment="Center"
+        <Menu Margin="4,0,8,0"
               Background="Transparent"
               Foreground="#F0F4F8"
               chrome:ChromeWindow.HitTestRole="Client">

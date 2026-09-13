@@ -96,6 +96,15 @@ public partial class ChromeForm : Form
     {
         switch (m.Msg)
         {
+            case NativeMethods.WmGetMinMaxInfo:
+                // 先让 Form 按 MinimumSize 写一遍最小/最大值，再用"标题栏 + frame"兜底，
+                // 否则 WinForms 会用标准窗口的换算覆盖掉这里的值。
+                base.WndProc(ref m);
+                HandleGetMinMaxInfo(ref m);
+                return;
+            case NativeMethods.WmSizing:
+                HandleSizing(ref m);
+                return;
             case NativeMethods.WmNcCalcSize:
                 HandleNcCalcSize(ref m);
                 return;
@@ -173,6 +182,9 @@ public partial class ChromeForm : Form
 
     private static int ScaleDip(int dip, uint dpi) => (int)Math.Round(dip * dpi / 96.0);
 
+    /// <summary>最小尺寸里留给内容区的高度（DIP）。</summary>
+    private const int MinimumContentHeightDip = 8;
+
     private bool UpdateMaximizedState()
     {
         var maximized = IsMaximized;
@@ -180,6 +192,66 @@ public partial class ChromeForm : Form
             return false;
         _metrics.Maximized = maximized;
         return true;
+    }
+
+    /// <summary>
+    /// 窗口最小尺寸 = 内容之外还要放得下自绘标题栏与 frame。
+    /// 系统默认的 SM_CXMINTRACK/SM_CYMINTRACK 是按"标准窗口（原生标题栏 23px）"给的，
+    /// 我们的标题栏更高、客户区又内缩了 frame，直接沿用会把标题栏压扁；
+    /// 因此最小高度 = 下 frame + 标题栏 + 一条内容，最小宽度 = 三个标题栏按钮 + 两侧 frame。
+    /// 另外始终尊重 <see cref="Form.MinimumSize"/>。
+    /// </summary>
+    private (int Width, int Height) GetMinimumTrackSize()
+    {
+        var systemMinimumX = NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCxMinTrack, _metrics.Dpi);
+        var systemMinimumY = NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCyMinTrack, _metrics.Dpi);
+        var minimumContent = ScaleDip(MinimumContentHeightDip, _metrics.Dpi);
+        // 图标区 + 三个标题栏按钮 + 两侧 frame：否则缩到最小时图标（系统菜单入口）
+        // 和标题会被挤成 0，只剩三个按钮；标题本身可以截断，所以只保证图标与按钮。
+        var leading = ShowTitleBarIcon ? _metrics.IconMargin + _metrics.IconSize : 0;
+        var width = Math.Max(
+            systemMinimumX,
+            leading + _metrics.CaptionButtonWidth * 3 + _metrics.FrameX * 2);
+        var height = Math.Max(
+            systemMinimumY,
+            _metrics.FrameY + _metrics.CaptionHeight + minimumContent);
+        return (
+            Math.Max(width, MinimumSize.Width),
+            Math.Max(height, MinimumSize.Height));
+    }
+
+    private void HandleGetMinMaxInfo(ref Message m)
+    {
+        if (m.LParam == IntPtr.Zero)
+            return;
+        var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(m.LParam);
+        var (minimumWidth, minimumHeight) = GetMinimumTrackSize();
+        limits.MinTrackSize = new NativePoint(
+            Math.Max(limits.MinTrackSize.X, minimumWidth),
+            Math.Max(limits.MinTrackSize.Y, minimumHeight));
+        Marshal.StructureToPtr(limits, m.LParam, false);
+    }
+
+    /// <summary>拖动缩放时把矩形夹到最小尺寸；被拖动的那条边保持不变。</summary>
+    private void HandleSizing(ref Message m)
+    {
+        if (m.LParam == IntPtr.Zero)
+            return;
+        var rect = Marshal.PtrToStructure<NativeRectangle>(m.LParam);
+        var (minimumWidth, minimumHeight) = GetMinimumTrackSize();
+        var width = Math.Max(rect.Width, minimumWidth);
+        var height = Math.Max(rect.Height, minimumHeight);
+        if (width == rect.Width && height == rect.Height)
+            return;
+        var edge = (int)m.WParam;
+        var draggingLeft = edge is NativeMethods.WmszLeft or NativeMethods.WmszTopLeft or NativeMethods.WmszBottomLeft;
+        var draggingTop = edge is NativeMethods.WmszTop or NativeMethods.WmszTopLeft or NativeMethods.WmszTopRight;
+        var updated = new NativeRectangle(
+            draggingLeft ? rect.Right - width : rect.Left,
+            draggingTop ? rect.Bottom - height : rect.Top,
+            draggingLeft ? rect.Right : rect.Left + width,
+            draggingTop ? rect.Bottom : rect.Top + height);
+        Marshal.StructureToPtr(updated, m.LParam, false);
     }
 
     private void HandleNcCalcSize(ref Message m)

@@ -36,6 +36,12 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     /// <summary>标题栏按钮占用的宽度（DIP）；frame-only 窗口没有系统按钮时返回 0。</summary>
     protected virtual double CaptionButtonsWidth => 0d;
 
+    /// <summary>自绘标题栏高度（DIP）；frame-only 窗口没有标题栏时返回 0。</summary>
+    protected virtual double CaptionHeight => 0d;
+
+    /// <summary>标题栏左侧图标区宽度（DIP）；frame-only 窗口没有图标时返回 0。</summary>
+    protected virtual double CaptionLeadingWidth => 0d;
+
     /// <summary>
     /// 把屏幕坐标映射为语义角色。默认返回 <see cref="ChromeHitTestRole.Default"/>，
     /// 让窗口自身的缩放带（左/右/下 8px、顶部 6px）优先命中；子类可覆写，
@@ -127,6 +133,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     ResizeMode IChromeFrameHost.ResizeMode => ResizeMode;
     bool IChromeFrameHost.IsResizable => IsResizable;
     double IChromeFrameHost.CaptionButtonsWidth => CaptionButtonsWidth;
+    double IChromeFrameHost.CaptionHeight => CaptionHeight;
+    double IChromeFrameHost.CaptionLeadingWidth => CaptionLeadingWidth;
     Color IChromeFrameHost.CompositionBackgroundColor => ResolveCompositionBackgroundColor();
     ChromeHitTestRole IChromeFrameHost.HitTestFrame(NativePoint point) =>
         HitTestFrame(new Point(point.X, point.Y));

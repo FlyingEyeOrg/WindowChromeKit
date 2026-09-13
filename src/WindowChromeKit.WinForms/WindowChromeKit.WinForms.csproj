@@ -28,4 +28,10 @@
 		<None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<!-- Visual Studio 在分部文件上打开设计器时会生成 ChromeForm.Input.resx，
+		     它会和 ChromeForm.resx 争抢同一个资源名（MSB3577），这里排除掉。 -->
+		<EmbeddedResource Remove="ChromeForm.*.resx" />
+	</ItemGroup>
+
 </Project>

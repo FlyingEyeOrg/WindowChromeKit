@@ -26,6 +26,12 @@ internal interface IChromeFrameHost
     /// <summary>标题栏按钮占用的宽度（DIP），用于计算最小跟踪宽度。</summary>
     double CaptionButtonsWidth { get; }
 
+    /// <summary>自绘标题栏高度（DIP）；没有标题栏的 frame-only 窗口返回 0。</summary>
+    double CaptionHeight { get; }
+
+    /// <summary>标题栏左侧图标区（系统菜单命中区）宽度（DIP）；不显示图标时为 0。</summary>
+    double CaptionLeadingWidth { get; }
+
     /// <summary>未被 WPF 内容覆盖时的合成兜底色。</summary>
     Color CompositionBackgroundColor { get; }
 

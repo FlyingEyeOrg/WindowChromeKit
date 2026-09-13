@@ -24,22 +24,45 @@ internal sealed class ChromeInputController
     internal ChromeHitTestRole PressedRole => NativePartToRole(_pressedPart);
 
     /// <summary>
-    /// 把屏幕点的语义角色转换成 WM_NCHITTEST 部件值（按钮 / 系统菜单 / 标题栏 / 客户区）。
-    /// 边框缩放带由 frame controller 在同一优先级里判定，这里只负责角色。
+    /// 解析光标下的原生部件。<paramref name="interactive"/> 为 true 表示这是一个可交互元素
+    /// —— 标题栏按钮、系统菜单图标，或标记为 <see cref="ChromeHitTestRole.Client"/> 的自定义
+    /// 标题栏内容（例如标题栏里的菜单）。这些元素要占满整个标题栏高度，缩放带不能盖在它们
+    /// 上面；只有标题栏空白处和 frame-only 窗口的 Default 区域才让给缩放带。
     /// </summary>
-    internal int ResolveNativePart(NativePoint pointer)
+    internal int ResolveChromePart(NativePoint pointer, out bool interactive)
+    {
+        var role = ResolveRole(pointer);
+        switch (role)
+        {
+            case ChromeHitTestRole.Client:
+            case ChromeHitTestRole.SystemMenu:
+            case ChromeHitTestRole.MinimizeButton:
+            case ChromeHitTestRole.MaximizeButton:
+            case ChromeHitTestRole.CloseButton:
+                interactive = true;
+                return RoleToNativePart(role);
+            case ChromeHitTestRole.Caption:
+                interactive = false;
+                return WindowFrameHitTest.Caption;
+            default:
+                interactive = false;
+                return WindowFrameHitTest.Client;
+        }
+    }
+
+    private ChromeHitTestRole ResolveRole(NativePoint pointer)
     {
         try
         {
-            return RoleToNativePart(_host.HitTestFrame(pointer));
+            return _host.HitTestFrame(pointer);
         }
         catch (InvalidOperationException)
         {
-            return WindowFrameHitTest.Client;
+            return ChromeHitTestRole.Default;
         }
         catch (ArgumentException)
         {
-            return WindowFrameHitTest.Client;
+            return ChromeHitTestRole.Default;
         }
     }
 
