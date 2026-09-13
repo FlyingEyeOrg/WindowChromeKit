@@ -219,7 +219,8 @@ public partial class ChromeForm
                 CaptionHeightDip = 31;
                 CaptionButtonWidthDip = 36;
                 CaptionButtonHeightDip = 22;
-                CaptionIconMarginDip = 3;
+                // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
+                CaptionIconMarginDip = 8;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 break;
 

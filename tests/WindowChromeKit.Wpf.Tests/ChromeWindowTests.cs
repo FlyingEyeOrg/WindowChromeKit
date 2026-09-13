@@ -262,7 +262,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 36d, 22d, 0d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 36d, 22d, 5d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,
@@ -353,10 +353,10 @@ public sealed class ChromeWindowTests
             // 原生 WPF 窗口实测（96dpi）：caption 可见高 31、
             // 系统菜单盒子贴左且顶边在第 8 行（frame 内缩）、图标 16 在盒内居中
             Assert.Equal(31d, window.TitleBarHeight, 1);
-            Assert.Equal(0d, boxOrigin.X, 1);
+            Assert.Equal(5d, boxOrigin.X, 1);
             Assert.Equal(8d, boxOrigin.Y, 1);
             Assert.Equal(22d, box.ActualHeight, 1);
-            Assert.Equal(3d, iconOrigin.X, 1);
+            Assert.Equal(8d, iconOrigin.X, 1);
             Assert.Equal(11d, iconOrigin.Y, 1);
             Assert.Equal(16d, icon.ActualHeight, 1);
         }

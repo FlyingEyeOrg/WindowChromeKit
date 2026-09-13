@@ -57,7 +57,8 @@ public partial class ChromeWindow
                 TitleBarHeight = 31d;
                 CaptionButtonWidth = 36d;
                 CaptionButtonHeight = 22d;
-                CaptionIconBoxMargin = new Thickness(0d, 7d, 0d, 0d);
+                // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
+                CaptionIconBoxMargin = new Thickness(5d, 7d, 0d, 0d);
                 break;
 
             default:
