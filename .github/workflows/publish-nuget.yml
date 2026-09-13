@@ -35,35 +35,37 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Determine package version
+      - name: Determine package versions
         id: version
         shell: pwsh
         run: |
-          $manualVersion = "${{ inputs.package_version }}"
-
-          if (-not [string]::IsNullOrWhiteSpace($manualVersion)) {
-              $packageVersion = $manualVersion.Trim()
+          # 两个包的版本线是独立的：各自按自己 csproj 里的 VersionPrefix 发布。
+          # tag（v*）只作为触发条件，不决定版本号；手动 dispatch 时填的 package_version
+          # 会同时覆盖两个包的版本（发应急版本用）。
+          function Get-VersionPrefix([string]$projectPath) {
+              [xml]$project = Get-Content $projectPath
+              return [string]$project.Project.PropertyGroup.VersionPrefix
           }
-          elseif ($env:GITHUB_REF -like "refs/tags/v*") {
-              $packageVersion = $env:GITHUB_REF_NAME.Substring(1)
+
+          $override = "${{ inputs.package_version }}".Trim()
+          if ($override) {
+              $wpfVersion = $override
+              $winFormsVersion = $override
           }
           else {
-              [xml]$project = Get-Content "src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj"
-              $packageVersion = [string]$project.Project.PropertyGroup.VersionPrefix
+              $wpfVersion = Get-VersionPrefix "src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj"
+              $winFormsVersion = Get-VersionPrefix "src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj"
           }
 
-          # 两个包同一版本号发布：VersionPrefix 必须一致，否则先在这里失败
-          [xml]$winFormsProject = Get-Content "src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj"
-          $winFormsVersion = [string]$winFormsProject.Project.PropertyGroup.VersionPrefix
-          if ($winFormsVersion -ne $packageVersion) {
-              throw "WindowChromeKit.Wpf ($packageVersion) 与 WindowChromeKit.WinForms ($winFormsVersion) 的 VersionPrefix 不一致"
+          foreach ($version in @($wpfVersion, $winFormsVersion)) {
+              if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+                  throw "无效的 NuGet 版本：$version"
+              }
           }
 
-          if ($packageVersion -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
-              throw "无效的 NuGet 版本：$packageVersion"
-          }
-
-          "value=$packageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "wpf=$wpfVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "winforms=$winFormsVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Output "WindowChromeKit.Wpf=$wpfVersion  WindowChromeKit.WinForms=$winFormsVersion"
 
       # 说明：解决方案里还有 samples/WindowChromeKit.Native.Sample（C++ 的 vcxproj），
       # dotnet CLI 的 MSBuild 不认 C++ targets（MSB4278: VCTargetsPath），整个 sln 会构建失败；
@@ -103,15 +105,15 @@ jobs:
         run: dotnet test tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj -c Release --no-build --no-restore
 
       - name: Pack WindowChromeKit.Wpf
-        run: dotnet pack src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.value }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
+        run: dotnet pack src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.wpf }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
 
       - name: Pack WindowChromeKit.WinForms
-        run: dotnet pack src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.value }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
+        run: dotnet pack src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.winforms }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
 
       - name: Upload NuGet packages
         uses: actions/upload-artifact@v4
         with:
-          name: WindowChromeKit-${{ steps.version.outputs.value }}
+          name: WindowChromeKit-wpf${{ steps.version.outputs.wpf }}-winforms${{ steps.version.outputs.winforms }}
           path: |
             artifacts/*.nupkg
             artifacts/*.snupkg
@@ -128,10 +130,14 @@ jobs:
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          foreach ($package in @("WindowChromeKit.Wpf", "WindowChromeKit.WinForms")) {
-              dotnet nuget push "artifacts/$package.${{ steps.version.outputs.value }}.nupkg" `
+          $packages = @(
+              @{ Name = "WindowChromeKit.Wpf";     Version = "${{ steps.version.outputs.wpf }}" },
+              @{ Name = "WindowChromeKit.WinForms"; Version = "${{ steps.version.outputs.winforms }}" }
+          )
+          foreach ($package in $packages) {
+              dotnet nuget push "artifacts/$($package.Name).$($package.Version).nupkg" `
                 --source "https://api.nuget.org/v3/index.json" `
                 --api-key $env:NUGET_API_KEY `
                 --skip-duplicate
-              if ($LASTEXITCODE -ne 0) { throw "$package 推送失败（退出码 $LASTEXITCODE）" }
+              if ($LASTEXITCODE -ne 0) { throw "$($package.Name) $($package.Version) 推送失败（退出码 $LASTEXITCODE）" }
           }
