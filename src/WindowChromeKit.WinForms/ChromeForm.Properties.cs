@@ -1,12 +1,14 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using WindowChromeKit.WinForms.Internal;
 
 namespace WindowChromeKit.WinForms;
 
 /// <summary>标题栏的可定制度量与配色。所有度量单位是 DIP，使用时按窗口 DPI 缩放。</summary>
 public partial class ChromeForm
 {
+    private ChromeTitleBarStyle _titleBarStyle = ChromeTitleBarStyle.Chrome;
     private int _captionHeightDip = 40;
     private int _captionButtonWidthDip = 46;
     private int _captionButtonHeightDip = 39;
@@ -171,6 +173,77 @@ public partial class ChromeForm
     {
         get => _showTopBorderLine;
         set => SetOption(ref _showTopBorderLine, value);
+    }
+
+    /// <summary>
+    /// 标题栏预置样式（默认 <see cref="ChromeTitleBarStyle.Chrome"/>）。
+    /// 赋值时把该样式的几何、配色与布局开关**应用一次**；之后单独修改任何属性都以属性为准，
+    /// 样式不会再覆盖回来。默认标题栏关闭时（<see cref="ChromeForm.ShowDefaultTitleBar"/> 为 false）
+    /// 或使用 <see cref="ChromeFrame"/> 自绘时，本属性不生效。
+    /// </summary>
+    [Category("WindowChromeKit")]
+    [DefaultValue(ChromeTitleBarStyle.Chrome)]
+    public ChromeTitleBarStyle TitleBarStyle
+    {
+        get => _titleBarStyle;
+        set
+        {
+            if (_titleBarStyle == value)
+                return;
+            _titleBarStyle = value;
+            ApplyTitleBarStyle(value);
+        }
+    }
+
+    /// <summary>把预置样式套到标题栏上（几何 + 配色 + 布局开关，一次性应用）。</summary>
+    private void ApplyTitleBarStyle(ChromeTitleBarStyle style)
+    {
+        ChromePalette palette;
+        switch (style)
+        {
+            case ChromeTitleBarStyle.VsCode:
+                // VS Code：标题栏 35、按钮 46×34，配色固定深色
+                palette = SystemTheme.Dark;
+                CaptionHeightDip = 35;
+                CaptionButtonWidthDip = 46;
+                CaptionButtonHeightDip = 34;
+                CaptionIconMarginDip = 12;
+                CaptionTextAlignment = ContentAlignment.MiddleCenter;
+                break;
+
+            case ChromeTitleBarStyle.Windows:
+                // 贴近 Windows 11 原生：标题栏 32、按钮 44×32（SM_CXSIZE + 2×SM_CXPADDEDBORDER），
+                // 图标贴左、标题左对齐
+                palette = SystemTheme.Current;
+                CaptionHeightDip = 32;
+                CaptionButtonWidthDip = 44;
+                CaptionButtonHeightDip = 32;
+                CaptionIconMarginDip = 3;
+                CaptionTextAlignment = ContentAlignment.MiddleLeft;
+                break;
+
+            default:
+                // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、标题居中
+                palette = SystemTheme.Current;
+                CaptionHeightDip = 40;
+                CaptionButtonWidthDip = 46;
+                CaptionButtonHeightDip = 39;
+                CaptionIconMarginDip = 12;
+                CaptionTextAlignment = ContentAlignment.MiddleCenter;
+                break;
+        }
+
+        ActiveCaptionColor = palette.ActiveCaption;
+        InactiveCaptionColor = palette.InactiveCaption;
+        CaptionTextColor = palette.CaptionText;
+        InactiveCaptionTextColor = palette.InactiveCaptionText;
+        CaptionButtonHoverColor = palette.ButtonHover;
+        CaptionButtonPressedColor = palette.ButtonPressed;
+        // 关闭按钮三套样式都沿用系统标准红，顶边线三套都画
+        CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
+        CloseButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
+        ShowTitleBarIcon = true;
+        ShowTopBorderLine = true;
     }
 
     private void SetOption<T>(ref T field, T value)

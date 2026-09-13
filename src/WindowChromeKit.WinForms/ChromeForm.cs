@@ -17,6 +17,9 @@ public partial class ChromeForm : ChromeFrame
     /// <summary>图标在设计尺寸下的边长（DIP）；实际绘制用 DPI 相关的 SM_CXSMICON。</summary>
     private const int CaptionIconSizeDip = 16;
 
+    /// <summary>创建默认标题栏窗体，并套用默认样式 <see cref="ChromeTitleBarStyle.Chrome"/>。</summary>
+    public ChromeForm() => ApplyTitleBarStyle(_titleBarStyle);
+
     private ChromeCaptionButton? _hotButton;
     private ChromeCaptionButton? _pressedButton;
     private bool _trackingNonClientMouse;

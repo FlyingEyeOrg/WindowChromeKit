@@ -55,9 +55,9 @@
                 <Button Margin="12,0,0,0"
                         Padding="16,8"
                         FontWeight="SemiBold"
-                        AutomationProperties.AutomationId="OpenWhiteTitleBarButton"
-                        Click="OnOpenWhiteTitleBarClicked"
-                        Content="打开白色标题栏窗口" />
+                        AutomationProperties.AutomationId="OpenTitleBarStyleButton"
+                        Click="OnOpenTitleBarStyleClicked"
+                        Content="标题栏样式窗口" />
             </WrapPanel>
             <TextBox Margin="0,28,0,0"
                      MinHeight="100"

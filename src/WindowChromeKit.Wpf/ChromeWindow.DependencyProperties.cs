@@ -75,6 +75,23 @@ public partial class ChromeWindow
         IsPositiveFiniteDouble
     );
 
+    public static readonly DependencyProperty TitleBarStyleProperty =
+        DependencyProperty.Register(
+            nameof(TitleBarStyle),
+            typeof(ChromeTitleBarStyle),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(ChromeTitleBarStyle.Chrome, OnTitleBarStyleChanged),
+            IsDefinedTitleBarStyle
+        );
+
+    public static readonly DependencyProperty CaptionIconBoxMarginProperty =
+        DependencyProperty.Register(
+            nameof(CaptionIconBoxMargin),
+            typeof(Thickness),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(new Thickness(9d, 0d, 0d, 0d))
+        );
+
     public static readonly DependencyProperty CaptionButtonHeightProperty =
         DependencyProperty.Register(
             nameof(CaptionButtonHeight),
@@ -410,6 +427,15 @@ public partial class ChromeWindow
         DependencyObject dependencyObject,
         DependencyPropertyChangedEventArgs eventArgs
     ) => ((ChromeWindow)dependencyObject).ApplyVisualState();
+
+    private static bool IsDefinedTitleBarStyle(object value) =>
+        value is ChromeTitleBarStyle style && Enum.IsDefined(typeof(ChromeTitleBarStyle), style);
+
+    private static void OnTitleBarStyleChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs eventArgs
+    ) =>
+        ((ChromeWindow)dependencyObject).ApplyTitleBarStyle((ChromeTitleBarStyle)eventArgs.NewValue);
 
     private static void OnChromeMetricChanged(
         DependencyObject dependencyObject,

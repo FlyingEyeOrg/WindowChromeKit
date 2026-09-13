@@ -9,6 +9,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using WindowChromeKit.Wpf.Internal;
 
 namespace WindowChromeKit.Wpf.Tests;
 
@@ -258,6 +259,77 @@ public sealed class ChromeWindowTests
         window.Close();
     });
 
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 32d, 44d, 32d, 0d)]
+    public void TitleBarStyleAppliesDocumentedGeometry(
+        ChromeTitleBarStyle style,
+        double expectedHeight,
+        double expectedButtonWidth,
+        double expectedButtonHeight,
+        double expectedIconMargin) => RunSta(() =>
+    {
+        var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        window.Show();
+        try
+        {
+            window.TitleBarStyle = style;
+            window.UpdateLayout();
+
+            var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
+                window.Template.FindName(ChromeWindow.PartTitleBar, window));
+            var close = Assert.IsType<Button>(
+                window.Template.FindName(ChromeWindow.PartCloseButton, window));
+
+            Assert.Equal(expectedHeight, window.TitleBarHeight, 3);
+            Assert.Equal(expectedHeight, titleBar.ActualHeight, 3);
+            Assert.Equal(expectedButtonWidth, window.CaptionButtonWidth, 3);
+            Assert.Equal(expectedButtonWidth, close.ActualWidth, 3);
+            Assert.Equal(expectedButtonHeight, window.CaptionButtonHeight, 3);
+            Assert.Equal(expectedIconMargin, window.CaptionIconBoxMargin.Left, 3);
+            Assert.True(window.ShowTitleBarIcon);
+
+            // 套用样式之后单独改属性，以属性为准（样式不会覆盖回来）
+            window.CaptionButtonWidth = 60d;
+            Assert.Equal(60d, window.CaptionButtonWidth, 3);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void TitleBarStyleAppliesDocumentedPalette() => RunSta(() =>
+    {
+        var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        window.Show();
+        try
+        {
+            // VS Code：固定深色
+            window.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+            var vsCode = Assert.IsType<SolidColorBrush>(window.ActiveTitleBarBackground);
+            Assert.Equal(Color.FromRgb(0x32, 0x32, 0x33), vsCode.Color);
+
+            // Chrome / Windows：跟随系统明暗，与 SystemTheme 的当前判定一致
+            window.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+            var chrome = Assert.IsType<SolidColorBrush>(window.ActiveTitleBarBackground);
+            var expected = SystemTheme.IsLightMode()
+                ? Color.FromRgb(0xFF, 0xFF, 0xFF)
+                : Color.FromRgb(0x32, 0x32, 0x33);
+            Assert.Equal(expected, chrome.Color);
+
+            // 关闭按钮三套样式都沿用系统标准红
+            var close = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
+            Assert.Equal(Color.FromRgb(0xE8, 0x11, 0x23), close.Color);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
     /// <summary>
     /// 最小尺寸必须把自绘标题栏与 frame 算进去：系统默认的 SM_CYMINTRACK（39）按标准窗口
     /// 的原生标题栏算，直接沿用会把 40 高的标题栏压扁；WM_SIZING 再兜一次底。
@@ -432,9 +504,13 @@ public sealed class ChromeWindowTests
         Assert.True(content.ActualHeight > 0);
         Assert.Equal(Visibility.Visible, minimize.Visibility);
         Assert.Equal(Visibility.Visible, maximize.Visibility);
-        // 实测 Chrome：图标左边距 12 + 图标 16 = 28 的系统菜单命中区
-        Assert.Equal(28, systemMenu.ActualWidth, 3);
-        Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, systemMenu));
+        // 图标区 = 命中盒子（22，SM_CXSMSIZE）+ 左边距 9；命中盒子本身是 22×22 的正方形
+        Assert.Equal(31, systemMenu.ActualWidth, 3);
+        var menuBox = FindByHitTestRole(systemMenu, ChromeHitTestRole.SystemMenu);
+        Assert.NotNull(menuBox);
+        Assert.Equal(22, menuBox!.ActualWidth, 3);
+        Assert.Equal(22, menuBox.ActualHeight, 3);
+        Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, menuBox));
 
         window.ShowTitleBarIcon = false;
         window.UpdateLayout();
@@ -660,6 +736,21 @@ public sealed class ChromeWindowTests
         {
             var result = FindVisualDescendant(VisualTreeHelper.GetChild(root, index), predicate);
             if (result is not null) return result;
+        }
+        return null;
+    }
+
+    private static FrameworkElement? FindByHitTestRole(DependencyObject root, ChromeHitTestRole role)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is FrameworkElement element && ChromeWindow.GetHitTestRole(element) == role)
+                return element;
+            var found = FindByHitTestRole(child, role);
+            if (found is not null)
+                return found;
         }
         return null;
     }

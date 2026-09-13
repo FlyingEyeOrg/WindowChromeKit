@@ -21,6 +21,8 @@ public sealed class CustomTitleBarForm : ChromeForm
     public CustomTitleBarForm()
     {
         Text = "自定义标题栏（WinForms）";
+        // 预置样式：VS Code 风格（深色扁平、标题居中）——标题栏里放菜单时最合适
+        TitleBarStyle = ChromeTitleBarStyle.VsCode;
         // 库内嵌的两个可选图标：Windows 10 / Windows 7 风格，直接赋给 Form.Icon
         Icon = WindowChromeIcons.Windows10;
         Width = 920;

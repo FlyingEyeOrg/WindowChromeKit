@@ -26,6 +26,7 @@
 // 度量数据来源见同目录 README.md（对真实 Chrome 窗口的 WR_NCHITTEST 逐像素扫描）。
 
 #include <windows.h>
+#include <cwchar>
 #include <windowsx.h>
 #include <commctrl.h>
 #include <dwmapi.h>
@@ -54,14 +55,54 @@ constexpr int kAppIconResourceId = 101;   // app.rc 中的应用图标
 constexpr int kIdOpenWindow = 1001;
 constexpr int kIdEdgeButton = 1002;
 
+// —— 标题栏预置样式：与 WindowChromeKit.WinForms / WindowChromeKit.Wpf 的
+//    ChromeTitleBarStyle 同一张表（几何 + 配色），三处必须一起改 ——
+enum class TitleBarStyle
+{
+    Chrome,   // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、跟随系统明暗
+    VsCode,   // VS Code：标题栏 35、按钮 46×34、配色固定深色 #323233
+    Windows,  // 贴近 Windows 11 原生：标题栏 32、按钮 44×32、图标贴左 3px 位、跟随系统
+};
+
+struct TitleBarStyleSettings
+{
+    int captionHeightDip;
+    int buttonWidthDip;
+    int buttonHeightDip;
+    int iconMarginDip;
+    COLORREF captionActive;
+    COLORREF captionInactive;
+    COLORREF captionText;
+    COLORREF captionTextInactive;
+    COLORREF buttonHot;
+    COLORREF buttonPressed;
+    bool darkFrame;   // DWM 的深色模式是否要打开
+};
+
+TitleBarStyleSettings SettingsFor(TitleBarStyle style)
+{
+    switch (style)
+    {
+        case TitleBarStyle::VsCode:
+            return {35, 46, 34, 12, RGB(0x32, 0x32, 0x33), RGB(0x2D, 0x2D, 0x2D),
+                    RGB(0xCC, 0xCC, 0xCC), RGB(0x9D, 0x9D, 0x9D),
+                    RGB(0x50, 0x50, 0x50), RGB(0x5F, 0x5F, 0x5F), true};
+        case TitleBarStyle::Windows:
+            return {32, 44, 32, 3, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+                    RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
+                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0), false};
+        default:
+            return {40, 46, 39, 12, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+                    RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
+                    RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0), false};
+    }
+}
+
+TitleBarStyle g_titleBarStyle = TitleBarStyle::Chrome;
+TitleBarStyleSettings g_style = SettingsFor(TitleBarStyle::Chrome);
+
 // 浅色主题（白色标题栏）：文字与按钮描边都是深色，悬停底色是浅灰。
 // DWM 的深色模式要同步关掉（见 ApplyChromeFrameAttributes），否则边线与阴影还是深色。
-const COLORREF kCaptionActive = RGB(0xFF, 0xFF, 0xFF);
-const COLORREF kCaptionInactive = RGB(0xF1, 0xF3, 0xF4);
-const COLORREF kCaptionText = RGB(0x20, 0x21, 0x24);
-const COLORREF kCaptionTextInactive = RGB(0x80, 0x86, 0x8B);
-const COLORREF kButtonHot = RGB(0xE8, 0xEA, 0xED);
-const COLORREF kButtonPressed = RGB(0xDA, 0xDC, 0xE0);
 const COLORREF kCloseHot = RGB(0xE8, 0x11, 0x23);
 const COLORREF kClosePressed = RGB(0xF1, 0x70, 0x7A);
 // 顶边线颜色。Win10 的 DWM 只在非客户区画边框，而我们把客户区顶到了窗口顶边，
@@ -220,12 +261,12 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     metrics.frameY =
         SystemMetricForDpi(SM_CYFRAME, metrics.dpi) +
         SystemMetricForDpi(SM_CXPADDEDBORDER, metrics.dpi);
-    metrics.captionHeight = ScaleDip(kCaptionHeightDip, metrics.dpi);
-    metrics.buttonWidth = ScaleDip(kButtonWidthDip, metrics.dpi);
-    metrics.buttonHeight = ScaleDip(kButtonHeightDip, metrics.dpi);
+    metrics.captionHeight = ScaleDip(g_style.captionHeightDip, metrics.dpi);
+    metrics.buttonWidth = ScaleDip(g_style.buttonWidthDip, metrics.dpi);
+    metrics.buttonHeight = ScaleDip(g_style.buttonHeightDip, metrics.dpi);
     metrics.topBand = ScaleDip(kTopResizeBandDip, metrics.dpi);
     metrics.iconSize = SystemMetricForDpi(SM_CXSMICON, metrics.dpi);
-    metrics.iconMargin = ScaleDip(kIconMarginDip, metrics.dpi);
+    metrics.iconMargin = ScaleDip(g_style.iconMarginDip, metrics.dpi);
     metrics.menuBoxWidth = SystemMetricForDpi(SM_CXSMSIZE, metrics.dpi);
     metrics.menuBoxHeight = SystemMetricForDpi(SM_CYSMSIZE, metrics.dpi);
     metrics.menuBoxLeft = metrics.iconMargin - (metrics.menuBoxWidth - metrics.iconSize) / 2;
@@ -384,8 +425,8 @@ void ApplyChromeFrameAttributes(HWND window)
     // 1px 线都来自它，我们一条都不自己画 —— 与 Chrome 的配置完全一致。
     const DWMNCRENDERINGPOLICY policy = DWMNCRP_ENABLED;
     DwmSetWindowAttribute(window, DWMWA_NCRENDERING_POLICY, &policy, sizeof(policy));
-    // 自绘的是白色标题栏，DWM 的边线/阴影也走浅色（改成 TRUE 即深色主题）。
-    BOOL dark = FALSE;
+    // DWM 的边线/阴影跟着标题栏明暗走（VS Code 样式是深色标题栏）
+    BOOL dark = g_style.darkFrame ? TRUE : FALSE;
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
 }
 
@@ -484,9 +525,9 @@ COLORREF DrawButton(HDC dc, const RECT& rect, int part, int hotPart, int pressed
         return glyph;
     const bool isClose = part == HTCLOSE;
     const COLORREF background = isClose ? (pressed ? kClosePressed : kCloseHot)
-                                        : (pressed ? kButtonPressed : kButtonHot);
+                                        : (pressed ? g_style.buttonPressed : g_style.buttonHot);
     FillRectColor(dc, rect, background);
-    return isClose ? RGB(0xFF, 0xFF, 0xFF) : kCaptionText;
+    return isClose ? RGB(0xFF, 0xFF, 0xFF) : g_style.captionText;
 }
 
 void PaintWindow(HWND window, WindowState& state)
@@ -510,7 +551,7 @@ void PaintWindow(HWND window, WindowState& state)
 
     // —— 自绘标题栏（客户区顶部 captionHeight 像素）——
     RECT caption{0, 0, client.right, metrics.captionHeight};
-    FillRectColor(memory, caption, active ? kCaptionActive : kCaptionInactive);
+    FillRectColor(memory, caption, active ? g_style.captionActive : g_style.captionInactive);
     // 顶边 1px 边框线：非最大化时补上，让四条边一致（Win10 的 DWM 不会画这一条）。
     // 最大化时客户区正好等于工作区，画了会变成屏幕顶端的一条多余线，Chrome 最大化也没有。
     if (!maximized)
@@ -544,7 +585,7 @@ void PaintWindow(HWND window, WindowState& state)
         client.right - metrics.buttonWidth * 3 - 8,
         metrics.captionHeight};
     SetBkMode(memory, TRANSPARENT);
-    SetTextColor(memory, active ? kCaptionText : kCaptionTextInactive);
+    SetTextColor(memory, active ? g_style.captionText : g_style.captionTextInactive);
     HGDIOBJ oldFont = SelectObject(memory, state.titleFont);
     DrawTextW(memory, title, -1, &titleRect, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
 
@@ -563,7 +604,7 @@ void PaintWindow(HWND window, WindowState& state)
             part,
             state.hotPart,
             state.pressedPart,
-            active ? kCaptionText : kCaptionTextInactive);
+            active ? g_style.captionText : g_style.captionTextInactive);
         DrawCaptionGlyph(memory, button, part, maximized, glyph);
     }
 
@@ -1071,9 +1112,20 @@ void CreateSampleWindow(HWND owner)
 
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int)
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR commandLine, int)
 {
     EnablePerMonitorDpiAwareness();
+
+    // --style=chrome|vscode|windows：切换标题栏预置样式。
+    // 这张表与 WindowChromeKit.WinForms / WindowChromeKit.Wpf 的 ChromeTitleBarStyle 一致。
+    if (commandLine != nullptr)
+    {
+        if (wcsstr(commandLine, L"vscode") != nullptr)
+            g_titleBarStyle = TitleBarStyle::VsCode;
+        else if (wcsstr(commandLine, L"windows") != nullptr)
+            g_titleBarStyle = TitleBarStyle::Windows;
+        g_style = SettingsFor(g_titleBarStyle);
+    }
 
     WNDCLASSEXW windowClass{};
     windowClass.cbSize = sizeof(windowClass);

@@ -53,9 +53,9 @@ public partial class MainWindow : ChromeWindow
         window.Show();
     }
 
-    private void OnOpenWhiteTitleBarClicked(object sender, RoutedEventArgs eventArgs)
+    private void OnOpenTitleBarStyleClicked(object sender, RoutedEventArgs eventArgs)
     {
-        var window = new WhiteTitleBarWindow { Owner = this };
+        var window = new TitleBarStyleWindow { Owner = this };
         window.Show();
     }
 }

@@ -149,6 +149,17 @@ public partial class MainWindow : ChromeWindow
   原生 frame 模型：保留 `WS_CAPTION | WS_THICKFRAME`，客户区从窗口矩形内缩出 frame，
   `WM_NCHITTEST` 按 Chrome 实测的优先级判定。与 WPF 版一样内嵌了两个可选窗口图标
   （`WindowChromeIcons.Windows10` / `WindowChromeIcons.Windows7`，直接赋给 `Form.Icon`）。
+  标题栏预置样式 `ChromeTitleBarStyle`（`ChromeWindow` / `ChromeForm` 上的 `TitleBarStyle`，
+  默认 `Chrome`）——赋值时把该样式的几何与配色一次性套用，之后单独改属性以属性为准：
+
+  | 样式 | 标题栏高 | 按钮 | 图标位置 | 配色 |
+  | --- | --- | --- | --- | --- |
+  | `Chrome`（默认） | 40 | 46×39 | 12px 位 | 跟随系统明暗 |
+  | `VsCode` | 35 | 46×34 | 12px 位 | 固定深色 `#323233` |
+  | `Windows` | 32 | 44×32 | 贴左 3px 位 | 跟随系统明暗 |
+
+  三套样式都画顶边线、关闭按钮都用系统标准红；需要完全自定义标题栏时不用这个枚举
+  （继承 `ChromeFrame`，或 `ShowDefaultTitleBar = false` 自己绘制）。
   标题栏自定义能力也与 WPF 版对齐：
   `TitleBarContent` / `TitleBarActions` 内容插槽、`SetHitTestRole` 逐控件命中角色
   （标记为 `Client` 的标题栏控件会自己接收鼠标，不会被当成拖动区）、

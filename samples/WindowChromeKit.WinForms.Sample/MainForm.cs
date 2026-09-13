@@ -50,14 +50,14 @@ public sealed class MainForm : ChromeForm
         };
         customButton.Click += (_, _) => new CustomTitleBarForm { Owner = this }.Show();
 
-        var whiteButton = new Button
+        var styleButton = new Button
         {
-            Text = "白色标题栏窗口",
+            Text = "标题栏样式窗口",
             Width = 180,
             Height = 32,
             Margin = new Padding(12, 0, 0, 0),
         };
-        whiteButton.Click += (_, _) => new WhiteTitleBarForm { Owner = this }.Show();
+        styleButton.Click += (_, _) => new TitleBarStyleForm { Owner = this }.Show();
 
         _edgeButton = new Button
         {
@@ -76,7 +76,7 @@ public sealed class MainForm : ChromeForm
         };
         buttonRow.Controls.Add(openButton);
         buttonRow.Controls.Add(customButton);
-        buttonRow.Controls.Add(whiteButton);
+        buttonRow.Controls.Add(styleButton);
 
         // 内容区用表格布局分行，避免绝对坐标与 Dock 的标签互相覆盖
         var layout = new TableLayoutPanel

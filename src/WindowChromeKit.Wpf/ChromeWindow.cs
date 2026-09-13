@@ -28,6 +28,8 @@ public partial class ChromeWindow : ChromeFrame
 
     public ChromeWindow()
     {
+        // 默认样式：Chrome 实测几何 + 跟随系统明暗
+        ApplyTitleBarStyle(TitleBarStyle);
         Activated += OnActivationChanged;
         Deactivated += OnActivationChanged;
         CommandBindings.Add(
