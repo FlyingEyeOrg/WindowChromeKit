@@ -244,11 +244,13 @@ public partial class ChromeFrame : Form
             // 按钮顶边：贴标题栏底部（保留 1px 下边距），但不高于第 1 行 ——
             // Chrome 实测按钮顶到第 1 行（40 高 / 39 按钮），原生窄标题栏（31 高 / 22 按钮）
             // 则落在第 8 行，即 frame 内缩那条 content 线上
-            CaptionButtonTop = Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
+            CaptionButtonTop = ScaleDip(GetCaptionButtonHeightDip(), dpi) >= captionHeight
+                ? 0
+                : Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
             // 绘制用客户区坐标：普通态比命中矩形少 1 行（第 0 行留给顶边线），最大化时相同
             CaptionButtonPaintTop = maximized
-                ? Math.Max(0, Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)) - 1)
-                : Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
+                ? Math.Max(0, CaptionButtonTopOf(dpi, captionHeight) - 1)
+                : CaptionButtonTopOf(dpi, captionHeight),
         };
         OnFrameMetricsUpdated();
     }
@@ -257,6 +259,15 @@ public partial class ChromeFrame : Form
     protected virtual void OnFrameMetricsUpdated() { }
 
     internal static int ScaleDip(int dip, uint dpi) => (int)Math.Round(dip * dpi / 96.0);
+
+    /// <summary>按钮顶边（客户区行）：铺满标题栏时贴顶，否则贴底留 1px 且不低于第 1 行。</summary>
+    private int CaptionButtonTopOf(uint dpi, int captionHeight)
+    {
+        var buttonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi);
+        return buttonHeight >= captionHeight
+            ? 0
+            : Math.Max(1, captionHeight - 1 - buttonHeight);
+    }
 
     /// <summary>最小尺寸里留给内容区的高度（DIP）。标准窗口的最小值去掉原生标题栏后也就剩这么一条。</summary>
     private const int MinimumContentHeightDip = 8;

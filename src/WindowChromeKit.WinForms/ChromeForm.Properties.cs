@@ -218,7 +218,9 @@ public partial class ChromeForm
                 palette = SystemTheme.Current;
                 CaptionHeightDip = 31;
                 CaptionButtonWidthDip = 36;
-                CaptionButtonHeightDip = 22;
+                // 视觉上按钮铺满整条标题栏（原生悬停高亮一直顶到顶边与右上圆角）；
+                // 原生的命中带虽然只有 22 高（第 8..29 行），但那不影响观感
+                CaptionButtonHeightDip = 31;
                 // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
                 CaptionIconMarginDip = 8;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;

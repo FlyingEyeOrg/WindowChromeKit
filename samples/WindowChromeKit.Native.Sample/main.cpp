@@ -93,7 +93,7 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
         case TitleBarStyle::Windows:
             // 原生 WPF Window 实测（96dpi）：标题栏可见高 31、按钮 36×22
             // 关闭按钮红用原生实测值（悬停 #C42B1C）
-            return {31, 36, 22, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+            return {31, 36, 31, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
                     RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
                     RGB(0xC4, 0x2B, 0x1C), RGB(0xA9, 0x23, 0x16), false};
@@ -288,9 +288,14 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     // 按钮顶边：贴标题栏底部（留 1px），但不高于第 1 行 ——
     // Chrome 实测按钮顶到第 1 行（40 高 / 39 按钮），原生窄标题栏（31 高 / 22 按钮）
     // 则落在第 8 行，即 frame 内缩那条 content 线上
-    metrics.buttonTop = metrics.captionHeight - 1 - metrics.buttonHeight;
-    if (metrics.buttonTop < 1)
-        metrics.buttonTop = 1;
+    if (metrics.buttonHeight >= metrics.captionHeight)
+        metrics.buttonTop = 0;            // 铺满标题栏时贴顶
+    else
+    {
+        metrics.buttonTop = metrics.captionHeight - 1 - metrics.buttonHeight;
+        if (metrics.buttonTop < 1)
+            metrics.buttonTop = 1;
+    }
     metrics.buttonPaintTop = metrics.buttonTop > 0 ? metrics.buttonTop - 1 : 0;   // 第 0 行留给顶边线
     // 绘制位置（客户区坐标）：普通态客户区顶边 == 窗口顶边，按钮同样从第 1 行开始；
     // 最大化时客户区顶边落在工作区顶边，Chrome 实测把按钮块画在可见区第 0 行起
