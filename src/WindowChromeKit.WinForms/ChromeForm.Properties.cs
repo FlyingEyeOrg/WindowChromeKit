@@ -212,12 +212,13 @@ public partial class ChromeForm
                 break;
 
             case ChromeTitleBarStyle.Windows:
-                // 贴近 Windows 11 原生：标题栏 32、按钮 44×32（SM_CXSIZE + 2×SM_CXPADDEDBORDER），
-                // 图标贴左、标题左对齐
+                // 贴近 Windows 11 原生（96dpi 实测一个原生 WPF Window）：
+                // 标题栏可见高 31、按钮 36×22（SM_CXSIZE × SM_CYSIZE）、
+                // 图标盒子 19×22 贴左且顶边在第 8 行（frame 内缩），标题左对齐
                 palette = SystemTheme.Current;
-                CaptionHeightDip = 32;
-                CaptionButtonWidthDip = 44;
-                CaptionButtonHeightDip = 32;
+                CaptionHeightDip = 31;
+                CaptionButtonWidthDip = 36;
+                CaptionButtonHeightDip = 22;
                 CaptionIconMarginDip = 3;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 break;

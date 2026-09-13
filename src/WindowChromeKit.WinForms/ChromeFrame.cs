@@ -228,6 +228,7 @@ public partial class ChromeFrame : Form
             CaptionButtonWidth = ScaleDip(GetCaptionButtonWidthDip(), dpi),
             CaptionButtonsWidth = ScaleDip(GetCaptionButtonWidthDip() * GetCaptionButtonCount(), dpi),
             CaptionButtonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi),
+            // （顶边在下面统一算：需要同时用到标题栏与按钮高度）
             CaptionLeadingWidth = ScaleDip(GetCaptionLeadingWidthDip(), dpi),
             // 命中盒子与原生一致（22×22 正方形、竖向居中），但以画出来的图标为中心，
             // 所以图标仍留在 IconMargin（默认 12），不会因为对齐命中区而左移
@@ -240,10 +241,14 @@ public partial class ChromeFrame : Form
             IconMargin = iconLeft,
             IconSize = iconSize,
             TopResizeBand = ScaleDip(GetTopResizeBandDip(), dpi),
-            // 命中矩形固定用窗口坐标 T+1 起（Chrome 实测，最大化时也不变）
-            CaptionButtonTop = 1,
-            // 绘制用客户区坐标：普通态第 1 行（第 0 行留给顶边线），最大化时第 0 行
-            CaptionButtonPaintTop = maximized ? 0 : 1,
+            // 按钮顶边：贴标题栏底部（保留 1px 下边距），但不高于第 1 行 ——
+            // Chrome 实测按钮顶到第 1 行（40 高 / 39 按钮），原生窄标题栏（31 高 / 22 按钮）
+            // 则落在第 8 行，即 frame 内缩那条 content 线上
+            CaptionButtonTop = Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
+            // 绘制用客户区坐标：普通态比命中矩形少 1 行（第 0 行留给顶边线），最大化时相同
+            CaptionButtonPaintTop = maximized
+                ? Math.Max(0, Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)) - 1)
+                : Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
         };
         OnFrameMetricsUpdated();
     }

@@ -88,7 +88,8 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
                     RGB(0xCC, 0xCC, 0xCC), RGB(0x9D, 0x9D, 0x9D),
                     RGB(0x50, 0x50, 0x50), RGB(0x5F, 0x5F, 0x5F), true};
         case TitleBarStyle::Windows:
-            return {32, 44, 32, 3, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+            // 原生 WPF Window 实测（96dpi）：标题栏可见高 31、按钮 36×22
+            return {31, 36, 22, 3, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
                     RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0), false};
         default:
@@ -124,7 +125,7 @@ struct FrameMetrics
     int buttonWidth = 46;
     int buttonHeight = 39;
     int buttonTop = 1;      // 命中矩形用：按钮相对**窗口矩形**顶部的偏移
-    int buttonPaintTop = 1; // 绘制用：按钮相对**客户区**顶部的偏移
+    int buttonPaintTop = 1; // 绘制用：按钮相对**客户区**顶部的偏移（比命中矩形少 1 行给顶边线）
     int topBand = 6;
     int iconSize = 16;
     int iconMargin = 12;
@@ -280,7 +281,13 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     // 会让顶边线整条消失，所以要把它留成非客户区。
     // 命中矩形（窗口坐标）：Chrome 实测无论普通态还是最大化，都在窗口矩形内 T+1 起、高 39px。
     // 最大化时窗口矩形比工作区高 8px，所以这条命中带在屏幕第 -7 行就开始（看得见的部分从第 0 行起）。
-    metrics.buttonTop = 1;
+    // 按钮顶边：贴标题栏底部（留 1px），但不高于第 1 行 ——
+    // Chrome 实测按钮顶到第 1 行（40 高 / 39 按钮），原生窄标题栏（31 高 / 22 按钮）
+    // 则落在第 8 行，即 frame 内缩那条 content 线上
+    metrics.buttonTop = metrics.captionHeight - 1 - metrics.buttonHeight;
+    if (metrics.buttonTop < 1)
+        metrics.buttonTop = 1;
+    metrics.buttonPaintTop = metrics.buttonTop > 0 ? metrics.buttonTop - 1 : 0;   // 第 0 行留给顶边线
     // 绘制位置（客户区坐标）：普通态客户区顶边 == 窗口顶边，按钮同样从第 1 行开始；
     // 最大化时客户区顶边落在工作区顶边，Chrome 实测把按钮块画在可见区第 0 行起
     // （字形中心落在屏幕第 19.5 行），所以这里用 0。
@@ -564,7 +571,8 @@ void PaintWindow(HWND window, WindowState& state)
             memory, topLine, active ? kTopBorderLineActive : kTopBorderLineInactive);
     }
     // 图标：取窗口自己的小图标（原生路径），尺寸用 DPI 相关的 SM_CXSMICON。
-    const int iconTop = (metrics.captionHeight - metrics.iconSize) / 2;
+    // 图标在系统菜单命中盒子内居中（原生就是这么画的）
+    const int iconTop = metrics.menuBoxTop + (metrics.menuBoxHeight - metrics.iconSize) / 2;
     if (const HICON icon = GetWindowSmallIcon(window))
     {
         DrawIconEx(

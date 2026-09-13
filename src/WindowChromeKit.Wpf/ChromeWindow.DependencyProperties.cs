@@ -89,7 +89,7 @@ public partial class ChromeWindow
             nameof(CaptionIconBoxMargin),
             typeof(Thickness),
             typeof(ChromeWindow),
-            new FrameworkPropertyMetadata(new Thickness(9d, 9d, 0d, 0d))
+            new FrameworkPropertyMetadata(new Thickness(9d, 8d, 0d, 0d))
         );
 
     public static readonly DependencyProperty CaptionButtonHeightProperty =

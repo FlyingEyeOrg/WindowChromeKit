@@ -262,7 +262,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 32d, 44d, 32d, 0d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 36d, 22d, 0d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,
@@ -323,6 +323,42 @@ public sealed class ChromeWindowTests
             // 关闭按钮三套样式都沿用系统标准红
             var close = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
             Assert.Equal(Color.FromRgb(0xE8, 0x11, 0x23), close.Color);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public void WindowsStylePlacesTheIconLikeANativeCaption() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            TitleBarStyle = ChromeTitleBarStyle.Windows,
+        };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            var box = FindByHitTestRole(window, ChromeHitTestRole.SystemMenu);
+            Assert.NotNull(box);
+            var icon = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.GetChild(box!, 0));
+            // WPF 的坐标空间就是客户区（不含原生 frame），直接比即可
+            var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
+            var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
+            // 原生 WPF 窗口实测（96dpi）：caption 可见高 31、
+            // 系统菜单盒子贴左且顶边在第 8 行（frame 内缩）、图标 16 在盒内居中
+            Assert.Equal(31d, window.TitleBarHeight, 1);
+            Assert.Equal(0d, boxOrigin.X, 1);
+            Assert.Equal(8d, boxOrigin.Y, 1);
+            Assert.Equal(22d, box.ActualHeight, 1);
+            Assert.Equal(3d, iconOrigin.X, 1);
+            Assert.Equal(11d, iconOrigin.Y, 1);
+            Assert.Equal(16d, icon.ActualHeight, 1);
         }
         finally
         {

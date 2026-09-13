@@ -30,7 +30,11 @@ public partial class ChromeWindow
         set => SetValue(CaptionIconBoxMarginProperty, value);
     }
 
-    /// <summary>把预置样式套到标题栏上（几何 + 配色，一次性应用）。</summary>
+    /// <summary>
+    /// 把预置样式套到标题栏上（几何 + 配色，一次性应用）。
+    /// 注意图标盒子的纵向边距比 WinForms / 原生示例少 1：模板里标题栏有一条 1px 顶边线
+    /// （TitleBarBorderThickness），内容整体被它顶下去一行。
+    /// </summary>
     private void ApplyTitleBarStyle(ChromeTitleBarStyle style)
     {
         ChromePalette palette;
@@ -42,17 +46,18 @@ public partial class ChromeWindow
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
-                CaptionIconBoxMargin = new Thickness(9d, 8d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 7d, 0d, 0d);
                 break;
 
             case ChromeTitleBarStyle.Windows:
-                // 贴近 Windows 11 原生：标题栏 32、按钮 44×32（SM_CXSIZE + 2×SM_CXPADDEDBORDER）、
-                // 图标贴左
+                // 贴近 Windows 11 原生（96dpi 实测一个原生 WPF Window）：
+                // 标题栏可见高 31、按钮 36×22（SM_CXSIZE × SM_CYSIZE）、
+                // 图标盒子贴左且顶边在第 8 行（frame 内缩）
                 palette = SystemTheme.Current;
-                TitleBarHeight = 32d;
-                CaptionButtonWidth = 44d;
-                CaptionButtonHeight = 32d;
-                CaptionIconBoxMargin = new Thickness(0d, 8d, 0d, 0d);
+                TitleBarHeight = 31d;
+                CaptionButtonWidth = 36d;
+                CaptionButtonHeight = 22d;
+                CaptionIconBoxMargin = new Thickness(0d, 7d, 0d, 0d);
                 break;
 
             default:
@@ -61,7 +66,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 40d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 39d;
-                CaptionIconBoxMargin = new Thickness(9d, 9d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 8d, 0d, 0d);
                 break;
         }
 
