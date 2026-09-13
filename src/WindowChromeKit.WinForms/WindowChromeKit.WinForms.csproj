@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net6.0-windows;net8.0-windows;net472;net48</TargetFrameworks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWindowsForms>true</UseWindowsForms>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
+		<PackageId>WindowChromeKit.WinForms</PackageId>
+		<VersionPrefix>1.1.1</VersionPrefix>
+		<Authors>FlyingEyeOrg</Authors>
+		<Title>WindowChromeKit.WinForms</Title>
+		<Description>面向 .NET 的 WinForms 自定义窗口程序集：保留原生 WS_CAPTION/WS_THICKFRAME 边框（DWM 阴影与阴影中的缩放带），标题栏完全自绘。</Description>
+		<PackageTags>WinForms;Window;WindowChrome;Desktop</PackageTags>
+		<PackageProjectUrl>https://github.com/FlyingEyeOrg/WindowChromeKit</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/FlyingEyeOrg/WindowChromeKit.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
+
+</Project>

@@ -115,7 +115,7 @@ public partial class MainWindow : ChromeWindow
 
 ```xml
 <Border Width="36"
-        Height="35"
+        Height="40"
         chrome:ChromeWindow.HitTestRole="SystemMenu">
     <Image Width="16"
            Height="16"
@@ -143,7 +143,11 @@ public partial class MainWindow : ChromeWindow
 ## 项目结构
 
 - `src/WindowChromeKit.Wpf`：可复用的 WPF 类库。
+- `src/WindowChromeKit.WinForms`：可复用的 WinForms 类库（`ChromeForm`），与 C++ 参考示例同一套
+  原生 frame 模型：保留 `WS_CAPTION | WS_THICKFRAME`，客户区从窗口矩形内缩出 frame，
+  `WM_NCHITTEST` 按 Chrome 实测的优先级判定。
 - `samples/WindowChromeKit.Wpf.Sample`：交互式示例应用程序。
+- `samples/WindowChromeKit.WinForms.Sample`：WinForms 示例应用程序。
 - `samples/WindowChromeKit.Native.Sample`：纯 Win32（C++）参考示例，按真实 Chrome 窗口实测的参数
   复刻「保留阴影 + 阴影中的 resize 带 + 自绘标题栏」，可作为库实现的对照基准。
 - `tests/WindowChromeKit.Wpf.Tests`：算法测试和真实 HWND 集成测试。
