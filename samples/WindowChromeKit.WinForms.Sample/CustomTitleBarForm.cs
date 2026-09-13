@@ -114,6 +114,11 @@ public sealed class CustomTitleBarForm : ChromeForm
         LayoutMenu();
     }
 
+    private void InitializeComponent()
+    {
+
+    }
+
     protected override void OnPaintTitleBar(TitleBarPaintEventArgs e)
     {
         if (ShowDefaultTitleBar)
