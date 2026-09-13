@@ -91,8 +91,9 @@ public partial class ChromeWindow
             CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
             CloseButtonPressedBackground = FrozenBrush(0xFF, 0xF1, 0x70, 0x7A);
         }
-        // 顶边线：与 DWM 画在其余三边的实测值一致，三套样式统一
+        // 顶边线：与 DWM 画在其余三边的实测值一致（激活 #707070 / 失活 #AAAAAA），三套样式统一
         TitleBarBorderBrush = FrozenBrush(0xFF, 0x70, 0x70, 0x70);
+        InactiveTitleBarBorderBrush = FrozenBrush(0xFF, 0xAA, 0xAA, 0xAA);
         ShowTitleBarIcon = true;
     }
 }

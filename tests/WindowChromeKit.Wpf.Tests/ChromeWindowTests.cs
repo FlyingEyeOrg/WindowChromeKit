@@ -328,6 +328,13 @@ public sealed class ChromeWindowTests
             window.TitleBarStyle = ChromeTitleBarStyle.Windows;
             var nativeClose = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
             Assert.Equal(Color.FromRgb(0xC4, 0x2B, 0x1C), nativeClose.Color);
+
+            // 顶边那 1px 线必须跟着焦点切换，否则失活时会比 DWM 画的左边框深：
+            // Win10 实测 激活 #707070 / 失活 #AAAAAA
+            var activeLine = Assert.IsType<SolidColorBrush>(window.TitleBarBorderBrush);
+            Assert.Equal(Color.FromRgb(0x70, 0x70, 0x70), activeLine.Color);
+            var inactiveLine = Assert.IsType<SolidColorBrush>(window.InactiveTitleBarBorderBrush);
+            Assert.Equal(Color.FromRgb(0xAA, 0xAA, 0xAA), inactiveLine.Color);
         }
         finally
         {

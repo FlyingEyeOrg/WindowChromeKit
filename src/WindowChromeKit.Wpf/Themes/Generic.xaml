@@ -78,7 +78,7 @@
                                 Grid.Row="0"
                                 Height="{TemplateBinding TitleBarHeight}"
                                 Background="{TemplateBinding InactiveTitleBarBackground}"
-                                BorderBrush="{TemplateBinding TitleBarBorderBrush}"
+                                BorderBrush="{TemplateBinding InactiveTitleBarBorderBrush}"
                                 BorderThickness="{TemplateBinding TitleBarBorderThickness}"
                                 ClipToBounds="True"
                                 TextElement.Foreground="{TemplateBinding InactiveTitleBarForeground}"
@@ -202,6 +202,9 @@
 
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsActive" Value="True">
+                            <Setter TargetName="PART_TitleBar"
+                                    Property="BorderBrush"
+                                    Value="{Binding TitleBarBorderBrush, RelativeSource={RelativeSource TemplatedParent}}" />
                             <Setter TargetName="PART_TitleBar" Property="Background" Value="{Binding ActiveTitleBarBackground, RelativeSource={RelativeSource TemplatedParent}}" />
                             <Setter TargetName="PART_TitleBar" Property="TextElement.Foreground" Value="{Binding ActiveTitleBarForeground, RelativeSource={RelativeSource TemplatedParent}}" />
                         </Trigger>

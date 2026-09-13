@@ -67,6 +67,18 @@ public partial class ChromeWindow
             )
         );
 
+    /// <summary>
+    /// 失活（无焦点）时标题栏顶边那 1 像素线的颜色。Windows 10 的 DWM 只画左/右/下三边，
+    /// 顶边要自己补，且必须跟着焦点切换：实测激活 rgb(112,112,112)、失活 rgb(170,170,170)。
+    /// </summary>
+    public static readonly DependencyProperty InactiveTitleBarBorderBrushProperty =
+        DependencyProperty.Register(
+            nameof(InactiveTitleBarBorderBrush),
+            typeof(Brush),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(FrozenBrush(0xFF, 0xAA, 0xAA, 0xAA), OnChromeVisualChanged)
+        );
+
     public static readonly DependencyProperty TitleBarHeightProperty = DependencyProperty.Register(
         nameof(TitleBarHeight),
         typeof(double),
@@ -277,6 +289,12 @@ public partial class ChromeWindow
     {
         get => (Brush)GetValue(InactiveTitleBarForegroundProperty);
         set => SetValue(InactiveTitleBarForegroundProperty, value);
+    }
+
+    public Brush InactiveTitleBarBorderBrush
+    {
+        get => (Brush)GetValue(InactiveTitleBarBorderBrushProperty);
+        set => SetValue(InactiveTitleBarBorderBrushProperty, value);
     }
 
     public Brush TitleBarBorderBrush
