@@ -262,7 +262,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 33d, 31d, 5d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d, 5d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,

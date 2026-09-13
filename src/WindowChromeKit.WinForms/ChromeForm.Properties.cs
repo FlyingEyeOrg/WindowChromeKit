@@ -217,8 +217,9 @@ public partial class ChromeForm
                 // 图标盒子 19×22 贴左且顶边在第 8 行（frame 内缩），标题左对齐
                 palette = SystemTheme.Current;
                 CaptionHeightDip = 31;
-                // 逐像素实测原生按钮宽 33（不是 SM_CXSIZE 的 36）
-                CaptionButtonWidthDip = 33;
+                // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)；
+                // 注意原生"命中带"只有 33 宽，那是内缩后的判定区，不是画出来的格子
+                CaptionButtonWidthDip = 45;
                 // 视觉上按钮铺满整条标题栏（原生悬停高亮一直顶到顶边与右上圆角）；
                 // 原生的命中带虽然只有 22 高（第 8..29 行），但那不影响观感
                 CaptionButtonHeightDip = 31;

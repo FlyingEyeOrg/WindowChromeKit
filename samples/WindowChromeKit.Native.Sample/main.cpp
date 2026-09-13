@@ -93,7 +93,8 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
         case TitleBarStyle::Windows:
             // 原生 WPF Window 实测（96dpi）：标题栏可见高 31、按钮 36×22
             // 关闭按钮红用原生实测值（悬停 #C42B1C）
-            return {31, 33, 31, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+            // 按钮视觉格子 45 宽（原生悬停块实测），高度铺满标题栏
+            return {31, 45, 31, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
                     RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
                     RGB(0xC4, 0x2B, 0x1C), RGB(0xA9, 0x23, 0x16), false};
