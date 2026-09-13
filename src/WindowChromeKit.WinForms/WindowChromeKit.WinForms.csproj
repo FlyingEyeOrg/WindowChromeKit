@@ -29,6 +29,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- 与 WPF 版共用同一份图标资源（不重复存放二进制），
+		     Link 决定内嵌资源名：WindowChromeKit.WinForms.Assets.<文件名> -->
+		<EmbeddedResource Include="..\WindowChromeKit.Wpf\Assets\Windows7WindowIcon.ico"
+		                  Link="Assets\Windows7WindowIcon.ico" />
+		<EmbeddedResource Include="..\WindowChromeKit.Wpf\Assets\Windows10WindowIcon.ico"
+		                  Link="Assets\Windows10WindowIcon.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- Visual Studio 在分部文件上打开设计器时会生成 ChromeForm.Input.resx，
 		     它会和 ChromeForm.resx 争抢同一个资源名（MSB3577），这里排除掉。 -->
 		<EmbeddedResource Remove="ChromeForm.*.resx" />

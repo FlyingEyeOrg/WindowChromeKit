@@ -16,12 +16,13 @@ public sealed class CustomTitleBarForm : ChromeForm
     private readonly Panel _contentHost;
     private readonly Button _actionButton;
     private readonly CheckBox _fullyCustomCheck;
+    private readonly CheckBox _windows7IconCheck;
 
     public CustomTitleBarForm()
     {
         Text = "自定义标题栏（WinForms）";
-        // 用 exe 自带的应用图标（<ApplicationIcon>），标题栏与任务栏都跟着变
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        // 库内嵌的两个可选图标：Windows 10 / Windows 7 风格，直接赋给 Form.Icon
+        Icon = WindowChromeIcons.Windows10;
         Width = 920;
         Height = 560;
         MinimumSize = new Size(460, 260);
@@ -34,10 +35,14 @@ public sealed class CustomTitleBarForm : ChromeForm
             AutoSize = false,
             GripStyle = ToolStripGripStyle.Hidden,
             Padding = new Padding(0),
-            // 默认标题栏是 VS Code 深色（#323233），菜单要跟着用浅色文字
+            // 默认标题栏是 VS Code 深色（#323233），菜单用浅色文字 + 扁平渲染器；
+            // 系统渲染器会画渐变底和 3D 边框，在标题栏底部露出一条白边。
             BackColor = Color.FromArgb(0x32, 0x32, 0x33),
             ForeColor = Color.FromArgb(0xCC, 0xCC, 0xCC),
-            RenderMode = ToolStripRenderMode.System,
+            Renderer = new TitleBarMenuRenderer(
+                Color.FromArgb(0x32, 0x32, 0x33),
+                Color.FromArgb(0xCC, 0xCC, 0xCC),
+                Color.FromArgb(0x50, 0x50, 0x50)),
         };
         _menu.Items.Add(new ToolStripMenuItem("文件"));
         _menu.Items.Add(new ToolStripMenuItem("视图"));
@@ -77,15 +82,15 @@ public sealed class CustomTitleBarForm : ChromeForm
                 + "・右侧「标题栏按钮」放在 TitleBarActions 插槽，紧挨最小化/最大化/关闭。\r\n"
                 + "・勾选下面的“完全自绘标题栏”，ShowDefaultTitleBar 关闭，\r\n"
                 + "  底色、顶边线和文字全部由 OnPaintTitleBar 绘制，按钮状态机仍然可用。\r\n"
-                + "・把鼠标移到窗口外侧边缘（阴影里那一圈）可缩放；拖标题栏空白处可移动。",
+                + "・把鼠标移到窗口外侧边缘（阴影里那一圈）可缩放；拖标题栏空白处可移动。\r\n"
+                + "・图标来自库内嵌资源：WindowChromeIcons.Windows10 / Windows7，勾选下面的开关可切换。",
         };
 
         _fullyCustomCheck = new CheckBox
         {
             Text = "完全自绘标题栏（ShowDefaultTitleBar = false）",
             AutoSize = true,
-            Left = 20,
-            Top = 170,
+            Margin = new Padding(0, 0, 24, 0),
         };
         _fullyCustomCheck.CheckedChanged += (_, _) =>
         {
@@ -93,8 +98,38 @@ public sealed class CustomTitleBarForm : ChromeForm
             Invalidate();
         };
 
-        Controls.Add(info);
-        Controls.Add(_fullyCustomCheck);
+        // 库内嵌的两个图标可以随时切换（标题栏 / 任务栏 / Alt+Tab 一起变）
+        _windows7IconCheck = new CheckBox
+        {
+            Text = "使用 Windows 7 风格图标（否则用 Windows 10 风格）",
+            AutoSize = true,
+        };
+        _windows7IconCheck.CheckedChanged += (_, _) =>
+            Icon = _windows7IconCheck.Checked ? WindowChromeIcons.Windows7 : WindowChromeIcons.Windows10;
+
+        var options = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(20, 4, 0, 0),
+        };
+        options.Controls.Add(_fullyCustomCheck);
+        options.Controls.Add(_windows7IconCheck);
+
+        // 用表格布局分行，避免绝对坐标被 Dock 的标签盖住
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 168));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        layout.Controls.Add(info, 0, 0);
+        layout.Controls.Add(options, 0, 1);
+
+        Controls.Add(layout);
     }
 
     /// <summary>
@@ -117,6 +152,49 @@ public sealed class CustomTitleBarForm : ChromeForm
     private void InitializeComponent()
     {
 
+    }
+
+    /// <summary>
+    /// 标题栏菜单用的扁平渲染器：底色跟随标题栏、去掉系统渲染器的渐变与 3D 边框，
+    /// 悬停/打开时用标题栏按钮同款的悬停色。
+    /// </summary>
+    private sealed class TitleBarMenuRenderer : ToolStripRenderer
+    {
+        private readonly Color _background;
+        private readonly Color _foreground;
+        private readonly Color _hover;
+
+        internal TitleBarMenuRenderer(Color background, Color foreground, Color hover)
+        {
+            _background = background;
+            _foreground = foreground;
+            _hover = hover;
+        }
+
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            using var brush = new SolidBrush(_background);
+            e.Graphics.FillRectangle(brush, e.AffectedBounds);
+        }
+
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            // 不要 3D 边框：它会在标题栏底部画出一条亮线
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            if (!e.Item.Selected && !e.Item.Pressed)
+                return;
+            using var brush = new SolidBrush(_hover);
+            e.Graphics.FillRectangle(brush, new Rectangle(Point.Empty, e.Item.Size));
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = e.Item.Selected || e.Item.Pressed ? Color.White : _foreground;
+            base.OnRenderItemText(e);
+        }
     }
 
     protected override void OnPaintTitleBar(TitleBarPaintEventArgs e)
