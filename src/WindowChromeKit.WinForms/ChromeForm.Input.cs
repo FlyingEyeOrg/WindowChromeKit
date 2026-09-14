@@ -17,7 +17,14 @@ public partial class ChromeForm
     /// <summary>标题栏三个按钮的命中（窗口坐标）；没有命中时返回 0。</summary>
     private protected override int HitTestCaptionButtons(NativeRectangle windowRect, NativePoint pointer)
     {
-        foreach (var (button, rect) in GetCaptionButtonRects(windowRect))
+        // 纵向以客户区顶边为基准：绘制用的是客户区坐标，最大化时客户区顶边比窗口顶边低
+        // frameY（那条不可见缩放带），从窗口顶边起算会让命中区整体上移 8px
+        var clientTop = ChromeFrameGeometry.GetClientArea(
+            windowRect,
+            Metrics.FrameX,
+            Metrics.FrameY,
+            Metrics.Maximized).Top;
+        foreach (var (button, rect) in GetCaptionButtonRects(windowRect, clientTop))
         {
             if (ChromeFrameGeometry.Contains(rect, pointer))
                 return ToHitTest(button);
@@ -27,22 +34,23 @@ public partial class ChromeForm
 
     /// <summary>标题栏三个按钮的命中矩形（窗口坐标）。顺序与绘制顺序一致。</summary>
     private IEnumerable<(ChromeCaptionButton Button, NativeRectangle Rect)> GetCaptionButtonRects(
-        NativeRectangle windowRect)
+        NativeRectangle windowRect,
+        int clientTop)
     {
         yield return (
             ChromeCaptionButton.Close,
             ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, Metrics.FrameX, Metrics.CaptionButtonWidth,
+                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
                 Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Close));
         yield return (
             ChromeCaptionButton.Maximize,
             ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, Metrics.FrameX, Metrics.CaptionButtonWidth,
+                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
                 Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Maximize));
         yield return (
             ChromeCaptionButton.Minimize,
             ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, Metrics.FrameX, Metrics.CaptionButtonWidth,
+                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
                 Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Minimize));
     }
 
@@ -178,7 +186,13 @@ public partial class ChromeForm
         if (!NativeMethods.GetCursorPos(out var point))
             return null;
         var windowRect = GetWindowRectangle();
-        foreach (var (button, rect) in GetCaptionButtonRects(windowRect))
+        // 与命中测试用同一套矩形（纵向同样以客户区顶边为基准），否则最大化时按下/抬起会落在不同格子里
+        var clientTop = ChromeFrameGeometry.GetClientArea(
+            windowRect,
+            Metrics.FrameX,
+            Metrics.FrameY,
+            Metrics.Maximized).Top;
+        foreach (var (button, rect) in GetCaptionButtonRects(windowRect, clientTop))
         {
             if (ChromeFrameGeometry.Contains(rect, point))
                 return button;

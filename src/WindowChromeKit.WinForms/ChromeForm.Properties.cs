@@ -175,6 +175,21 @@ public partial class ChromeForm
         set => SetOption(ref _showTopBorderLine, value);
     }
 
+    /// <summary>当前样式下从客户区顶边算起的按钮顶行（设备像素，已按 DPI 缩放）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionButtonTop => Metrics.CaptionButtonTop;
+
+    /// <summary>当前样式下的标题栏按钮高度（设备像素，已按 DPI 缩放）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionButtonHeight => Metrics.CaptionButtonHeight;
+
+    /// <summary>当前样式下的标题栏按钮宽度（设备像素，已按 DPI 缩放）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionButtonWidth => Metrics.CaptionButtonWidth;
+
     /// <summary>
     /// 标题栏预置样式（默认 <see cref="ChromeTitleBarStyle.Chrome"/>）。
     /// 赋值时把该样式的几何、配色与布局开关**应用一次**；之后单独修改任何属性都以属性为准，

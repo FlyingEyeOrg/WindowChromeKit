@@ -247,10 +247,11 @@ public partial class ChromeFrame : Form
             CaptionButtonTop = ScaleDip(GetCaptionButtonHeightDip(), dpi) >= captionHeight
                 ? 0
                 : Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
-            // 绘制用客户区坐标：普通态比命中矩形少 1 行（第 0 行留给顶边线），最大化时相同
+            // 绘制顶行：普通态比命中顶行少 1 行（第 0 行留给顶边线），最大化时相同。
+            // 绘制与命中都相对**客户区**顶边，两者只在普通态差这 1 行。
             CaptionButtonPaintTop = maximized
-                ? Math.Max(0, CaptionButtonTopOf(dpi, captionHeight) - 1)
-                : CaptionButtonTopOf(dpi, captionHeight),
+                ? CaptionButtonTopOf(dpi, captionHeight)
+                : Math.Max(0, CaptionButtonTopOf(dpi, captionHeight) - 1),
         };
         OnFrameMetricsUpdated();
     }

@@ -63,9 +63,14 @@ internal static class ChromeFrameGeometry
             windowRect.Right - frameX,
             windowRect.Bottom - frameY);
 
-    /// <summary>caption 按钮的矩形（窗口坐标）。按钮贴着客户区右边缘排列。</summary>
+    /// <summary>
+    /// caption 按钮的命中矩形（窗口坐标）。横向贴客户区右边缘（窗口矩形右缘内缩 frameX），
+    /// 纵向从<b>客户区顶边</b>起算 —— 绘制用的就是客户区坐标，最大化时客户区顶边比窗口顶边
+    /// 低 frameY（那条看不见的缩放带），若从窗口顶边起算命中区会整体上移 8px。
+    /// </summary>
     internal static NativeRectangle GetCaptionButtonRect(
         NativeRectangle windowRect,
+        int clientTop,
         int frameX,
         int captionButtonWidth,
         int captionButtonHeight,
@@ -81,9 +86,9 @@ internal static class ChromeFrameGeometry
         var right = windowRect.Right - frameX - index * captionButtonWidth;
         return new NativeRectangle(
             right - captionButtonWidth,
-            windowRect.Top + captionButtonTop,
+            clientTop + captionButtonTop,
             right,
-            windowRect.Top + captionButtonTop + captionButtonHeight);
+            clientTop + captionButtonTop + captionButtonHeight);
     }
 
     /// <summary>
