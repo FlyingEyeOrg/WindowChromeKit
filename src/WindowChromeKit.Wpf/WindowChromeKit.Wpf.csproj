@@ -10,7 +10,7 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
 		<PackageId>WindowChromeKit.Wpf</PackageId>
-		<VersionPrefix>1.1.3</VersionPrefix>
+		<VersionPrefix>1.1.4</VersionPrefix>
 		<Authors>FlyingEyeOrg</Authors>
 		<Title>WindowChromeKit.Wpf</Title>
 		<Description>面向 .NET 8 的可模板化 WPF 自定义窗口程序集，支持原生窗口拖动、缩放、系统菜单、DWM 阴影和 Snap Layout。</Description>
