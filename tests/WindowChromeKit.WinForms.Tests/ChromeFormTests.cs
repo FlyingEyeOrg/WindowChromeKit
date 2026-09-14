@@ -13,6 +13,7 @@ public sealed class ChromeFormTests
     private const int HtMinButton = 8;
     private const int HtMaxButton = 9;
     private const int HtClose = 20;
+    private const int HtSysMenu = 3;
 
     /// <summary>
     /// 最大化时客户区顶边比窗口顶边低 frameY（那条不可见缩放带），绘制用的是客户区坐标；
@@ -109,6 +110,54 @@ public sealed class ChromeFormTests
             Assert.True(
                 boxTop + boxHeight / 2 == expectedTop + boxHeight / 2,
                 $"{style}: icon centre must match the box centre");
+        });
+
+    /// <summary>
+    /// 图标垂直居中改动后的命中区必须仍然贴合图标：盒子尺寸恒为 22×22（SM_CXSMSIZE × SM_CYSMSIZE），
+    /// 位置随标题栏高度居中，且盒子外的标题栏（左、右、上、下各一像素）都不能是 HTSYSMENU。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31)]
+    public void SystemMenuHitBoxTracksTheCentredIcon(ChromeTitleBarStyle style, int captionHeight) =>
+        RunSta(() =>
+        {
+            using var form = new ChromeForm
+            {
+                Text = "icon hit",
+                ShowInTaskbar = false,
+                TitleBarStyle = style,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(200, 200),
+                Size = new Size(900, 560),
+            };
+            form.Show();
+            Application.DoEvents();
+
+            var window = WindowRect(form);
+            var frame = FrameX(form);
+            var expectedTop = form.SystemMenuTop;
+            var boxHeight = 22;
+            var boxWidth = 22;
+
+            // 盒子内部：中心必须是 HTSYSMENU
+            var centreY = window.Top + expectedTop + boxHeight / 2;
+            var centreX = window.Left + frame + form.SystemMenuLeft + boxWidth / 2;
+            Assert.Equal(HtSysMenu, HitTest(form, centreX, centreY));
+
+            // 盒子四条边界外侧一像素：都不能是 HTSYSMENU
+            Assert.NotEqual(HtSysMenu, HitTest(form, centreX, window.Top + expectedTop - 1));
+            Assert.NotEqual(HtSysMenu, HitTest(form, centreX, window.Top + expectedTop + boxHeight));
+            Assert.NotEqual(
+                HtSysMenu,
+                HitTest(form, window.Left + frame + form.SystemMenuLeft - 1, centreY));
+            Assert.NotEqual(
+                HtSysMenu,
+                HitTest(form, window.Left + frame + form.SystemMenuLeft + boxWidth, centreY));
+
+            // 盒子随标题栏高度居中（这是本次修复的核心）
+            Assert.Equal((captionHeight - boxHeight) / 2, expectedTop);
         });
 
     /// <summary>按钮底边之下应回到标题栏（HTCAPTION），说明按钮高度没有被拉长。</summary>

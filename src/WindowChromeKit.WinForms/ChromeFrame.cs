@@ -267,8 +267,6 @@ public partial class ChromeFrame : Form
     private static int CenteredSystemMenuTop(int captionHeight, int boxHeight) =>
         Math.Max(0, (captionHeight - boxHeight) / 2);
 
-    /// <summary>普通态标题栏顶部留给顶边线的行数（最大化时不画顶边线，为 0）。</summary>
-    internal int CaptionTopLineRows => Metrics.Maximized ? 0 : 1;
 
     /// <summary>按钮顶边（客户区行）：铺满标题栏时贴顶，否则贴底留 1px 且不低于第 1 行。</summary>
     private int CaptionButtonTopOf(uint dpi, int captionHeight)

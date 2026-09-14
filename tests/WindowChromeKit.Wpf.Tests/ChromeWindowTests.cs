@@ -404,6 +404,7 @@ public sealed class ChromeWindowTests
             var box = FindByHitTestRole(window, ChromeHitTestRole.SystemMenu);
             Assert.NotNull(box);
             var icon = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.GetChild(box!, 0));
+            var handle = new WindowInteropHelper(window).Handle;
 
             var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
                 window.Template.FindName(ChromeWindow.PartTitleBar, window));
@@ -417,6 +418,12 @@ public sealed class ChromeWindowTests
             var boxCentre = boxOrigin.Y + box.ActualHeight / 2;
             var iconCentre = iconOrigin.Y + icon.ActualHeight / 2;
             Assert.Equal(boxCentre, iconCentre, 1);
+            // 命中盒子自身必须是 22×22（SM_CXSMSIZE × SM_CYSMSIZE），命中角色就是 SystemMenu
+            Assert.Equal(22d, box.ActualWidth, 1);
+            Assert.Equal(ChromeHitTestRole.SystemMenu, ChromeWindow.GetHitTestRole(box));
+            // 盒子的命中测试命中它自己（而不是被标题栏抢走）
+            Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, box));
+
             // 盒子在标题栏内垂直居中，并随标题栏高度自适应。
             // 模板内容区被 1px 顶边线顶下去一行，WPF 居中时余数可能落在任一侧（亚像素），
             // 因此允许 1px 误差 —— 要锁住的是"随高度变化而居中"，不是半个像素。
