@@ -224,6 +224,41 @@ public sealed class ChromeFormTests
             $"{style}: button paint height must leave the top line row");
     });
 
+    /// <summary>
+    /// 最大化时不画顶边线，按钮填充必须铺到客户区第 0 行 —— 否则悬停时顶部会漏出
+    /// 一条底色（浅色标题栏下看起来就是 1px 白边）。普通态则相反：第 0 行留给顶边线。
+    /// </summary>
+    [Fact]
+    public void CaptionButtonFillCoversTheTopRowWhenMaximized() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "max fill",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // 普通态：第 0 行留给顶边线
+        Assert.False(form.WindowState == FormWindowState.Maximized);
+        Assert.Equal(1, form.CaptionButtonPaintTop);
+        Assert.Equal(form.CaptionHeight - 1, form.CaptionButtonPaintHeight);
+
+        form.WindowState = FormWindowState.Maximized;
+        Application.DoEvents();
+        Thread.Sleep(200);
+        Application.DoEvents();
+
+        Assert.Equal(0, form.CaptionButtonPaintTop);
+        Assert.Equal(form.CaptionHeight, form.CaptionButtonPaintHeight);
+
+        form.WindowState = FormWindowState.Normal;
+        Application.DoEvents();
+    });
+
     /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>

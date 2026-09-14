@@ -151,19 +151,16 @@ public partial class ChromeForm
     /// </summary>
     private Rectangle GetCaptionButtonPaintRect(int index)
     {
-        var topLineRows = ShowTopBorderLine && !Metrics.Maximized ? 1 : 0;
-        var top = Metrics.CaptionButtonPaintTop;
-        var height = Metrics.CaptionButtonHeight;
-        if (top < topLineRows)
-        {
-            height = Math.Max(1, height - (topLineRows - top));
-            top = topLineRows;
-        }
+        // 一条规则：按钮从"顶边线之下"铺到"标题栏底部"。
+        //   普通态：第 0 行是顶边线（Win10 的 DWM 不画顶部边框，我们自己补）→ 从第 1 行起；
+        //   最大化：不画顶边线，按钮一直铺到第 0 行，否则顶部会漏出一条底色（看起来像白边）。
+        var top = ShowTopBorderLine && !Metrics.Maximized ? 1 : 0;
+        var bottom = Math.Min(Metrics.CaptionHeight, ClientRectangle.Height);
         return new Rectangle(
             ClientRectangle.Right - (index + 1) * Metrics.CaptionButtonWidth,
             top,
             Metrics.CaptionButtonWidth,
-            height);
+            Math.Max(1, bottom - top));
     }
 
     private void DrawCaptionGlyph(

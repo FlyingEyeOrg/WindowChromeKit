@@ -78,8 +78,6 @@
                                 Grid.Row="0"
                                 Height="{TemplateBinding TitleBarHeight}"
                                 Background="{TemplateBinding InactiveTitleBarBackground}"
-                                BorderBrush="{TemplateBinding InactiveTitleBarBorderBrush}"
-                                BorderThickness="{TemplateBinding TitleBarBorderThickness}"
                                 ClipToBounds="True"
                                 TextElement.Foreground="{TemplateBinding InactiveTitleBarForeground}"
                                 local:ChromeWindow.HitTestRole="Caption">
@@ -182,6 +180,17 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+
+                        <!-- 顶边 1px 边框线：Win10 的 DWM 只画左/右/下，顶部这条要自己补。
+                             单独做成覆盖层而不是 Border 的 BorderThickness：后者会挤占标题栏内容区，
+                             高度等于标题栏的按钮会被压出 1px，把这条线盖掉。
+                             它不参与布局，绘制在按钮之上；最大化时高度为 0（画了会在屏幕顶多一条线）。 -->
+                        <Border x:Name="PART_TopBorderLine"
+                                Grid.Row="0"
+                                Height="{Binding Path=(local:ChromeWindow.TitleBarBorderThickness).Top, RelativeSource={RelativeSource TemplatedParent}}"
+                                VerticalAlignment="Top"
+                                Background="{TemplateBinding InactiveTitleBarBorderBrush}"
+                                IsHitTestVisible="False" />
 
                         <AdornerDecorator Grid.Row="1">
                             <ContentPresenter Content="{TemplateBinding Content}"

@@ -262,7 +262,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 30d, 5d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d, 5d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,
@@ -362,14 +362,14 @@ public sealed class ChromeWindowTests
             // WPF 的坐标空间就是客户区（不含原生 frame），直接比即可
             var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
             var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
-            // 图标在标题栏内垂直居中并随高度自适应：标题栏 31、盒子 22。
-            // 模板内容区比标题栏少 1px（顶边线），所以盒子居中后落在 y=5，图标落在 y=8。
+            // 图标在标题栏内垂直居中并随高度自适应：标题栏 31、盒子 22 → 顶边 (31-22)/2 = 4.5。
+            // 顶边线现在是覆盖层（不占布局），内容区等于整条标题栏，所以是精确居中。
             Assert.Equal(31d, window.TitleBarHeight, 1);
             Assert.Equal(5d, boxOrigin.X, 1);
-            Assert.Equal(5d, boxOrigin.Y, 1);
+            Assert.Equal(4.5d, boxOrigin.Y, 1);
             Assert.Equal(22d, box.ActualHeight, 1);
             Assert.Equal(8d, iconOrigin.X, 1);
-            Assert.Equal(8d, iconOrigin.Y, 1);
+            Assert.Equal(7.5d, iconOrigin.Y, 1);
             Assert.Equal(16d, icon.ActualHeight, 1);
         }
         finally
@@ -385,7 +385,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 39d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 34d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 30d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 31d)]
     public void CaptionButtonsLeaveTheTopBorderLine(
         ChromeTitleBarStyle style,
         double captionHeight,
@@ -417,13 +417,58 @@ public sealed class ChromeWindowTests
                     window.Template.FindName(part, window));
                 var origin = button.TransformToAncestor(window).Transform(new Point(0, 0));
                 Assert.Equal(buttonHeight, button.ActualHeight, 1);
+                // 顶边线是覆盖层（画在按钮之上、不占布局），所以按钮顶边就是第 0 行；
+                // 要保证的是按钮不超出标题栏范围
                 Assert.True(
-                    origin.Y >= 1d,
-                    $"{style}/{part}: button top {origin.Y} must leave row 0 for the top border line");
+                    origin.Y >= 0d,
+                    $"{style}/{part}: button top must not be negative, got {origin.Y}");
                 Assert.True(
                     origin.Y + button.ActualHeight <= captionHeight + 0.5,
                     $"{style}/{part}: button bottom {origin.Y + button.ActualHeight} exceeds the caption {captionHeight}");
             }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 最大化时不画顶边线（画了会在屏幕顶端多一条），所以按钮必须铺到标题栏顶部；
+    /// 普通态则相反：模板的 1px BorderThickness 让出第 0 行，按钮从第 1 行开始。
+    /// 否则最大化 + 悬停按钮时，顶部会漏出一条底色（浅色标题栏下看起来是 1px 白边）。
+    /// </summary>
+    [Fact]
+    public void CaptionButtonsReachTheTopRowWhenMaximized() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            TitleBarStyle = ChromeTitleBarStyle.Windows,
+        };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            var close = Assert.IsAssignableFrom<FrameworkElement>(
+                window.Template.FindName(ChromeWindow.PartCloseButton, window));
+
+            // 顶边线是覆盖层、不占布局，所以按钮在两种状态下都铺满整条标题栏
+            // （普通态的线画在按钮之上；最大化时线高 0，不会在屏幕顶端多一条）
+            Assert.Equal(1d, window.TitleBarBorderThickness.Top, 1);
+            Assert.Equal(0d, close.TransformToAncestor(window).Transform(new Point(0, 0)).Y, 1);
+            Assert.Equal(window.TitleBarHeight, close.ActualHeight, 1);
+
+            window.WindowState = WindowState.Maximized;
+            window.UpdateLayout();
+            Assert.Equal(0d, window.TitleBarBorderThickness.Top, 1);
+            Assert.Equal(0d, close.TransformToAncestor(window).Transform(new Point(0, 0)).Y, 1);
+            Assert.Equal(window.TitleBarHeight, close.ActualHeight, 1);
+
+            window.WindowState = WindowState.Normal;
+            window.UpdateLayout();
         }
         finally
         {

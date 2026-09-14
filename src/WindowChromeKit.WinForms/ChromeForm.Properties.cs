@@ -255,9 +255,9 @@ public partial class ChromeForm
                 // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)；
                 // 注意原生"命中带"只有 33 宽，那是内缩后的判定区，不是画出来的格子
                 CaptionButtonWidthDip = 45;
-                // 按钮高 30 = 标题栏 31 - 1：第 0 行留给顶边线（原生悬停高亮也是从第 1 行开始），
-                // 铺满 31 会让 hover 填充盖住那条线
-                CaptionButtonHeightDip = 30;
+                // 铺满整条标题栏；普通态第 0 行是顶边线，由绘制矩形按需让出（最大化时不画线，
+                // 所以最大化时按钮要铺到第 0 行，否则顶部会露出一条底色）
+                CaptionButtonHeightDip = 31;
                 // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
                 CaptionIconMarginDip = 8;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
