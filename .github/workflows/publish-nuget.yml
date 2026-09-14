@@ -79,7 +79,8 @@ jobs:
               "src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj",
               "samples/WindowChromeKit.Wpf.Sample/WindowChromeKit.Wpf.Sample.csproj",
               "samples/WindowChromeKit.WinForms.Sample/WindowChromeKit.WinForms.Sample.csproj",
-              "tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj"
+              "tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj",
+              "tests/WindowChromeKit.WinForms.Tests/WindowChromeKit.WinForms.Tests.csproj"
           )
           foreach ($project in $projects) {
               dotnet restore $project
@@ -94,7 +95,8 @@ jobs:
               "src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj",
               "samples/WindowChromeKit.Wpf.Sample/WindowChromeKit.Wpf.Sample.csproj",
               "samples/WindowChromeKit.WinForms.Sample/WindowChromeKit.WinForms.Sample.csproj",
-              "tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj"
+              "tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj",
+              "tests/WindowChromeKit.WinForms.Tests/WindowChromeKit.WinForms.Tests.csproj"
           )
           foreach ($project in $projects) {
               dotnet build $project -c Release --no-restore -p:ContinuousIntegrationBuild=true
@@ -102,7 +104,16 @@ jobs:
           }
 
       - name: Test
-        run: dotnet test tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj -c Release --no-build --no-restore
+        shell: pwsh
+        run: |
+          $testProjects = @(
+              "tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj",
+              "tests/WindowChromeKit.WinForms.Tests/WindowChromeKit.WinForms.Tests.csproj"
+          )
+          foreach ($project in $testProjects) {
+              dotnet test $project -c Release --no-build --no-restore
+              if ($LASTEXITCODE -ne 0) { throw "test 失败：$project" }
+          }
 
       - name: Pack WindowChromeKit.Wpf
         run: dotnet pack src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.wpf }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
