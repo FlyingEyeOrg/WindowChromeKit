@@ -145,12 +145,26 @@ public partial class ChromeForm
         }
     }
 
-    private Rectangle GetCaptionButtonPaintRect(int index) =>
-        new(
+    /// <summary>
+    /// 按钮的绘制矩形。普通态第 0 行是顶边线（与 WPF 模板的 BorderThickness、原生标题栏一致），
+    /// 按钮填充与字形都要让出这一行，否则 hover 会把那条线盖掉。
+    /// </summary>
+    private Rectangle GetCaptionButtonPaintRect(int index)
+    {
+        var topLineRows = ShowTopBorderLine && !Metrics.Maximized ? 1 : 0;
+        var top = Metrics.CaptionButtonPaintTop;
+        var height = Metrics.CaptionButtonHeight;
+        if (top < topLineRows)
+        {
+            height = Math.Max(1, height - (topLineRows - top));
+            top = topLineRows;
+        }
+        return new Rectangle(
             ClientRectangle.Right - (index + 1) * Metrics.CaptionButtonWidth,
-            Metrics.CaptionButtonPaintTop,
+            top,
             Metrics.CaptionButtonWidth,
-            Metrics.CaptionButtonHeight);
+            height);
+    }
 
     private void DrawCaptionGlyph(
         Graphics graphics,

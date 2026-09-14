@@ -262,7 +262,7 @@ public sealed class ChromeWindowTests
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
     [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d, 5d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 30d, 5d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,
@@ -371,6 +371,59 @@ public sealed class ChromeWindowTests
             Assert.Equal(8d, iconOrigin.X, 1);
             Assert.Equal(8d, iconOrigin.Y, 1);
             Assert.Equal(16d, icon.ActualHeight, 1);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 普通态第 0 行是顶边线（Win10 的 DWM 不画顶部边框，我们自己补），
+    /// 标题栏按钮必须让出这一行：按钮顶边要 >= 1，否则 hover 填充会盖住那条线。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40d, 39d)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 34d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 30d)]
+    public void CaptionButtonsLeaveTheTopBorderLine(
+        ChromeTitleBarStyle style,
+        double captionHeight,
+        double buttonHeight) => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            TitleBarStyle = style,
+        };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
+                window.Template.FindName(ChromeWindow.PartTitleBar, window));
+            Assert.Equal(captionHeight, titleBar.ActualHeight, 1);
+
+            foreach (var part in new[]
+                     {
+                         ChromeWindow.PartCloseButton,
+                         ChromeWindow.PartMaximizeButton,
+                         ChromeWindow.PartMinimizeButton,
+                     })
+            {
+                var button = Assert.IsAssignableFrom<FrameworkElement>(
+                    window.Template.FindName(part, window));
+                var origin = button.TransformToAncestor(window).Transform(new Point(0, 0));
+                Assert.Equal(buttonHeight, button.ActualHeight, 1);
+                Assert.True(
+                    origin.Y >= 1d,
+                    $"{style}/{part}: button top {origin.Y} must leave row 0 for the top border line");
+                Assert.True(
+                    origin.Y + button.ActualHeight <= captionHeight + 0.5,
+                    $"{style}/{part}: button bottom {origin.Y + button.ActualHeight} exceeds the caption {captionHeight}");
+            }
         }
         finally
         {

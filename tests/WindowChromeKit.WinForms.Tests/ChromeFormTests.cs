@@ -161,6 +161,70 @@ public sealed class ChromeFormTests
         });
 
     /// <summary>按钮底边之下应回到标题栏（HTCAPTION），说明按钮高度没有被拉长。</summary>
+    /// <summary>
+    /// 普通态第 0 行是顶边线（Win10 的 DWM 不画顶部边框，我们自己补），按钮的 hover/按下
+    /// 填充必须让出这一行，否则鼠标一移到按钮上就把线盖掉了。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40, 46)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35, 46)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31, 45)]
+    public void CaptionButtonHoverKeepsTheTopBorderLine(
+        ChromeTitleBarStyle style,
+        int captionHeight,
+        int buttonWidth) => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "hover probe",
+            ShowInTaskbar = false,
+            TitleBarStyle = style,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+        Assert.Equal(captionHeight, form.CaptionHeight);
+        Assert.Equal(buttonWidth, form.CaptionButtonWidth);
+
+        var window = WindowRect(form);
+        // 关闭按钮中部（客户区 x = 窗口右缘 - frame - 半格）
+        var centreX = window.Right - FrameX(form) - form.CaptionButtonWidth / 2;
+        var centreY = window.Top + Math.Max(1, captionHeight / 2);
+        _ = SetCursorPos(centreX, centreY);
+        Application.DoEvents();
+        Thread.Sleep(150);
+
+        using var bitmap = new Bitmap(window.Right - window.Left, captionHeight + 4);
+        using var graphics = Graphics.FromImage(bitmap);
+        var hdc = graphics.GetHdc();
+        try
+        {
+            _ = PrintWindow(form.Handle, hdc, 0);
+        }
+        finally
+        {
+            graphics.ReleaseHdc(hdc);
+        }
+
+        var column = bitmap.Width - FrameX(form) - form.CaptionButtonWidth / 2;
+        var line = bitmap.GetPixel(column, 0);
+        // 顶边线是灰色（激活 #707070 / 失活 #AAAAAA）；hover 色是关闭红或灰底
+        var isGreyLine = Math.Abs(line.R - line.G) < 12 && Math.Abs(line.G - line.B) < 12 && line.R is > 100 and < 210;
+        Assert.True(
+            isGreyLine,
+            $"{style}: row 0 should keep the top border line, got {line}");
+        // 布局契约：第 0 行留给顶边线，按钮的绘制顶边从第 1 行开始（与 WPF 模板的
+        // 1px BorderThickness、原生标题栏一致）。这里断言绘制矩形本身，避免依赖
+        // 测试进程里的激活/悬停状态（无焦点窗口不会画 hover 填充）。
+        Assert.Equal(1, CaptionButtonPaintTopFor(form));
+        Assert.True(
+            CaptionButtonPaintHeightFor(form) <= form.CaptionHeight - 1,
+            $"{style}: button paint height must leave the top line row");
+    });
+
+    /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>
     {
@@ -187,6 +251,12 @@ public sealed class ChromeFormTests
             below is HtCaption or 1,
             $"row below the close button should not be a button, got {below}");
     });
+
+    /// <summary>按钮绘制顶行（普通态应让出第 0 行的顶边线）。</summary>
+    private static int CaptionButtonPaintTopFor(ChromeForm form) => form.CaptionButtonPaintTop;
+
+    /// <summary>按钮绘制高度（必须能容下让出的顶边线那一行）。</summary>
+    private static int CaptionButtonPaintHeightFor(ChromeForm form) => form.CaptionButtonPaintHeight;
 
     private static int FrameY(ChromeForm form) =>
         GetSystemMetricsForDpi(SmCyFrame, (uint)form.DeviceDpi)
@@ -289,6 +359,12 @@ public sealed class ChromeFormTests
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr window, out NativeRectangle rectangle);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll")]
+    private static extern bool PrintWindow(IntPtr window, IntPtr hdc, uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRectangle

@@ -268,7 +268,11 @@ public partial class ChromeFrame : Form
         Math.Max(0, (captionHeight - boxHeight) / 2);
 
 
-    /// <summary>按钮顶边（客户区行）：铺满标题栏时贴顶，否则贴底留 1px 且不低于第 1 行。</summary>
+    /// <summary>
+    /// 按钮顶边（客户区行）：铺满标题栏时贴顶，否则贴底留 1px 且不低于第 1 行。
+    /// 注意"贴顶"不等于第 0 行：普通态第 0 行是顶边线（与 WPF 模板的 1px BorderThickness、
+    /// 原生标题栏一致），按钮填充必须从第 1 行开始，否则 hover 会盖住那条线。
+    /// </summary>
     private int CaptionButtonTopOf(uint dpi, int captionHeight)
     {
         var buttonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi);

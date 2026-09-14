@@ -180,6 +180,16 @@ public partial class ChromeForm
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int CaptionButtonTop => Metrics.CaptionButtonTop;
 
+    /// <summary>按钮绘制矩形的顶行（已让出普通态第 0 行的顶边线）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionButtonPaintTop => GetCaptionButtonPaintRect(0).Top;
+
+    /// <summary>按钮绘制矩形的高度（已让出普通态第 0 行的顶边线）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionButtonPaintHeight => GetCaptionButtonPaintRect(0).Height;
+
     /// <summary>系统菜单（图标）盒子相对客户区左边缘的列号（设备像素，已按 DPI 缩放）。</summary>
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -245,9 +255,9 @@ public partial class ChromeForm
                 // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)；
                 // 注意原生"命中带"只有 33 宽，那是内缩后的判定区，不是画出来的格子
                 CaptionButtonWidthDip = 45;
-                // 视觉上按钮铺满整条标题栏（原生悬停高亮一直顶到顶边与右上圆角）；
-                // 原生的命中带虽然只有 22 高（第 8..29 行），但那不影响观感
-                CaptionButtonHeightDip = 31;
+                // 按钮高 30 = 标题栏 31 - 1：第 0 行留给顶边线（原生悬停高亮也是从第 1 行开始），
+                // 铺满 31 会让 hover 填充盖住那条线
+                CaptionButtonHeightDip = 30;
                 // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
                 CaptionIconMarginDip = 8;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;

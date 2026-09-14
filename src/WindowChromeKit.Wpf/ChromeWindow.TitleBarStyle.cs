@@ -57,8 +57,9 @@ public partial class ChromeWindow
                 TitleBarHeight = 31d;
                 // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)
                 CaptionButtonWidth = 45d;
-                // 视觉上铺满整条标题栏：原生悬停高亮一直顶到顶边与右上圆角
-                CaptionButtonHeight = 31d;
+                // 按钮高 30 = 标题栏 31 - 1：第 0 行留给顶边线（原生悬停高亮也是从第 1 行开始），
+                // 铺满 31 会让 hover 填充盖住那条线
+                CaptionButtonHeight = 30d;
                 // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
                 CaptionIconBoxMargin = new Thickness(5d, 0d, 0d, 0d);
                 break;
