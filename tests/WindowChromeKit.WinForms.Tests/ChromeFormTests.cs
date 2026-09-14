@@ -74,6 +74,43 @@ public sealed class ChromeFormTests
         }
     });
 
+    /// <summary>
+    /// 标题栏图标必须随标题栏高度垂直居中：三种样式（40 / 35 / 31）下，
+    /// 图标盒子顶边都等于 (标题栏高 - 盒子高) / 2，不能被钉在某个固定行上。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31)]
+    public void CaptionIconStaysCentredAcrossCaptionHeights(ChromeTitleBarStyle style, int expectedCaptionHeight) =>
+        RunSta(() =>
+        {
+            using var form = new ChromeForm
+            {
+                Text = "icon centre",
+                ShowInTaskbar = false,
+                TitleBarStyle = style,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(200, 200),
+                Size = new Size(900, 560),
+            };
+            form.Show();
+            Application.DoEvents();
+
+            Assert.Equal(expectedCaptionHeight, form.CaptionHeight);
+            // 盒子 22 高（SM_CXSMSIZE × SM_CYSMSIZE），在标题栏内居中
+            var boxTop = form.SystemMenuTop;
+            var boxHeight = 22;
+            var expectedTop = (form.CaptionHeight - boxHeight) / 2;
+            Assert.True(
+                boxTop == expectedTop,
+                $"{style}: caption={form.CaptionHeight} box top should be {expectedTop} but was {boxTop}");
+            // 图标 16px 在盒内居中，两者中心必须一致
+            Assert.True(
+                boxTop + boxHeight / 2 == expectedTop + boxHeight / 2,
+                $"{style}: icon centre must match the box centre");
+        });
+
     /// <summary>按钮底边之下应回到标题栏（HTCAPTION），说明按钮高度没有被拉长。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>

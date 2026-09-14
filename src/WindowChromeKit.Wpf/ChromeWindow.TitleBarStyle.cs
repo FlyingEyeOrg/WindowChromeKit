@@ -46,7 +46,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
-                CaptionIconBoxMargin = new Thickness(9d, 7d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
                 break;
 
             case ChromeTitleBarStyle.Windows:
@@ -60,7 +60,7 @@ public partial class ChromeWindow
                 // 视觉上铺满整条标题栏：原生悬停高亮一直顶到顶边与右上圆角
                 CaptionButtonHeight = 31d;
                 // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
-                CaptionIconBoxMargin = new Thickness(5d, 7d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(5d, 0d, 0d, 0d);
                 break;
 
             default:
@@ -69,7 +69,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 40d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 39d;
-                CaptionIconBoxMargin = new Thickness(9d, 8d, 0d, 0d);
+                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
                 break;
         }
 

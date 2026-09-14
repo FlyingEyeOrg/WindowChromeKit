@@ -362,15 +362,68 @@ public sealed class ChromeWindowTests
             // WPF 的坐标空间就是客户区（不含原生 frame），直接比即可
             var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
             var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
-            // 原生 WPF 窗口实测（96dpi）：caption 可见高 31、
-            // 系统菜单盒子贴左且顶边在第 8 行（frame 内缩）、图标 16 在盒内居中
+            // 图标在标题栏内垂直居中并随高度自适应：标题栏 31、盒子 22。
+            // 模板内容区比标题栏少 1px（顶边线），所以盒子居中后落在 y=5，图标落在 y=8。
             Assert.Equal(31d, window.TitleBarHeight, 1);
             Assert.Equal(5d, boxOrigin.X, 1);
-            Assert.Equal(8d, boxOrigin.Y, 1);
+            Assert.Equal(5d, boxOrigin.Y, 1);
             Assert.Equal(22d, box.ActualHeight, 1);
             Assert.Equal(8d, iconOrigin.X, 1);
-            Assert.Equal(11d, iconOrigin.Y, 1);
+            Assert.Equal(8d, iconOrigin.Y, 1);
             Assert.Equal(16d, icon.ActualHeight, 1);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 标题栏图标必须随标题栏高度垂直居中（三种样式 40 / 35 / 31 都验）。
+    /// 模板内容区比标题栏少 1px（顶边线），所以盒子的居中位置是 (H-1-22)/2。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40d)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d)]
+    public void CaptionIconStaysCentredAcrossCaptionHeights(
+        ChromeTitleBarStyle style,
+        double expectedCaptionHeight) => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            TitleBarStyle = style,
+        };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            var box = FindByHitTestRole(window, ChromeHitTestRole.SystemMenu);
+            Assert.NotNull(box);
+            var icon = Assert.IsAssignableFrom<FrameworkElement>(VisualTreeHelper.GetChild(box!, 0));
+
+            var titleBar = Assert.IsAssignableFrom<FrameworkElement>(
+                window.Template.FindName(ChromeWindow.PartTitleBar, window));
+            Assert.Equal(expectedCaptionHeight, titleBar.ActualHeight, 1);
+
+            var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
+            var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
+            Assert.Equal(22d, box.ActualHeight, 1);
+            Assert.Equal(16d, icon.ActualHeight, 1);
+            // 盒子中心 == 图标中心（图标在盒内居中）
+            var boxCentre = boxOrigin.Y + box.ActualHeight / 2;
+            var iconCentre = iconOrigin.Y + icon.ActualHeight / 2;
+            Assert.Equal(boxCentre, iconCentre, 1);
+            // 盒子在标题栏内垂直居中，并随标题栏高度自适应。
+            // 模板内容区被 1px 顶边线顶下去一行，WPF 居中时余数可能落在任一侧（亚像素），
+            // 因此允许 1px 误差 —— 要锁住的是"随高度变化而居中"，不是半个像素。
+            var idealTop = (expectedCaptionHeight - box.ActualHeight) / 2d;
+            Assert.True(
+                Math.Abs(boxOrigin.Y - idealTop) <= 1d,
+                $"{style}: caption={expectedCaptionHeight} box top={boxOrigin.Y} should be about {idealTop}");
         }
         finally
         {

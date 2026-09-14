@@ -93,6 +93,7 @@
                                 <Grid Grid.Column="0" MinWidth="0" Background="Transparent">
                                     <StackPanel x:Name="PART_DefaultTitleContent"
                                                 Orientation="Horizontal"
+                                                VerticalAlignment="Center"
                                                 Visibility="Collapsed">
                                         <!-- 图标：16px、左边距 12px（图标固定在 12..27），标题文字从 36px 起 -->
                                         <Border x:Name="PART_SystemMenu"
@@ -105,7 +106,7 @@
                                                     Height="22"
                                                     Margin="{TemplateBinding CaptionIconBoxMargin}"
                                                     HorizontalAlignment="Left"
-                                                    VerticalAlignment="Top"
+                                                    VerticalAlignment="Center"
                                                     Background="Transparent"
                                                     local:ChromeWindow.HitTestRole="SystemMenu">
                                                 <Image Width="16"

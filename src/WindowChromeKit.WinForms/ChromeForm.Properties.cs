@@ -180,6 +180,11 @@ public partial class ChromeForm
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int CaptionButtonTop => Metrics.CaptionButtonTop;
 
+    /// <summary>系统菜单（图标）盒子相对客户区顶边的行号（设备像素，已按 DPI 缩放）。</summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int SystemMenuTop => Metrics.SystemMenuTop;
+
     /// <summary>当前样式下的标题栏按钮高度（设备像素，已按 DPI 缩放）。</summary>
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]

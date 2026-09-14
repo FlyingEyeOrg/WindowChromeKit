@@ -234,9 +234,8 @@ public partial class ChromeFrame : Form
             // 所以图标仍留在 IconMargin（默认 12），不会因为对齐命中区而左移
             SystemMenuLeft = iconLeft - Math.Max(0, (menuBoxWidth - iconSize) / 2),
             SystemMenuWidth = menuBoxWidth,
-            // 盒子在标题栏内垂直居中，但不会高过原生标题栏内容区的起点（frame 内缩）：
-            // 原生窗口的系统菜单盒子正贴着那条线（实测占标题栏第 8..29 行，而居中是 5..26）
-            SystemMenuTop = Math.Max((captionHeight - menuBoxHeight) / 2, frameY),
+            // 盒子在标题栏（去掉顶边线那一行）内垂直居中，随标题栏高度自适应
+            SystemMenuTop = CenteredSystemMenuTop(captionHeight, menuBoxHeight),
             SystemMenuHeight = menuBoxHeight,
             IconMargin = iconLeft,
             IconSize = iconSize,
@@ -260,6 +259,16 @@ public partial class ChromeFrame : Form
     protected virtual void OnFrameMetricsUpdated() { }
 
     internal static int ScaleDip(int dip, uint dpi) => (int)Math.Round(dip * dpi / 96.0);
+
+    /// <summary>
+    /// 标题栏图标盒子的垂直位置：始终在标题栏内垂直居中，随标题栏高度自适应。
+    /// （不钉在 frame 内缩线上：那条线是命中优先级的边界，不该决定图标画在哪。）
+    /// </summary>
+    private static int CenteredSystemMenuTop(int captionHeight, int boxHeight) =>
+        Math.Max(0, (captionHeight - boxHeight) / 2);
+
+    /// <summary>普通态标题栏顶部留给顶边线的行数（最大化时不画顶边线，为 0）。</summary>
+    internal int CaptionTopLineRows => Metrics.Maximized ? 0 : 1;
 
     /// <summary>按钮顶边（客户区行）：铺满标题栏时贴顶，否则贴底留 1px 且不低于第 1 行。</summary>
     private int CaptionButtonTopOf(uint dpi, int captionHeight)

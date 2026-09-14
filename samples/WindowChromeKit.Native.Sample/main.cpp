@@ -276,10 +276,10 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     metrics.menuBoxWidth = SystemMetricForDpi(SM_CXSMSIZE, metrics.dpi);
     metrics.menuBoxHeight = SystemMetricForDpi(SM_CYSMSIZE, metrics.dpi);
     metrics.menuBoxLeft = metrics.iconMargin - (metrics.menuBoxWidth - metrics.iconSize) / 2;
-    // 与原生一致：盒子居中，但不高于标题栏内容区的起点（frame 内缩）
+    // 盒子在标题栏内垂直居中，随标题栏高度自适应（不钉在 frame 内缩线上）
     metrics.menuBoxTop = (metrics.captionHeight - metrics.menuBoxHeight) / 2;
-    if (metrics.menuBoxTop < metrics.frameY)
-        metrics.menuBoxTop = metrics.frameY;
+    if (metrics.menuBoxTop < 0)
+        metrics.menuBoxTop = 0;
 
     // 顶边没有任何不可见边框，只有 DWM 画的可见边线。Win11 上 Chrome 让客户区
     // 直接顶到窗口顶部（DWM 把 1px 线画在客户区第一行上）；Win10 上不留这 1px
