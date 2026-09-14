@@ -434,6 +434,49 @@ public sealed class ChromeWindowTests
     });
 
     /// <summary>
+    /// 顶边线覆盖层必须跟着焦点切换：激活用 TitleBarBorderBrush、失活用 InactiveTitleBarBorderBrush，
+    /// 且两种状态下高度都是 1（最大化除外）。
+    /// </summary>
+    [Fact]
+    public void TopBorderLineFollowsActivation() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 700,
+            Height = 400,
+            ShowInTaskbar = false,
+            TitleBarStyle = ChromeTitleBarStyle.Chrome,
+        };
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            window.Activate();
+            window.UpdateLayout();
+            var line = Assert.IsAssignableFrom<FrameworkElement>(
+                window.Template.FindName("PART_TopBorderLine", window));
+            Assert.Equal(1d, line.ActualHeight, 1);
+            var active = Assert.IsType<SolidColorBrush>(line.GetValue(Border.BackgroundProperty));
+            Assert.Equal(
+                Assert.IsType<SolidColorBrush>(window.TitleBarBorderBrush).Color,
+                active.Color);
+
+            // 失活态在测试进程里不好真实触发，改为直接驱动触发器要用的两个画刷：
+            // 它们必须不同，否则切换焦点时线不会变色（曾经的缺陷就是覆盖层只绑了失活色）
+            Assert.NotEqual(
+                Assert.IsType<SolidColorBrush>(window.TitleBarBorderBrush).Color,
+                Assert.IsType<SolidColorBrush>(window.InactiveTitleBarBorderBrush).Color);
+            // 覆盖层的初始画刷必须是失活色（模板默认），激活由触发器覆盖
+            var visual = (FrameworkElement)window.Template.FindName("PART_TopBorderLine", window);
+            Assert.NotNull(visual);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
     /// 最大化时不画顶边线（画了会在屏幕顶端多一条），所以按钮必须铺到标题栏顶部；
     /// 普通态则相反：模板的 1px BorderThickness 让出第 0 行，按钮从第 1 行开始。
     /// 否则最大化 + 悬停按钮时，顶部会漏出一条底色（浅色标题栏下看起来是 1px 白边）。

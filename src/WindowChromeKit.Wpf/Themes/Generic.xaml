@@ -212,8 +212,9 @@
 
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsActive" Value="True">
-                            <Setter TargetName="PART_TitleBar"
-                                    Property="BorderBrush"
+                            <!-- 顶边线是 PART_TopBorderLine 覆盖层，激活时换成激活色（失活用它自己的画刷） -->
+                            <Setter TargetName="PART_TopBorderLine"
+                                    Property="Background"
                                     Value="{Binding TitleBarBorderBrush, RelativeSource={RelativeSource TemplatedParent}}" />
                             <Setter TargetName="PART_TitleBar" Property="Background" Value="{Binding ActiveTitleBarBackground, RelativeSource={RelativeSource TemplatedParent}}" />
                             <Setter TargetName="PART_TitleBar" Property="TextElement.Foreground" Value="{Binding ActiveTitleBarForeground, RelativeSource={RelativeSource TemplatedParent}}" />

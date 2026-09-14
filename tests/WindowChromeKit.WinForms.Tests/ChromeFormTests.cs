@@ -260,6 +260,31 @@ public sealed class ChromeFormTests
         Application.DoEvents();
     });
 
+    /// <summary>
+    /// 顶边 1px 线的颜色必须跟着焦点切换（Win10 的 DWM 不画顶部边框，这条线是我们自己补的）：
+    /// 激活用 TopBorderLineActiveColor、失活用 TopBorderLineInactiveColor，两者必须不同。
+    /// </summary>
+    [Fact]
+    public void TopBorderLineHasDistinctActiveAndInactiveColours() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "top line",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        Assert.NotEqual(form.TopBorderLineActiveColor, form.TopBorderLineInactiveColor);
+
+        // 与 Win10 实测一致：激活 #707070、失活 #AAAAAA
+        Assert.Equal(Color.FromArgb(0x70, 0x70, 0x70), form.TopBorderLineActiveColor);
+        Assert.Equal(Color.FromArgb(0xAA, 0xAA, 0xAA), form.TopBorderLineInactiveColor);
+    });
+
     /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>
