@@ -40,6 +40,15 @@ public partial class ChromeForm : ChromeFrame
 
     protected override int GetCaptionButtonWidthDip() => CaptionButtonWidthDip;
 
+    /// <summary>
+    /// 最小化按钮的宽度：Chrome 实测三个按钮并不等宽（最小化 45、最大化/关闭 46），
+    /// 未启用"照抄 Chrome 不等宽"时（MinimizeButtonWidthDip 为 0）沿用统一宽度。
+    /// </summary>
+    protected override int GetCaptionButtonWidthDip(ChromeCaptionButton button) =>
+        button == ChromeCaptionButton.Minimize && MinimizeButtonWidthDip > 0
+            ? MinimizeButtonWidthDip
+            : CaptionButtonWidthDip;
+
     protected override int GetCaptionButtonCount() => 3;
 
     protected override int GetCaptionIconMarginDip() => CaptionIconMarginDip;

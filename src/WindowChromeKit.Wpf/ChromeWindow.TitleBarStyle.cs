@@ -31,10 +31,24 @@ public partial class ChromeWindow
     }
 
     /// <summary>
+    /// 最小化按钮的实际宽度：<see cref="MinimizeButtonWidth"/> 为 0 时回落到统一宽度
+    /// （Chrome 实测三个按钮不等宽，最小化是 45、其余 46）。
+    /// </summary>
+    public double EffectiveMinimizeButtonWidth =>
+        MinimizeButtonWidth > 0d ? MinimizeButtonWidth : CaptionButtonWidth;
+
+    /// <summary>
     /// 把预置样式套到标题栏上（几何 + 配色，一次性应用）。
     /// 注意图标盒子的纵向边距比 WinForms / 原生示例少 1：模板里标题栏有一条 1px 顶边线
     /// （TitleBarBorderThickness），内容整体被它顶下去一行。
     /// </summary>
+    /// <summary>按钮宽度变化时刷新只读计算属性。</summary>
+    private static void OnButtonWidthChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var window = (ChromeWindow)d;
+        window.CoerceValue(MinimizeButtonWidthProperty);
+    }
+
     private void ApplyTitleBarStyle(ChromeTitleBarStyle style)
     {
         ChromePalette palette;
@@ -46,6 +60,7 @@ public partial class ChromeWindow
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
+                MinimizeButtonWidth = 0d;
                 CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
                 break;
 
@@ -60,6 +75,7 @@ public partial class ChromeWindow
                 // 铺满整条标题栏：普通态靠模板的 1px 顶边线（BorderThickness）让出第 0 行，
                 // 最大化时该线为 0，按钮自然铺到顶，不会在顶部漏出一条底色
                 CaptionButtonHeight = 31d;
+                MinimizeButtonWidth = 0d;
                 // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
                 CaptionIconBoxMargin = new Thickness(5d, 0d, 0d, 0d);
                 break;
@@ -69,6 +85,8 @@ public partial class ChromeWindow
                 palette = SystemTheme.Current;
                 TitleBarHeight = 40d;
                 CaptionButtonWidth = 46d;
+                // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
+                MinimizeButtonWidth = 45d;
                 CaptionButtonHeight = 39d;
                 CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
                 break;

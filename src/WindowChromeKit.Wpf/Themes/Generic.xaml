@@ -142,7 +142,7 @@
                                             Orientation="Horizontal"
                                             HorizontalAlignment="Right">
                                     <Button x:Name="PART_MinimizeButton"
-                                            Width="{TemplateBinding CaptionButtonWidth}"
+                                            Width="{Binding EffectiveMinimizeButtonWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                             Height="{TemplateBinding CaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"

@@ -50,15 +50,16 @@ public sealed class ChromeFormTests
         // 最大化：命中区必须整体跟着客户区下移 frameY，而不是留在窗口顶边
         form.WindowState = FormWindowState.Maximized;
         Application.DoEvents();
+        // 最大化（Chrome 实测）：客户区顶边 = 窗口顶 + frameY，按钮从客户区第 0 行起、铺满标题栏
         var maximizedTop = FirstHitRow(form, HtClose);
         var maximizedBottom = LastHitRow(form, HtClose);
         var maximizedScan = Scan(form, HtClose);
         Assert.True(
-            form.CaptionButtonTop + frameY == maximizedTop,
-            $"maximized: expected first row {form.CaptionButtonTop + frameY} but got {maximizedTop}; scan={maximizedScan}");
+            frameY == maximizedTop,
+            $"maximized: button should start at client row 0 (window row {frameY}) but got {maximizedTop}; scan={maximizedScan}");
         Assert.True(
-            maximizedTop + buttonHeight - 1 == maximizedBottom,
-            $"maximized: expected last row {maximizedTop + buttonHeight - 1} but got {maximizedBottom}; scan={maximizedScan}");
+            frameY + form.CaptionHeight - 1 == maximizedBottom,
+            $"maximized: button should fill the caption (last window row {frameY + form.CaptionHeight - 1}) but got {maximizedBottom}; scan={maximizedScan}");
 
         // 三个按钮各自一致（横向不重叠、各自的列都要能命中）
         foreach (var (hit, index) in new[] { (HtClose, 0), (HtMaxButton, 1), (HtMinButton, 2) })
@@ -67,11 +68,11 @@ public sealed class ChromeFormTests
             var bottom = LastHitRow(form, hit, index);
             var scan = Scan(form, hit, index);
             Assert.True(
-                top == form.CaptionButtonTop + frameY,
-                $"button {hit}: expected first row {form.CaptionButtonTop + frameY} but got {top}; scan={scan}");
+                top == frameY,
+                $"button {hit}: expected first row {frameY} (client row 0) but got {top}; scan={scan}");
             Assert.True(
-                bottom == top + buttonHeight - 1,
-                $"button {hit}: expected last row {top + buttonHeight - 1} but got {bottom}; scan={scan}");
+                bottom == frameY + form.CaptionHeight - 1,
+                $"button {hit}: expected last row {frameY + form.CaptionHeight - 1} but got {bottom}; scan={scan}");
         }
     });
 

@@ -32,26 +32,27 @@ public partial class ChromeForm
         return 0;
     }
 
-    /// <summary>标题栏三个按钮的命中矩形（窗口坐标）。顺序与绘制顺序一致。</summary>
+    /// <summary>标题栏三个按钮的命中矩形（窗口坐标）。从右往左依次排列，各自宽度可以不同。</summary>
     private IEnumerable<(ChromeCaptionButton Button, NativeRectangle Rect)> GetCaptionButtonRects(
         NativeRectangle windowRect,
         int clientTop)
     {
-        yield return (
-            ChromeCaptionButton.Close,
-            ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
-                Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Close));
-        yield return (
-            ChromeCaptionButton.Maximize,
-            ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
-                Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Maximize));
-        yield return (
-            ChromeCaptionButton.Minimize,
-            ChromeFrameGeometry.GetCaptionButtonRect(
-                windowRect, clientTop, Metrics.FrameX, Metrics.CaptionButtonWidth,
-                Metrics.CaptionButtonHeight, Metrics.CaptionButtonTop, ChromeCaptionButton.Minimize));
+        var offset = 0;
+        foreach (var button in new[]
+                 {
+                     ChromeCaptionButton.Close,
+                     ChromeCaptionButton.Maximize,
+                     ChromeCaptionButton.Minimize,
+                 })
+        {
+            var width = Metrics.GetCaptionButtonWidth(button);
+            yield return (
+                button,
+                ChromeFrameGeometry.GetCaptionButtonRect(
+                    windowRect, clientTop, Metrics.FrameX, width,
+                    Metrics.CaptionHitHeight, Metrics.CaptionButtonTop, offset));
+            offset += width;
+        }
     }
 
     private static int ToHitTest(ChromeCaptionButton button) => button switch

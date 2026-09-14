@@ -764,7 +764,8 @@ public sealed class ChromeWindowTests
         window.Width = 1;
         window.UpdateLayout();
         var captionButtons = Assert.IsType<StackPanel>(VisualTreeHelper.GetParent(minimize));
-        Assert.Equal(46 * 3, captionButtons.ActualWidth, 3);
+        // Chrome 实测三个按钮不等宽：最小化 45、最大化/关闭 46
+        Assert.Equal(45 + 46 + 46, captionButtons.ActualWidth, 3);
         Assert.True(NativeWindowMethods.GetClientRect(handle, out var narrowClient));
         var narrowOrigin = new NativePoint(0, 0);
         Assert.True(NativeWindowMethods.ClientToScreen(handle, ref narrowOrigin));
@@ -781,7 +782,8 @@ public sealed class ChromeWindowTests
         Assert.Equal(Visibility.Visible, maximize.Visibility);
         Assert.False(maximize.IsEnabled);
         Assert.Equal(0.4, maximize.Opacity, 3);
-        Assert.Equal(46 * 3, captionButtons.ActualWidth, 3);
+        // Chrome 实测三个按钮不等宽：最小化 45、最大化/关闭 46
+        Assert.Equal(45 + 46 + 46, captionButtons.ActualWidth, 3);
         var minimizeCenter = minimize.PointToScreen(new Point(minimize.ActualWidth / 2, minimize.ActualHeight / 2));
         var minimizeHit = NativeWindowMethods.SendMessage(
             handle,
@@ -864,9 +866,13 @@ public sealed class ChromeWindowTests
             (uint)VisualTreeHelper.GetDpi(window).PixelsPerInchX);
         var systemMinimum = NativeWindowMethods.GetSystemMetricsForDpi(
             NativeWindowMethods.SmCxMinTrack, 96);
-        // 46*3 是三个标题栏按钮，28 是左侧图标区（12 边距 + 16 图标）
+        // 用窗口自己暴露的按钮总宽（Chrome 样式三按钮不等宽：最小化 45、其余 46），
+        // 图标区宽度跟随 ChromeWindow 的 CaptionLeadingWidth（默认模板为 28），不写死数值。
+        var effectiveWindow = (IChromeFrameHost)window;
+        var buttonsWidth = (int)Math.Ceiling(effectiveWindow.CaptionButtonsWidth);
+        var leading = (int)Math.Ceiling(effectiveWindow.CaptionLeadingWidth);
         var expectedMinimum = WindowFrameHitTest.CalculateMinimumTrackWidth(
-            0, systemMinimum, frameX * 2, 46 * 3 + 28, 96);
+            0, systemMinimum, frameX * 2, buttonsWidth + leading, 96);
         var pointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
         try
         {

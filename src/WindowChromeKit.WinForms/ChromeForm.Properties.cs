@@ -11,6 +11,7 @@ public partial class ChromeForm
     private ChromeTitleBarStyle _titleBarStyle = ChromeTitleBarStyle.Chrome;
     private int _captionHeightDip = 40;
     private int _captionButtonWidthDip = 46;
+    private int _minimizeButtonWidthDip;
     private int _captionButtonHeightDip = 39;
     private int _captionIconMarginDip = 12;
     private int _topResizeBandDip = 6;
@@ -244,6 +245,7 @@ public partial class ChromeForm
                 CaptionButtonHeightDip = 34;
                 CaptionIconMarginDip = 12;
                 CaptionTextAlignment = ContentAlignment.MiddleCenter;
+                MinimizeButtonWidthDip = 0;
                 break;
 
             case ChromeTitleBarStyle.Windows:
@@ -261,6 +263,7 @@ public partial class ChromeForm
                 // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
                 CaptionIconMarginDip = 8;
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
+                MinimizeButtonWidthDip = 0;
                 break;
 
             default:
@@ -268,6 +271,8 @@ public partial class ChromeForm
                 palette = SystemTheme.Current;
                 CaptionHeightDip = 40;
                 CaptionButtonWidthDip = 46;
+                // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
+                MinimizeButtonWidthDip = 45;
                 CaptionButtonHeightDip = 39;
                 CaptionIconMarginDip = 12;
                 CaptionTextAlignment = ContentAlignment.MiddleCenter;
@@ -294,6 +299,18 @@ public partial class ChromeForm
         }
         ShowTitleBarIcon = true;
         ShowTopBorderLine = true;
+    }
+
+    /// <summary>
+    /// 最小化按钮的独立宽度（DIP）。0 表示与其余按钮同宽；Chrome 样式按实测设为 45
+    /// （最大化/关闭是 46，Chrome 自己就不等宽）。
+    /// </summary>
+    [Category("WindowChromeKit")]
+    [DefaultValue(0)]
+    public int MinimizeButtonWidthDip
+    {
+        get => _minimizeButtonWidthDip;
+        set => SetOption(ref _minimizeButtonWidthDip, Math.Max(0, value));
     }
 
     private void SetOption<T>(ref T field, T value)

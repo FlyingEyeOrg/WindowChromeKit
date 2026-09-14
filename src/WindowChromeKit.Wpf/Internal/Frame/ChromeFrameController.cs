@@ -259,9 +259,12 @@ internal sealed class ChromeFrameController
         var client = WindowFrameHitTest.InsetToClient(windowRect, frameX, frameY, maximized);
         var resizable = _host.IsResizable;
 
-        // 1) 客户区之外、窗口矩形之内：就是"阴影里那圈"不可见边框，只有缩放语义
+        // 1) 客户区之外、窗口矩形之内：就是"阴影里那圈"不可见边框，只有缩放语义。
+        //    最大化是例外：Chrome 实测顶部那 8 行返回 HTCAPTION（可拖动还原），不是 HTTOP。
         if (!WindowFrameHitTest.Contains(client, pointer))
         {
+            if (maximized && resizable)
+                return WindowFrameHitTest.Caption;
             if (!resizable)
                 return WindowFrameHitTest.Client;
             var frameHit = WindowFrameHitTest.EvaluateResizeHit(

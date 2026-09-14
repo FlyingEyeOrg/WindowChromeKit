@@ -75,15 +75,9 @@ internal static class ChromeFrameGeometry
         int captionButtonWidth,
         int captionButtonHeight,
         int captionButtonTop,
-        ChromeCaptionButton button)
+        int captionButtonOffset)
     {
-        var index = button switch
-        {
-            ChromeCaptionButton.Close => 0,
-            ChromeCaptionButton.Maximize => 1,
-            _ => 2,
-        };
-        var right = windowRect.Right - frameX - index * captionButtonWidth;
+        var right = windowRect.Right - frameX - captionButtonOffset;
         return new NativeRectangle(
             right - captionButtonWidth,
             clientTop + captionButtonTop,

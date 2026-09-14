@@ -95,7 +95,7 @@ public partial class ChromeForm
         var left = Metrics.IconMargin + (ShowTitleBarIcon ? Metrics.IconSize + ScaleDip(8, Metrics.Dpi) : 0);
         // 右侧避让：设置了操作插槽时贴到插槽左侧，否则避让三个窗口按钮
         var right = TitleBarActionsBounds.IsEmpty
-            ? client.Width - Metrics.CaptionButtonWidth * 3 - ScaleDip(8, Metrics.Dpi)
+            ? client.Width - Metrics.TotalCaptionButtonWidth - ScaleDip(8, Metrics.Dpi)
             : TitleBarActionsBounds.Left - ScaleDip(8, Metrics.Dpi);
         if (right <= left)
             return;
@@ -151,16 +151,30 @@ public partial class ChromeForm
     /// </summary>
     private Rectangle GetCaptionButtonPaintRect(int index)
     {
-        // 一条规则：按钮从"顶边线之下"铺到"标题栏底部"。
-        //   普通态：第 0 行是顶边线（Win10 的 DWM 不画顶部边框，我们自己补）→ 从第 1 行起；
-        //   最大化：不画顶边线，按钮一直铺到第 0 行，否则顶部会漏出一条底色（看起来像白边）。
-        var top = ShowTopBorderLine && !Metrics.Maximized ? 1 : 0;
-        var bottom = Math.Min(Metrics.CaptionHeight, ClientRectangle.Height);
+        // 与 Chrome 浏览器实测一致：
+        //   普通态：第 0 行是顶边线 → 按钮从第 1 行起，一直铺到标题栏底部（39 高）
+        //   最大化：不画顶边线 → 按钮从第 0 行起，铺满整条标题栏（40 高）
+        // 与命中矩形共享同一套顶边/高度（单一来源，避免绘制与命中脱节）
+        var top = Metrics.CaptionButtonTop;
+        var height = Metrics.CaptionHitHeight;
+        var button = index switch
+        {
+            0 => ChromeCaptionButton.Close,
+            1 => ChromeCaptionButton.Maximize,
+            _ => ChromeCaptionButton.Minimize,
+        };
+        // 从右往左排列：关闭贴右，往左依次是最大化、最小化（Chrome 实测 45/46/46 不等宽）
+        var offset = 0;
+        if (button != ChromeCaptionButton.Close)
+            offset += Metrics.GetCaptionButtonWidth(ChromeCaptionButton.Close);
+        if (button == ChromeCaptionButton.Minimize)
+            offset += Metrics.GetCaptionButtonWidth(ChromeCaptionButton.Maximize);
+        var width = Metrics.GetCaptionButtonWidth(button);
         return new Rectangle(
-            ClientRectangle.Right - (index + 1) * Metrics.CaptionButtonWidth,
+            ClientRectangle.Right - offset - width,
             top,
-            Metrics.CaptionButtonWidth,
-            Math.Max(1, bottom - top));
+            width,
+            height);
     }
 
     private void DrawCaptionGlyph(

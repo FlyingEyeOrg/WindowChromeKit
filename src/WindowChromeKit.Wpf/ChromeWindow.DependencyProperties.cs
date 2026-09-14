@@ -113,6 +113,19 @@ public partial class ChromeWindow
             IsPositiveFiniteDouble
         );
 
+    /// <summary>
+    /// 最小化按钮的独立宽度（DIP）。0 表示与其余按钮同宽；Chrome 样式按实测设为 45
+    /// （最大化/关闭是 46，Chrome 自己就不等宽）。
+    /// </summary>
+    public static readonly DependencyProperty MinimizeButtonWidthProperty =
+        DependencyProperty.Register(
+            nameof(MinimizeButtonWidth),
+            typeof(double),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(0d, OnChromeMetricChanged),
+            IsNonNegativeFiniteDouble
+        );
+
     public static readonly DependencyProperty CaptionButtonWidthProperty =
         DependencyProperty.Register(
             nameof(CaptionButtonWidth),
@@ -316,6 +329,12 @@ public partial class ChromeWindow
         set => SetValue(CaptionButtonHeightProperty, value);
     }
 
+    public double MinimizeButtonWidth
+    {
+        get => (double)GetValue(MinimizeButtonWidthProperty);
+        set => SetValue(MinimizeButtonWidthProperty, value);
+    }
+
     public double CaptionButtonWidth
     {
         get => (double)GetValue(CaptionButtonWidthProperty);
@@ -464,6 +483,9 @@ public partial class ChromeWindow
         window.UpdateDpiVisuals();
         window._frame?.ScheduleNativeFrameRefresh();
     }
+
+    private static bool IsNonNegativeFiniteDouble(object value) =>
+        value is double number && number >= 0 && !double.IsNaN(number) && !double.IsInfinity(number);
 
     private static bool IsPositiveFiniteDouble(object value) =>
         value is double number && IsFinitePositive(number);

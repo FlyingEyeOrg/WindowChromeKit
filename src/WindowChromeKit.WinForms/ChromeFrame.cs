@@ -80,6 +80,13 @@ public partial class ChromeFrame : Form
     /// <summary>单个标题栏按钮的宽度（DIP）。无标题栏时返回 0。</summary>
     protected virtual int GetCaptionButtonWidthDip() => 0;
 
+    /// <summary>
+    /// 指定按钮的宽度（DIP）。Chrome 实测三个按钮并非等宽（最小化 45、最大化/关闭 46），
+    /// 默认沿用统一宽度，派生类可按按钮返回不同值。
+    /// </summary>
+    protected virtual int GetCaptionButtonWidthDip(ChromeCaptionButton button) =>
+        GetCaptionButtonWidthDip();
+
     /// <summary>标题栏按钮数量，用于计算最小宽度。</summary>
     protected virtual int GetCaptionButtonCount() => 0;
 
@@ -226,6 +233,9 @@ public partial class ChromeFrame : Form
             Maximized = maximized,
             CaptionHeight = captionHeight,
             CaptionButtonWidth = ScaleDip(GetCaptionButtonWidthDip(), dpi),
+            MinimizeButtonWidth = ScaleDip(GetCaptionButtonWidthDip(ChromeCaptionButton.Minimize), dpi),
+            MaximizeButtonWidth = ScaleDip(GetCaptionButtonWidthDip(ChromeCaptionButton.Maximize), dpi),
+            CloseButtonWidth = ScaleDip(GetCaptionButtonWidthDip(ChromeCaptionButton.Close), dpi),
             CaptionButtonsWidth = ScaleDip(GetCaptionButtonWidthDip() * GetCaptionButtonCount(), dpi),
             CaptionButtonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi),
             // （顶边在下面统一算：需要同时用到标题栏与按钮高度）
@@ -240,12 +250,24 @@ public partial class ChromeFrame : Form
             IconMargin = iconLeft,
             IconSize = iconSize,
             TopResizeBand = ScaleDip(GetTopResizeBandDip(), dpi),
+            CaptionHitHeight = maximized
+                ? captionHeight
+                : Math.Max(1, captionHeight - 1),
             // 按钮顶边：贴标题栏底部（保留 1px 下边距），但不高于第 1 行 ——
             // Chrome 实测按钮顶到第 1 行（40 高 / 39 按钮），原生窄标题栏（31 高 / 22 按钮）
             // 则落在第 8 行，即 frame 内缩那条 content 线上
-            CaptionButtonTop = ScaleDip(GetCaptionButtonHeightDip(), dpi) >= captionHeight
+            // 按钮命中顶行（相对客户区顶边）：
+            //   最大化：Chrome 实测按钮铺满整条标题栏 → 第 0 行（与绘制一致）
+            //   普通态：贴底留 1px 下边距、但不低于第 1 行（第 0 行是顶边线）
+            CaptionButtonTop = maximized
                 ? 0
-                : Math.Max(1, captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi)),
+                : Math.Max(
+                    1,
+                    Math.Min(
+                        ScaleDip(GetCaptionButtonHeightDip(), dpi) >= captionHeight
+                            ? 0
+                            : captionHeight - 1 - ScaleDip(GetCaptionButtonHeightDip(), dpi),
+                        captionHeight - 1)),
             // 绘制顶行：普通态比命中顶行少 1 行（第 0 行留给顶边线），最大化时相同。
             // 绘制与命中都相对**客户区**顶边，两者只在普通态差这 1 行。
             CaptionButtonPaintTop = maximized
@@ -307,7 +329,7 @@ public partial class ChromeFrame : Form
         var minimumContent = ScaleDip(MinimumContentHeightDip, Metrics.Dpi);
         var width = Math.Max(
             systemMinimumX,
-            Metrics.CaptionLeadingWidth + Metrics.CaptionButtonsWidth + Metrics.FrameX * 2);
+            Metrics.CaptionLeadingWidth + Metrics.TotalCaptionButtonWidth + Metrics.FrameX * 2);
         var height = Math.Max(
             systemMinimumY,
             Metrics.FrameY + Metrics.CaptionHeight + minimumContent);
@@ -385,11 +407,15 @@ public partial class ChromeFrame : Form
             Metrics.FrameY,
             Metrics.Maximized);
 
-        // 1) 客户区之外、窗口矩形之内：就是"阴影里那圈"不可见边框，只有缩放语义
+        // 1) 客户区之外、窗口矩形之内：就是"阴影里那圈"不可见边框，只有缩放语义。
+        //    最大化是例外：Chrome 实测顶部那 8 行返回 HTCAPTION（可拖动还原），不是 HTTOP ——
+        //    最大化时纵向本来就不能再缩放，给缩放光标是错的。
         if (!ChromeFrameGeometry.Contains(client, pointer))
         {
             if (!IsResizable)
                 return ChromeFrameGeometry.HtClient;
+            if (Metrics.Maximized)
+                return ChromeFrameGeometry.HtCaption;
             return ChromeFrameGeometry.EvaluateResizeHit(
                 pointer,
                 windowRect,
@@ -521,8 +547,34 @@ internal sealed class FrameMetrics
     internal bool Maximized { get; set; }
     internal int CaptionHeight { get; init; }
     internal int CaptionButtonWidth { get; init; }
+
+    /// <summary>最小化按钮宽度（设备像素）。Chrome 实测 45，与其余两个（46）不同。</summary>
+    internal int MinimizeButtonWidth { get; init; }
+
+    /// <summary>最大化按钮宽度（设备像素）。Chrome 实测 46。</summary>
+    internal int MaximizeButtonWidth { get; init; }
+
+    /// <summary>关闭按钮宽度（设备像素）。Chrome 实测 46。</summary>
+    internal int CloseButtonWidth { get; init; }
+
+    /// <summary>取某个按钮的宽度。</summary>
+    internal int GetCaptionButtonWidth(ChromeCaptionButton button) => button switch
+    {
+        ChromeCaptionButton.Minimize => MinimizeButtonWidth > 0 ? MinimizeButtonWidth : CaptionButtonWidth,
+        ChromeCaptionButton.Maximize => MaximizeButtonWidth > 0 ? MaximizeButtonWidth : CaptionButtonWidth,
+        _ => CloseButtonWidth > 0 ? CloseButtonWidth : CaptionButtonWidth,
+    };
+
+    /// <summary>三个按钮的总宽度。</summary>
+    internal int TotalCaptionButtonWidth =>
+        GetCaptionButtonWidth(ChromeCaptionButton.Minimize)
+        + GetCaptionButtonWidth(ChromeCaptionButton.Maximize)
+        + GetCaptionButtonWidth(ChromeCaptionButton.Close);
     internal int CaptionButtonsWidth { get; init; }
     internal int CaptionButtonHeight { get; init; }
+
+    /// <summary>按钮命中高度（含让出顶边线/铺满标题栏的差异）。</summary>
+    internal int CaptionHitHeight { get; init; }
     internal int CaptionLeadingWidth { get; init; }
     internal int SystemMenuLeft { get; init; }
     internal int SystemMenuWidth { get; init; }
