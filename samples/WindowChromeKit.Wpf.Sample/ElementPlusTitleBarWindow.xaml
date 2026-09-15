@@ -4,7 +4,7 @@
                      xmlns:chrome="https://windowchromekit.dev/wpf"
                      Title="Element Plus 主色标题栏（Chrome 样式 + 自定义配色）"
                      AutomationProperties.AutomationId="ElementPlusTitleBarWindow"
-                     Icon="{x:Static chrome:WindowChromeIcons.Windows10}"
+                     Icon="{x:Static chrome:WindowChromeIcons.Windows7}"
                      Width="900"
                      Height="560"
                      MinWidth="460"

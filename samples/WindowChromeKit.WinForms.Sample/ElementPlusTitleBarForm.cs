@@ -30,7 +30,7 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
 
     public ElementPlusTitleBarForm()
     {
-        Icon = WindowChromeIcons.Windows10;
+        Icon = WindowChromeIcons.Windows7;
         Text = "Element Plus 主色标题栏（Chrome 样式 + 自定义配色）";
         Width = 900;
         Height = 560;

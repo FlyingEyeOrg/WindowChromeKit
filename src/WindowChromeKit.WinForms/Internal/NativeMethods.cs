@@ -48,11 +48,10 @@ internal static class NativeMethods
     internal const uint SwpNoActivate = 0x0010;
     internal const uint SwpFrameChanged = 0x0020;
 
-    internal const int GclpHiconSm = -34;
-    internal const int GclpHicon = -14;
-
     internal const int IconSmall = 0;
     internal const int IconSmall2 = 2;
+    internal const int IconBig = 1;
+    internal const int IdiApplication = 32512;
 
     internal const int DwmwaNcRenderingEnabled = 1;
     internal const int DwmwaNcRenderingPolicy = 2;
@@ -91,12 +90,6 @@ internal static class NativeMethods
     internal const uint TpmReturnCmd = 0x0100;
     internal const uint TpmNonotify = 0x0080;
 
-    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
-    private static extern IntPtr GetClassLongPtr64(IntPtr window, int index);
-
-    [DllImport("user32.dll", EntryPoint = "GetClassLongW")]
-    private static extern int GetClassLong32(IntPtr window, int index);
-
     [DllImport("user32.dll")]
     internal static extern bool TrackMouseEvent(ref NativeTrackMouseEvent track);
 
@@ -124,9 +117,6 @@ internal static class NativeMethods
     [DllImport("user32.dll", EntryPoint = "LoadIconW")]
     internal static extern IntPtr LoadIcon(IntPtr instance, IntPtr iconName);
 
-    [DllImport("shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode)]
-    private static extern uint ExtractIconEx(string? fileName, int iconIndex, out IntPtr large, out IntPtr small, uint count);
-
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowPos(
@@ -138,10 +128,6 @@ internal static class NativeMethods
         int height,
         uint flags);
 
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyIcon(IntPtr icon);
-
     [DllImport("dwmapi.dll", EntryPoint = "DwmExtendFrameIntoClientArea")]
     private static extern int DwmExtendFrameIntoClientAreaCore(IntPtr window, ref NativeMargins margins);
 
@@ -150,35 +136,6 @@ internal static class NativeMethods
 
     [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
     private static extern int DwmGetWindowAttributeCore(IntPtr window, int attribute, out int value, int size);
-
-    private static readonly IntPtr IdiApplication = new(32512);
-    private static IntPtr _applicationIcon;
-    private static bool _applicationIconResolved;
-
-    /// <summary>取可执行文件自己的小图标（壳层 API，只在首次调用时解析并缓存）。</summary>
-    private static IntPtr GetApplicationIcon()
-    {
-        if (_applicationIconResolved)
-            return _applicationIcon;
-        _applicationIconResolved = true;
-        try
-        {
-            var path = System.Windows.Forms.Application.ExecutablePath;
-            if (string.IsNullOrEmpty(path))
-                return IntPtr.Zero;
-            // 返回值为图标数量，0 表示文件里没有图标
-            if (ExtractIconEx(path, 0, out var large, out var small, 1) == 0)
-                return IntPtr.Zero;
-            if (large != IntPtr.Zero)
-                _ = DestroyIcon(large);
-            _applicationIcon = small;
-        }
-        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
-        {
-            _applicationIcon = IntPtr.Zero;
-        }
-        return _applicationIcon;
-    }
 
     /// <summary>按 DPI 取系统度量；老系统上没有 <c>GetSystemMetricsForDpi</c> 时按比例缩放回退。</summary>
     internal static int GetSystemMetricsForDpi(int index, uint dpi)
@@ -194,34 +151,30 @@ internal static class NativeMethods
         }
     }
 
-    /// <summary>取窗口类的小图标（窗口没有显式设置图标时的回退）。</summary>
-    internal static IntPtr GetClassSmallIcon(IntPtr window)
-    {
-        var icon = GetClassIcon(window, GclpHiconSm);
-        return icon != IntPtr.Zero ? icon : GetClassIcon(window, GclpHicon);
-    }
-
-    private static IntPtr GetClassIcon(IntPtr window, int index) =>
-        IntPtr.Size == 8
-            ? GetClassLongPtr64(window, index)
-            : new IntPtr(GetClassLong32(window, index));
-
-    /// <summary>与原生标题栏一致地取窗口小图标：先问窗口，再问窗口类。</summary>
+    /// <summary>
+    /// 取窗口小图标，回退顺序与 WPF 版的 <c>RefreshEffectiveTitleBarIcon</c> **完全一致**：
+    /// <c>WM_GETICON(SMALL2) → SMALL → BIG → IDI_APPLICATION</c>。
+    ///
+    /// 为什么要和 WPF 一致：两库同名同语义的窗口基类，标题栏图标的来源不该有差异。
+    /// 这里刻意**不问窗口类图标、也不读 exe 图标** —— WinForms 会把
+    /// <c>&lt;ApplicationIcon&gt;</c> 直接设成窗口图标，所以 <c>WM_GETICON</c> 第一步就命中，
+    /// 那两步实测恒为空（见下方注释）；只有 <c>Icon</c> 完全没设且宿主也用
+    /// <c>SetClassLongPtr</c> 设了类图标这种边界场景，才轮到 <c>BIG</c> 兜底。
+    /// </summary>
     internal static IntPtr GetWindowSmallIcon(IntPtr window)
     {
+        // SMALL2 是任务栏用的那张；实测在"未设 Icon""Icon = null""显式设 Icon"三种情况下
+        // 都返回真图标，因此后续步骤基本不会执行 —— 顺序的意义在于可预测与跨库一致。
         var icon = SendMessage(window, 0x007F /* WM_GETICON */, new IntPtr(IconSmall2), IntPtr.Zero);
         if (icon != IntPtr.Zero)
             return icon;
         icon = SendMessage(window, 0x007F, new IntPtr(IconSmall), IntPtr.Zero);
         if (icon != IntPtr.Zero)
             return icon;
-        icon = GetClassSmallIcon(window);
+        icon = SendMessage(window, 0x007F, new IntPtr(IconBig), IntPtr.Zero);
         if (icon != IntPtr.Zero)
             return icon;
-        // 最后回退到 exe 自己的图标（<ApplicationIcon> 嵌进去的那个），
-        // 相当于 C++ 示例里 app.rc 提供的窗口图标；再不行才用系统默认图标。
-        icon = GetApplicationIcon();
-        return icon != IntPtr.Zero ? icon : LoadIcon(IntPtr.Zero, IdiApplication);
+        return LoadIcon(IntPtr.Zero, new IntPtr(IdiApplication));
     }
 
     /// <summary>把 DWM frame 向内扩展，强制 DWM 为该窗口渲染 frame（阴影、边框线来自它）。

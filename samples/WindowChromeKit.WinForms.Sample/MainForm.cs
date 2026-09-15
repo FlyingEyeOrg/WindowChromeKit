@@ -15,6 +15,9 @@ public sealed class MainForm : ChromeForm
     public MainForm()
     {
         Text = "WindowChromeKit WinForms Sample";
+        // 与 WPF 样例主窗口用同一个图标，两边的标题栏看起来才一致。
+        // 不设的话会落到 csproj 的 <ApplicationIcon>app.ico</ApplicationIcon>，那是另一个图标。
+        Icon = WindowChromeIcons.Windows7;
         // 与 C++ 示例同样的窗口尺寸，便于并排比对
         Width = 776;
         Height = 528;

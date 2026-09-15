@@ -87,6 +87,34 @@ public partial class ChromeForm
         set => SetOption(ref _showTitleBarIcon, value);
     }
 
+    /// <summary>
+    /// 标题栏**实际**使用的图标，与 WPF 版的 <c>EffectiveTitleBarIcon</c> 同名同语义。
+    /// 解析顺序与库内部绘制标题栏时**完全一致**（都走同一个原生回退链），所以拿到的就是屏幕上那一个。
+    ///
+    /// 用途：把 <see cref="ChromeForm.ShowDefaultTitleBar"/> 设为 false 完全自绘标题栏时，
+    /// 可以直接画这个图标，不必自己再调原生 API —— 与 WPF 版的自绘体验对齐。
+    ///
+    /// 返回的是**独立副本**（调用方负责释放），系统没有图标时为 <c>null</c>。
+    /// 句柄未创建时也返回 <c>null</c>（此时窗口图标尚未确定）。
+    /// </summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Icon? EffectiveTitleBarIcon
+    {
+        get
+        {
+            if (!IsHandleCreated)
+                return null;
+            var handle = NativeMethods.GetWindowSmallIcon(Handle);
+            if (handle == IntPtr.Zero)
+                return null;
+            // FromHandle 不拥有句柄，Clone 出来的是独立副本，调用方可以安全释放，
+            // 也不会误销毁系统所有的句柄。
+            using var source = Icon.FromHandle(handle);
+            return (Icon)source.Clone();
+        }
+    }
+
     /// <summary>标题栏字体；null 表示按 DPI 缩放系统 caption 字体。</summary>
     [Category("WindowChromeKit")]
     [DefaultValue(null)]

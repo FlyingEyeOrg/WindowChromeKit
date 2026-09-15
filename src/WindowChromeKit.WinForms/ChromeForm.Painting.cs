@@ -70,8 +70,10 @@ public partial class ChromeForm
     {
         if (!ShowTitleBarIcon)
             return;
-        var icon = NativeMethods.GetWindowSmallIcon(Handle);
-        if (icon == IntPtr.Zero)
+        // 与公开的 EffectiveTitleBarIcon 走同一条解析链（单一来源）：
+        // 使用者自绘标题栏时拿到的图标与这里画的必然是同一个。
+        using var source = EffectiveTitleBarIcon;
+        if (source is null)
             return;
         // 图标在系统菜单命中盒子内居中（原生就是这么画的），而不是在整条标题栏里居中
         var top = caption.Top
@@ -79,7 +81,6 @@ public partial class ChromeForm
             + Math.Max(0, (Metrics.SystemMenuHeight - Metrics.IconSize) / 2);
         // 图标通常是 32bpp 带 alpha：直接 DrawIconEx 到设备相关位图上会忽略 alpha，
         // 只剩 AND 掩码（看起来是纯白剪影）。这里先转成 ARGB 位图再画，保留颜色与透明。
-        var source = Icon.FromHandle(icon);
         using var bitmap = source.ToBitmap();
         graphics.DrawImage(
             bitmap,

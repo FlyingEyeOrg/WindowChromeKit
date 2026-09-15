@@ -466,6 +466,101 @@ public sealed class ChromeFormTests
             $"row below the close button should not be a button, got {below}");
     });
 
+    /// <summary>
+    /// <c>EffectiveTitleBarIcon</c> 与 WPF 版同名同语义：把标题栏完全自绘时，
+    /// 使用者可以直接画这个图标，不必自己调原生 API。它必须是**独立副本**
+    /// （可以安全释放，且不能是系统所有的句柄，否则会误销毁）。
+    /// </summary>
+    [Fact]
+    public void EffectiveTitleBarIconIsACloneThatCallersCanDispose() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "icon",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(700, 400),
+        };
+        form.Icon = WindowChromeIcons.Windows7;
+        form.Show();
+        Application.DoEvents();
+
+        using var first = form.EffectiveTitleBarIcon;
+        Assert.NotNull(first);
+
+        // 取两次必须是两份独立副本：释放第一份后第二份仍可用（不是同一句柄）
+        using var second = form.EffectiveTitleBarIcon;
+        Assert.NotNull(second);
+        Assert.NotSame(first, second);
+
+        // 明确释放一份不应影响另一份，也不应抛异常
+        first!.Dispose();
+        using var bitmap = second!.ToBitmap();
+        Assert.True(bitmap.Width > 0 && bitmap.Height > 0);
+
+        // 完全自定义标题栏时依然可读（这正是它存在的意义）
+        form.ShowDefaultTitleBar = false;
+        using var custom = form.EffectiveTitleBarIcon;
+        Assert.NotNull(custom);
+    });
+
+    /// <summary>
+    /// 换了图标后 <c>EffectiveTitleBarIcon</c> 要跟着变 —— 证明它读的是**当前**窗口图标，
+    /// 而不是某次缓存的旧值（库内部绘制用的也是它，所以这直接关系到屏幕上的图标）。
+    /// </summary>
+    [Fact]
+    public void EffectiveTitleBarIconFollowsTheAssignedIcon() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "icon swap",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(700, 400),
+        };
+        form.Icon = WindowChromeIcons.Windows7;
+        form.Show();
+        Application.DoEvents();
+
+        var seven = Fingerprint(form);
+        Assert.NotNull(seven);
+
+        form.Icon = WindowChromeIcons.Windows10;
+        Application.DoEvents();
+        var ten = Fingerprint(form);
+        Assert.NotNull(ten);
+
+        Assert.NotEqual(seven, ten);
+
+        // 放回 Win7 应回到原来的指纹（可重复，不是累积状态）
+        form.Icon = WindowChromeIcons.Windows7;
+        Application.DoEvents();
+        Assert.Equal(seven, Fingerprint(form));
+    });
+
+    /// <summary>把当前标题栏图标转成 16x16 的像素指纹，用来判断"是不是同一个图标"。</summary>
+    private static string? Fingerprint(ChromeForm form)
+    {
+        using var icon = form.EffectiveTitleBarIcon;
+        if (icon is null)
+            return null;
+        using var scaled = new Icon(icon, 16, 16);
+        using var bitmap = scaled.ToBitmap();
+        var bytes = new List<byte>();
+        for (var y = 0; y < bitmap.Height; y++)
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var c = bitmap.GetPixel(x, y);
+                bytes.Add(c.A);
+                bytes.Add(c.R);
+                bytes.Add(c.G);
+                bytes.Add(c.B);
+            }
+        return Convert.ToHexString(System.Security.Cryptography.MD5.HashData(bytes.ToArray()));
+    }
+
     /// <summary>按钮绘制顶行（普通态应让出第 0 行的顶边线）。</summary>
     private static int CaptionButtonPaintTopFor(ChromeForm form) => form.CaptionButtonPaintTop;
 
