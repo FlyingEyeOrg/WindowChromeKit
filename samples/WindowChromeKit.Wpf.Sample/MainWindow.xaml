@@ -58,6 +58,11 @@
                         AutomationProperties.AutomationId="OpenTitleBarStyleButton"
                         Click="OnOpenTitleBarStyleClicked"
                         Content="标题栏样式窗口" />
+                <Button Margin="12,0,0,0"
+                        Padding="16,8"
+                        AutomationProperties.AutomationId="OpenElementPlusButton"
+                        Click="OnOpenElementPlusClicked"
+                        Content="Element Plus 配色" />
             </WrapPanel>
             <TextBox Margin="0,28,0,0"
                      MinHeight="100"

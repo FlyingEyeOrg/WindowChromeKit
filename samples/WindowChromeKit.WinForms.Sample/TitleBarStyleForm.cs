@@ -126,10 +126,10 @@ public sealed class TitleBarStyleForm : ChromeForm
     {
         ChromeTitleBarStyle.VsCode => (
             "VS Code 样式",
-            "标题栏 35 / 按钮 46×34 / 图标 12px 位 / 配色固定深色 #323233"),
+            "标题栏 35 / 按钮 46×34 / 图标 12px 位 / 固定深色 #191A1B（取自 VS Code 的 2026-dark 主题）"),
         ChromeTitleBarStyle.Windows => (
             "Windows 样式",
-            "标题栏 32 / 按钮 44×32 / 图标贴左 3px 位 / 配色跟随系统明暗"),
+            "标题栏 31 / 按钮 45×31 / 图标贴左 8px 位 / 配色跟随系统明暗"),
         _ => (
             "Chrome 样式",
             "标题栏 40 / 按钮 46×39 / 图标 12px 位 / 配色跟随系统明暗"),

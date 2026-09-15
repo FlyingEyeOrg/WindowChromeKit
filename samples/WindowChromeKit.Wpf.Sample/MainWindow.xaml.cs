@@ -58,4 +58,10 @@ public partial class MainWindow : ChromeWindow
         var window = new TitleBarStyleWindow { Owner = this };
         window.Show();
     }
+
+    private void OnOpenElementPlusClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        var window = new ElementPlusTitleBarWindow { Owner = this };
+        window.Show();
+    }
 }

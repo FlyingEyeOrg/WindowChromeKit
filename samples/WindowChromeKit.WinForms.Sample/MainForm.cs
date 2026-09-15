@@ -59,6 +59,15 @@ public sealed class MainForm : ChromeForm
         };
         styleButton.Click += (_, _) => new TitleBarStyleForm { Owner = this }.Show();
 
+        var themeButton = new Button
+        {
+            Text = "Element Plus 配色",
+            Width = 180,
+            Height = 32,
+            Margin = new Padding(12, 0, 0, 0),
+        };
+        themeButton.Click += (_, _) => new ElementPlusTitleBarForm { Owner = this }.Show();
+
         _edgeButton = new Button
         {
             Text = "贴内容区右下角（可点）",
@@ -77,6 +86,7 @@ public sealed class MainForm : ChromeForm
         buttonRow.Controls.Add(openButton);
         buttonRow.Controls.Add(customButton);
         buttonRow.Controls.Add(styleButton);
+        buttonRow.Controls.Add(themeButton);
 
         // 内容区用表格布局分行，避免绝对坐标与 Dock 的标签互相覆盖
         var layout = new TableLayoutPanel
