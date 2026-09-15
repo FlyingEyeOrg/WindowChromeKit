@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using WindowChromeKit.Wpf;
 
@@ -222,6 +222,32 @@ internal sealed class ChromeInputController
             NativePartToRole(pressedPart),
             NativePartToRole(releasedPart)
         );
+        // 命令可能改变窗口几何：最大化/还原会把三个按钮整体移到别处。指针没有动，
+        // 但它所在的格子变了 —— 必须按**新几何**重新判定，否则悬停会留在那个
+        // 已经不存在的格子上，表现为"鼠标不在按钮上，按钮却一直亮着"。
+        //
+        // 这里也必须显式重算，不能依赖捕获变更去清：上面那句 `_hotPart = releasedPart`
+        // 发生在 ReleaseCapture **之后**，会把 WM_CAPTURECHANGED 刚清掉的状态又写回去
+        // （WinForms 侧同职责的代码顺序相反 —— 先点亮再释放捕获，于是恰好被清掉）。
+        RefreshHotPartFromCursor();
+    }
+
+    /// <summary>
+    /// 按当前指针位置重新判定悬停部件（不改变按下状态）。
+    ///
+    /// 几何变化后必须调用：指针没动，格子却可能变了。这里走
+    /// <see cref="ResolveChromePart"/>，与 <c>WM_NCMOUSEMOVE</c> 携带的部件值同源，
+    /// 所以重算结果和系统下次会送来的值一致。
+    /// </summary>
+    private void RefreshHotPartFromCursor()
+    {
+        if (!NativeWindowMethods.GetCursorPos(out var pointer))
+            return;
+        var part = ResolveChromePart(pointer, out _);
+        if (_hotPart == part)
+            return;
+        _hotPart = part;
+        _host.ApplyVisualState();
     }
 
     /// <summary>取消当前标题栏按钮按压并释放鼠标捕获。</summary>

@@ -986,6 +986,71 @@ public sealed class ChromeWindowTests
         });
     }
 
+    /// <summary>
+    /// 回归：标题栏按钮的命令改变了窗口几何后（最大化会把三个按钮整体移走），
+    /// 悬停必须按**新几何**重新判定，不能留在那个已经不存在的格子上。
+    ///
+    /// WPF 侧的成因：<c>CompleteCaptionButtonPress</c> 里 <c>_hotPart = releasedPart</c> 写在
+    /// <c>ReleaseCapture</c> **之后**，会把 <c>WM_CAPTURECHANGED</c> 刚清掉的状态又写回去；
+    /// 紧接着最大化改变了几何，而没有任何代码按新几何复核。
+    /// WinForms 侧同职责的赋值顺序相反（先点亮、后释放捕获），所以那边恰好被清掉 —— 这就是
+    /// 同一个缺陷只在 WPF 暴露的原因。
+    ///
+    /// 这里把真实光标停在内容区（远离所有标题栏按钮），再按系统的方式发
+    /// hover / 按下 / 抬起 三条非客户区消息：命令执行完，悬停必须已被清掉。
+    ///
+    /// 断言写在**命令执行完的当下**（不先泵消息队列），否则测不到：实测去掉修复后
+    /// "命令刚执行完 = MaximizeButton、泵一次消息之后 = Default" —— 后面那次修正来自
+    /// 系统补发的一条 WM_NCMOUSEMOVE。这也正是这个缺陷"偶尔才看到"的原因：
+    /// 指针之后只要再动一下（或系统补发消息），它就自己好了；不动就一直亮着。
+    /// </summary>
+    [Fact]
+    public void HoverIsReevaluatedAfterTheCommandMovesTheCaptionButtons() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 800,
+            Height = 500,
+            Title = "Chrome test",
+            Content = new Border(),
+            ResizeMode = ResizeMode.CanResize,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+        };
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var maximize = Assert.IsType<Button>(window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
+
+        // park the real cursor well inside the content area, far from every caption button
+        var contentPoint = window.PointToScreen(new Point(window.ActualWidth / 2, window.ActualHeight - 40));
+        Assert.True(SetCursorPos((int)contentPoint.X, (int)contentPoint.Y));
+        window.Dispatcher.Invoke(DispatcherPriority.Background, () => { });
+        Assert.Equal(ChromeHitTestRole.Default, window.HoveredChromeRole);
+
+        // hover, press, release - the same three messages the OS would deliver
+        var maximizeCentre = maximize.PointToScreen(new Point(maximize.ActualWidth / 2, maximize.ActualHeight / 2));
+        _ = NativeWindowMethods.SendMessage(handle, 0x00A0, new IntPtr(WindowFrameHitTest.MaxButton), PackScreenPoint(maximizeCentre));
+        Assert.Equal(ChromeHitTestRole.MaximizeButton, window.HoveredChromeRole);
+
+        _ = NativeWindowMethods.SendMessage(handle, 0x00A1, new IntPtr(WindowFrameHitTest.MaxButton), PackScreenPoint(maximizeCentre));
+        _ = NativeWindowMethods.SendMessage(handle, 0x00A2, new IntPtr(WindowFrameHitTest.MaxButton), PackScreenPoint(maximizeCentre));
+
+        // Assert BEFORE pumping the dispatcher: a real WM_NCMOUSEMOVE arriving afterwards would
+        // recompute the hover and hide the defect, which is exactly why it only shows up sometimes.
+        var hoverRightAfterCommand = window.HoveredChromeRole;
+        window.Dispatcher.Invoke(DispatcherPriority.Background, () => { });
+        Assert.Equal(WindowState.Maximized, window.WindowState);
+        Assert.True(
+            hoverRightAfterCommand != ChromeHitTestRole.MaximizeButton,
+            $"the maximize button stayed hovered after the command although the pointer is in the content area "
+            + $"(immediately after command: {hoverRightAfterCommand}, after pump: {window.HoveredChromeRole})");
+
+        window.WindowState = WindowState.Normal;
+        window.UpdateLayout();
+    });
+
     private sealed class TestChromeFrame : ChromeFrame { }
 
     private static IntPtr PackScreenPoint(Point point)
@@ -1030,6 +1095,9 @@ public sealed class ChromeWindowTests
         }
         return null;
     }
+
+    [DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
 
     private static void RunSta(Action action)
     {

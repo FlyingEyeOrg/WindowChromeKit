@@ -82,7 +82,43 @@ public partial class ChromeForm
             };
             _trackingNonClientMouse = NativeMethods.TrackMouseEvent(ref track);
         }
+
         var button = FromHitTest(hit);
+        // wParam 里的 hit code 是**系统在某一刻**算出来的，可能早于最近一次几何变化
+        // （最大化/还原会改按钮顶边与客户区顶边）。如果那条消息排在 WM_SIZE 之后到达，
+        // 直接采信它就会点亮一个指针其实已经不在的格子，而指针随后不再移动，
+        // 于是悬停一直留着 —— 这就是"点最大化后按钮偶尔一直亮着"的成因。
+        // 所以这里用当前几何复核一次：复核结果才算数。
+        if (button is not null && ButtonAtCursor() != button)
+            button = null;
+
+        if (button == _hotButton)
+            return;
+        _hotButton = button;
+        InvalidateCaption();
+    }
+
+    /// <summary>
+    /// 几何变化后（最大化/还原、DPI、尺寸）按**当前指针位置**重新判定悬停。
+    ///
+    /// 为什么必须做：切换最大化后按钮的顶边与客户区顶边都变了，指针虽然没动，
+    /// 它所在的格子却可能变了。此前只有 <c>WM_CAPTURECHANGED</c> 那条路径会清状态
+    /// （依赖 <c>ReleaseCapture</c> 确实发出该消息），一旦那条路径没走到，
+    /// 残留的悬停就没人清 —— 表现为"鼠标不在按钮上，按钮却一直亮着"。
+    /// 这里主动重算，不依赖捕获消息的时序。
+    /// </summary>
+    private void RevalidateHoverAgainstCurrentGeometry()
+    {
+        // 构造期也会走到这里（UpdateFrameMetrics 在构造函数里被调用）。此时还没有窗口，
+        // 既没有"指针在哪个格子"可言，也不能让 ButtonAtCursor 去碰 Control.Handle ——
+        // 读 Handle 会**强制创建窗口句柄**，那会改变构造期的既有行为。
+        if (!IsHandleCreated)
+            return;
+        // 按下期间不重算：那时指针位置由捕获驱动，且按钮可能因几何变化而移出指针
+        // （原生行为是按住不放、移动出按钮就取消高亮，这一层由 UpdatePressedButtonHover 处理）。
+        if (_pressedButton is not null)
+            return;
+        var button = ButtonAtCursor();
         if (button == _hotButton)
             return;
         _hotButton = button;

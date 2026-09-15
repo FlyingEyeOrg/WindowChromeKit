@@ -58,9 +58,17 @@ public partial class ChromeForm : ChromeFrame
 
     protected override int GetTopResizeBandDip() => TopResizeBandDip;
 
-    protected override void OnFrameMetricsUpdated() => LayoutTitleBarSlots();
+    protected override void OnFrameMetricsUpdated()
+    {
+        LayoutTitleBarSlots();
+        RevalidateHoverAgainstCurrentGeometry();
+    }
 
-    protected override void OnFrameSizeChanged() => LayoutTitleBarSlots();
+    protected override void OnFrameSizeChanged()
+    {
+        LayoutTitleBarSlots();
+        RevalidateHoverAgainstCurrentGeometry();
+    }
 
     protected override void ResetPointerState()
     {

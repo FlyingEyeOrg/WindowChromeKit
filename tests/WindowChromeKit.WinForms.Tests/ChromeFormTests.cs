@@ -9,6 +9,7 @@ namespace WindowChromeKit.WinForms.Tests;
 public sealed class ChromeFormTests
 {
     private const int WmNcHitTest = 0x0084;
+    private const int WmNcMouseMove = 0x00A0;
     private const int HtCaption = 2;
     private const int HtMinButton = 8;
     private const int HtMaxButton = 9;
@@ -561,6 +562,60 @@ public sealed class ChromeFormTests
         return Convert.ToHexString(System.Security.Cryptography.MD5.HashData(bytes.ToArray()));
     }
 
+    /// <summary>
+    /// 回归：悬停不能相信 <c>WM_NCMOUSEMOVE</c> 里那个可能过期的 hit code。
+    ///
+    /// wParam 是系统在**某一刻**算出的命中值。最大化/还原会改按钮顶边与客户区顶边，
+    /// 所以排在几何变化之后到达的那条消息可能仍带着旧值。此前直接采信它，
+    /// 就会点亮一个指针其实已经不在的格子；指针随后不再移动，于是按钮一直亮着
+    /// —— 这就是"点最大化后按钮偶尔保持高亮"的成因（Win10 上可复现，非必现）。
+    ///
+    /// 这里把指针放到内容区深处（真实命中值是 <c>HTCLIENT</c>），
+    /// 再发一条声称命中最大化按钮的消息：命中值必须按当前几何被否掉。
+    /// </summary>
+    [Fact]
+    public void StaleNonClientHitCodeCannotLightUpAButton() => RunSta(() =>
+    {
+        using var form = NewTestForm("stale hit");
+        var window = WindowRect(form);
+
+        // pointer deep inside the content area, far from every caption button
+        var centreX = window.Left + (window.Right - window.Left) / 2;
+        var centreY = window.Bottom - 60;
+        Assert.True(SetCursorPos(centreX, centreY));
+        Application.DoEvents();
+        var cursor = CursorPosition();
+        Assert.Equal(1, HitTest(form, cursor.X, cursor.Y));   // HTCLIENT
+
+        // a message whose hit code no longer describes this position must be ignored
+        _ = SendMessage(form.Handle, WmNcMouseMove, new IntPtr(HtMaxButton), IntPtr.Zero);
+        Assert.Null(form.HoveredCaptionButton);
+
+        // a truthful hit code is still honoured, so hovering is not simply disabled
+        Assert.True(SetCursorPos(ButtonCenterX(form, 1), window.Top + FrameY(form) + 2));
+        Application.DoEvents();
+        cursor = CursorPosition();
+        Assert.Equal(HtMaxButton, HitTest(form, cursor.X, cursor.Y));   // sanity
+        _ = SendMessage(form.Handle, WmNcMouseMove, new IntPtr(HtMaxButton), IntPtr.Zero);
+        Assert.Equal(ChromeCaptionButton.Maximize, form.HoveredCaptionButton);
+    });
+
+    /// <summary>新建一个用于状态机测试的窗口（已显示并处理完初始消息）。</summary>
+    private static ChromeForm NewTestForm(string title)
+    {
+        var form = new ChromeForm
+        {
+            Text = title,
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+        return form;
+    }
+
     /// <summary>按钮绘制顶行（普通态应让出第 0 行的顶边线）。</summary>
     private static int CaptionButtonPaintTopFor(ChromeForm form) => form.CaptionButtonPaintTop;
 
@@ -707,6 +762,22 @@ public sealed class ChromeFormTests
 
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out CursorPoint point);
+
+    private static CursorPoint CursorPosition()
+    {
+        _ = GetCursorPos(out var point);
+        return point;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint
+    {
+        public int X;
+        public int Y;
+    }
 
     [DllImport("user32.dll")]
     private static extern bool PrintWindow(IntPtr window, IntPtr hdc, uint flags);
