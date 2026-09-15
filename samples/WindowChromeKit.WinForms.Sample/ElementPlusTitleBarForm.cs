@@ -1,120 +1,158 @@
 using System.Drawing;
 using System.Windows.Forms;
+using WindowChromeKit.WinForms;
 
 namespace WindowChromeKit.WinForms.Sample;
 
 /// <summary>
-/// 基于预置样式再改配色的示例：先套用 <see cref="ChromeTitleBarStyle.Chrome"/> 的几何，
-/// 再把标题栏配色换成 Element Plus 的主色。
+/// 基于预置样式再改配色的示例：Chrome / VS Code / Windows **三套几何样式各配一款**
+/// Element Plus 配色，可以在这里逐一切换对比。
 ///
 /// **顺序很重要**：<c>TitleBarStyle</c> 赋值时会一次性套用整张样式表（几何 + 配色），
 /// 所以必须**先选样式、后改颜色**；反过来改的颜色会被样式覆盖回去。
+/// 这里统一由 <see cref="ElementPlusPalettes.Apply"/> 处理这个顺序。
 ///
-/// 顶边线不用管：它存的是半透明基色，绘制时与标题栏底色混合，
-/// 换成任何配色都会自动跟随（本窗口激活时混出约 #2F4F70）。
+/// 顶边线不用管：它存的是半透明基色，绘制时与标题栏底色混合，换成任何配色都会自动跟随。
 /// </summary>
 public sealed class ElementPlusTitleBarForm : ChromeForm
 {
-    // Element Plus 官方变量（取自它的 theme-chalk/common/var.scss）：
-    //   primary       #409EFF
-    //   primary light-3 = primary 混 30% 白 = #79BBFF（失活底色）
-    //   primary light-9 = primary 混 90% 白 = #ECF5FF（失活文字）
-    //   primary dark-2  = primary 混 20% 黑 = #337ECC（按钮 hover）
-    //   danger        #F56C6C / danger dark-2 #C45656（关闭按钮）
-    private static readonly Color Primary = Color.FromArgb(0x40, 0x9E, 0xFF);
-    private static readonly Color PrimaryLight3 = Color.FromArgb(0x79, 0xBB, 0xFF);
-    private static readonly Color PrimaryLight9 = Color.FromArgb(0xEC, 0xF5, 0xFF);
-    private static readonly Color PrimaryDark2 = Color.FromArgb(0x33, 0x7E, 0xCC);
-    private static readonly Color Danger = Color.FromArgb(0xF5, 0x6C, 0x6C);
-    private static readonly Color DangerDark2 = Color.FromArgb(0xC4, 0x56, 0x56);
+    private readonly Label _status;
+    private readonly FlowLayoutPanel _swatches;
 
     public ElementPlusTitleBarForm()
     {
+        // Win7 图标：暖橙色在深色底和 primary 蓝底上都看得清，
+        // 而 Win10 图标的蓝会融进 primary 底色。
         Icon = WindowChromeIcons.Windows7;
-        Text = "Element Plus 主色标题栏（Chrome 样式 + 自定义配色）";
-        Width = 900;
-        Height = 560;
-        MinimumSize = new Size(460, 320);
+        Text = "Element Plus 配色 × 三套样式";
+        Width = 960;
+        Height = 600;
+        MinimumSize = new Size(520, 360);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.White;
-
-        // 1) 先套样式：拿到 Chrome 的几何（标题栏 40、按钮 46×39、图标 12px 位）。
-        //    这一步会把配色设成 Chrome 的默认值 —— 所以颜色必须在它之后改。
-        TitleBarStyle = ChromeTitleBarStyle.Chrome;
-
-        // 2) 再改配色：以属性为准，样式不会再覆盖回来。
-        ActiveCaptionColor = Primary;              // 品牌主色
-        InactiveCaptionColor = PrimaryLight3;      // 同色系变淡
-        CaptionTextColor = Color.White;            // 主色上必须用白字
-        InactiveCaptionTextColor = PrimaryLight9;  // 近白，失活时仍可读
-        CaptionButtonHoverColor = PrimaryDark2;    // 比底色深一档
-        CaptionButtonPressedColor = PrimaryDark2;  // Element Plus 用同一个 active 色
-        CloseButtonHoverColor = Danger;
-        CloseButtonPressedColor = DangerDark2;
-
-        // 顶线保持默认即可 —— 它是半透明的，会自动与上面的底色混合。
 
         var header = new Label
         {
             Dock = DockStyle.Top,
-            Height = 56,
+            Height = 52,
             Padding = new Padding(24, 18, 24, 0),
             Font = new Font(Font.FontFamily, Font.Size + 3f, FontStyle.Bold),
             ForeColor = Color.FromArgb(0x30, 0x31, 0x33),
-            Text = "基于 Chrome 样式，只换配色",
+            Text = "Element Plus 配色 × 三套样式",
         };
 
         var hint = new Label
         {
             Dock = DockStyle.Top,
-            Height = 172,
+            Height = 152,
             Padding = new Padding(24, 8, 24, 0),
             ForeColor = Color.FromArgb(0x60, 0x62, 0x66),
             Text =
-                "1. 顺序：先 TitleBarStyle = Chrome，再改 ActiveCaptionColor 等属性。\r\n"
-                + "   反过来写的话，样式表会把颜色覆盖回默认值。\r\n"
-                + "2. 顶边 1 像素线不用改：它是半透明基色，与标题栏底色混合（激活时约 #2F4F70），\r\n"
-                + "   换任何配色都自动跟随。\r\n"
-                + "3. 配色取自 Element Plus 的官方变量（theme-chalk/common/var.scss）：\r\n"
-                + "   primary #409EFF、light-3 #79BBFF、light-9 #ECF5FF、\r\n"
-                + "   dark-2 #337ECC、danger #F56C6C、danger dark-2 #C45656。\r\n"
-                + "4. 点标题栏 / 点别的窗口，看激活与失活两套配色，以及按钮的悬停与按下填充。",
+                "1. 同一个窗口里切换「几何样式」（Chrome / VS Code / Windows），每套都换上一款 Element Plus 配色。\r\n"
+                + "2. 顺序：先 TitleBarStyle，再改颜色属性 —— 反过来写样式表会把颜色覆盖回默认值。\r\n"
+                + "   本示例统一走 ElementPlusPalettes.Apply，它固定按这个顺序赋值。\r\n"
+                + "3. 顶边 1 像素线不用改：它是半透明基色，与标题栏底色混合，换任何配色都自动跟随。\r\n"
+                + "4. 配色取自 Element Plus 的官方变量：浅色用 common/var.scss，深色用 dark/var.scss。\r\n"
+                + "   注意深色主题的 dark-2 是「向白混」，所以 VS Code 那款的关闭按钮按下会比悬停更亮。",
         };
 
-        var swatches = new FlowLayoutPanel
+        _swatches = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 56,
+            Height = 92,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Padding = new Padding(24, 4, 0, 0),
+        };
+
+        _status = new Label
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(24, 6, 24, 0),
+            ForeColor = Color.FromArgb(0x60, 0x62, 0x66),
+            Text = string.Empty,
+        };
+
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 48,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             Padding = new Padding(24, 8, 0, 0),
         };
-        AddSwatch(swatches, "激活底 #409EFF", Primary, Color.White);
-        AddSwatch(swatches, "失活底 #79BBFF", PrimaryLight3, Color.FromArgb(0x30, 0x31, 0x33));
-        AddSwatch(swatches, "按钮 hover #337ECC", PrimaryDark2, Color.White);
-        AddSwatch(swatches, "关闭 hover #F56C6C", Danger, Color.White);
+        foreach (var style in new[]
+                 {
+                     ChromeTitleBarStyle.Chrome,
+                     ChromeTitleBarStyle.VsCode,
+                     ChromeTitleBarStyle.Windows,
+                 })
+        {
+            var button = new Button
+            {
+                Text = style switch
+                {
+                    ChromeTitleBarStyle.VsCode => "VS Code 样式 × Element Plus 深色",
+                    ChromeTitleBarStyle.Windows => "Windows 样式 × Element Plus 中性",
+                    _ => "Chrome 样式 × Element Plus 主色",
+                },
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Margin = new Padding(0, 0, 12, 0),
+            };
+            var captured = style;
+            button.Click += (_, _) => UsePalette(captured);
+            buttons.Controls.Add(button);
+        }
 
         var spacer = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
 
         // Dock 顺序：后加的在上层，所以按“从下往上”添加
         Controls.Add(spacer);
-        Controls.Add(swatches);
+        Controls.Add(_status);
+        Controls.Add(_swatches);
+        Controls.Add(buttons);
         Controls.Add(hint);
         Controls.Add(header);
+
+        UsePalette(ChromeTitleBarStyle.Chrome);
     }
 
-    private static void AddSwatch(Control parent, string text, Color background, Color foreground)
+    private void UsePalette(ChromeTitleBarStyle style)
     {
-        parent.Controls.Add(new Label
+        var palette = ElementPlusPalettes.Apply(this, style);
+
+        Text = $"Element Plus 配色 × {style} 样式";
+        _status.Text = $"当前：{style} 几何 + Element Plus 配色。{palette.Caption}";
+
+        _swatches.Controls.Clear();
+        AddSwatch("激活底", palette.ActiveCaption, Contrast(palette.ActiveCaption));
+        AddSwatch("失活底", palette.InactiveCaption, Contrast(palette.InactiveCaption));
+        AddSwatch("悬停填充", palette.ButtonHover, Contrast(palette.ButtonHover));
+        AddSwatch("按下填充", palette.ButtonPressed, Contrast(palette.ButtonPressed));
+        AddSwatch("关闭悬停", palette.CloseButtonHover, Contrast(palette.CloseButtonHover));
+        AddSwatch("关闭按下", palette.CloseButtonPressed, Contrast(palette.CloseButtonPressed));
+    }
+
+    /// <summary>按背景亮度选黑或白前景，保证色块上的文字可读。</summary>
+    private static Color Contrast(Color background) =>
+        (background.R * 299 + background.G * 587 + background.B * 114) / 1000 > 150
+            ? Color.FromArgb(0x30, 0x31, 0x33)
+            : Color.White;
+
+    private void AddSwatch(string label, Color background, Color foreground)
+    {
+        var text = $"{label} #{background.R:X2}{background.G:X2}{background.B:X2}";
+        _swatches.Controls.Add(new Label
         {
             Text = text,
             AutoSize = false,
-            Width = 190,
-            Height = 30,
+            Width = 196,
+            Height = 28,
             TextAlign = ContentAlignment.MiddleCenter,
             BackColor = background,
             ForeColor = foreground,
-            Margin = new Padding(0, 0, 10, 0),
+            Margin = new Padding(0, 0, 10, 6),
         });
     }
 }
