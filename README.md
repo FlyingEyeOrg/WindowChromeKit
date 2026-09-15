@@ -142,12 +142,14 @@ public partial class MainWindow : ChromeWindow
 现有示例中包含一个独立的自定义标题栏窗口，演示内容插槽、可交互的标题栏文本框、
 自定义菜单、菜单高对比度状态、图标切换、标题栏图标显隐、操作控件以及运行时颜色切换。
 
-## 技术方案与踩坑记录
+## 技术方案与验证
 
-窗口框架的实现原理（原生 frame 模型、命中优先级、顶边 1px 线的 DWM 混合公式），以及
-实现过程中实测发现和踩过的坑，记录在 [`docs/native-frame-model.md`](docs/native-frame-model.md)。
-
-该文档适合在改动窗口框架、命中判定或标题栏绘制相关代码前先读一遍，末尾附有验证自查清单。
+- [`docs/native-frame-model.md`](docs/native-frame-model.md) —— **技术方案与踩坑记录**：
+  原生 frame 模型、命中优先级、顶边 1px 线的 DWM 混合公式，以及实现过程中实测发现和
+  踩过的坑。改动窗口框架、命中判定或标题栏绘制相关代码前建议先读一遍。
+- [`docs/visual-verification-checklist.md`](docs/visual-verification-checklist.md) ——
+  **视觉验证清单**：可重复执行的测试与 VM 像素验证步骤、三套样式的期望值对照表
+  （配色/几何/命中区/最大化行为），以及人工目视项。改完照着跑一遍即可。
 
 ## 项目结构
 
