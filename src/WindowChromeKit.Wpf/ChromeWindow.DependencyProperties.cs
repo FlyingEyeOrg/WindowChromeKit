@@ -56,27 +56,33 @@ public partial class ChromeWindow
             )
         );
 
+    /// <summary>
+    /// 有焦点时标题栏顶边那 1 像素线的颜色。默认是半透明基色（#262626 @ 66%），
+    /// 绘制时与【当前标题栏底色】混合，因此自定义标题栏配色不需要改动它；
+    /// 数值由原生 DWM 边框实测反解（黑底 25 / 白底 112）。套用预置样式时会被样式表覆盖。
+    /// </summary>
     public static readonly DependencyProperty TitleBarBorderBrushProperty =
         DependencyProperty.Register(
             nameof(TitleBarBorderBrush),
             typeof(Brush),
             typeof(ChromeWindow),
             new FrameworkPropertyMetadata(
-                FrozenBrush(0xFF, 0x2B, 0x2B, 0x2B),
+                FrozenBrush(0xA8, 0x26, 0x26, 0x26),
                 OnChromeVisualChanged
             )
         );
 
     /// <summary>
     /// 失活（无焦点）时标题栏顶边那 1 像素线的颜色。Windows 10 的 DWM 只画左/右/下三边，
-    /// 顶边要自己补，且必须跟着焦点切换：实测激活 rgb(112,112,112)、失活 rgb(170,170,170)。
+    /// 顶边要自己补。默认是半透明基色（#565656 @ 50%，比聚焦更浅更柔），
+    /// 绘制时与标题栏底色混合；数值由原生实测反解（黑底 43 / 白底 170）。
     /// </summary>
     public static readonly DependencyProperty InactiveTitleBarBorderBrushProperty =
         DependencyProperty.Register(
             nameof(InactiveTitleBarBorderBrush),
             typeof(Brush),
             typeof(ChromeWindow),
-            new FrameworkPropertyMetadata(FrozenBrush(0xFF, 0xAA, 0xAA, 0xAA), OnChromeVisualChanged)
+            new FrameworkPropertyMetadata(FrozenBrush(0x80, 0x56, 0x56, 0x56), OnChromeVisualChanged)
         );
 
     public static readonly DependencyProperty TitleBarHeightProperty = DependencyProperty.Register(

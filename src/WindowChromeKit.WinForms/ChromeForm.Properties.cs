@@ -27,8 +27,15 @@ public partial class ChromeForm
     private Color _captionButtonPressedColor = Color.FromArgb(0x5F, 0x5F, 0x5F);
     private Color _closeButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
     private Color _closeButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
-    private Color _topBorderLineActiveColor = Color.FromArgb(0x70, 0x70, 0x70);
-    private Color _topBorderLineInactiveColor = Color.FromArgb(0xAA, 0xAA, 0xAA);
+    // 顶边线用"半透明基色"模拟 DWM，参数由原生边框实测反解（黑底/白底两组）：
+    //   聚焦：黑底 25 / 白底 112 -> 基色 #262626、alpha 66%
+    //   失焦：黑底 43 / 白底 170 -> 基色 #565656、alpha 50%
+    // 存的是 [alpha + 基色]，绘制时自动与【当前标题栏底色】混合，因此换任何标题栏
+    // 配色都不需要改动这里：
+    //   线色 = alpha * 基色 + (1 - alpha) * 标题栏底色
+    private Color _topBorderLineActiveColor = Color.FromArgb(168, 0x26, 0x26, 0x26);
+    // 失焦：比聚焦更浅更柔（原生实测 #565656 @ 50%）。
+    private Color _topBorderLineInactiveColor = Color.FromArgb(128, 0x56, 0x56, 0x56);
     private bool _showTopBorderLine = true;
 
     /// <summary>自绘标题栏高度（DIP）。实测 Chrome 为 40。</summary>

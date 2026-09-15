@@ -211,11 +211,13 @@ public sealed class ChromeFormTests
 
         var column = bitmap.Width - FrameX(form) - form.CaptionButtonWidth / 2;
         var line = bitmap.GetPixel(column, 0);
-        // 顶边线是灰色（激活 #707070 / 失活 #AAAAAA）；hover 色是关闭红或灰底
-        var isGreyLine = Math.Abs(line.R - line.G) < 12 && Math.Abs(line.G - line.B) < 12 && line.R is > 100 and < 210;
+        // 顶边线是半透明中性灰（叠在标题栏上混合），所以深浅随样式不同：
+        // 浅色标题栏约 (170,170,170)，深色标题栏约 (68,68,68)。判定"是中性灰"而不是固定亮度，
+        // 关键是它必须与 hover 的关闭红（R 远大于 G/B）明显不同。
+        var isNeutralGrey = Math.Abs(line.R - line.G) < 12 && Math.Abs(line.G - line.B) < 12;
         Assert.True(
-            isGreyLine,
-            $"{style}: row 0 should keep the top border line, got {line}");
+            isNeutralGrey,
+            $"{style}: row 0 should keep the top border line (neutral grey), got {line}");
         // 布局契约：第 0 行留给顶边线，按钮的绘制顶边从第 1 行开始（与 WPF 模板的
         // 1px BorderThickness、原生标题栏一致）。这里断言绘制矩形本身，避免依赖
         // 测试进程里的激活/悬停状态（无焦点窗口不会画 hover 填充）。
@@ -280,9 +282,27 @@ public sealed class ChromeFormTests
 
         Assert.NotEqual(form.TopBorderLineActiveColor, form.TopBorderLineInactiveColor);
 
-        // 与 Win10 实测一致：激活 #707070、失活 #AAAAAA
-        Assert.Equal(Color.FromArgb(0x70, 0x70, 0x70), form.TopBorderLineActiveColor);
-        Assert.Equal(Color.FromArgb(0xAA, 0xAA, 0xAA), form.TopBorderLineInactiveColor);
+        // 参数由原生 DWM 边框实测反解（黑底 / 白底两组）：
+        //   聚焦：黑底 25 / 白底 112 -> 基色 #262626、alpha 66%
+        //   失焦：黑底 43 / 白底 170 -> 基色 #565656、alpha 50%
+        Assert.Equal(168, form.TopBorderLineActiveColor.A);      // 66%
+        Assert.Equal(0x26, form.TopBorderLineActiveColor.R);
+        Assert.Equal(128, form.TopBorderLineInactiveColor.A);    // 50%
+        Assert.Equal(0x56, form.TopBorderLineInactiveColor.R);
+
+        // 存的是 [alpha + 基色]，绘制时自动与标题栏底色混合 —— 四组场景都必须与原生实测相符：
+        Assert.InRange(Blend(form.TopBorderLineActiveColor, Color.White).R, 108, 116);          // 白标题栏聚焦 = 112
+        Assert.InRange(
+            Blend(form.TopBorderLineInactiveColor, Color.FromArgb(0xF1, 0xF3, 0xF4)).R, 158, 168); // 浅色失焦 ≈ 163
+        Assert.InRange(
+            Blend(form.TopBorderLineActiveColor, Color.FromArgb(0x32, 0x32, 0x33)).R, 38, 46);   // 深色聚焦 ≈ 42
+        Assert.InRange(
+            Blend(form.TopBorderLineInactiveColor, Color.FromArgb(0x2D, 0x2D, 0x2D)).R, 62, 70); // 深色失焦 ≈ 66
+
+        // 半透明是关键：换任何标题栏底色都会自适应，自定义标题栏不必改这两个值
+        var onCustom = Blend(form.TopBorderLineActiveColor, Color.FromArgb(0x12, 0x34, 0x56));
+        Assert.NotEqual(form.TopBorderLineActiveColor, onCustom);
+        Assert.True(form.TopBorderLineActiveColor.A < 255, "the line must stay semi-transparent");
     });
 
     /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
@@ -352,6 +372,16 @@ public sealed class ChromeFormTests
             };
         }
         return text;
+    }
+
+    /// <summary>把半透明的线条色叠在底色上，模拟实际看到的效果。</summary>
+    private static Color Blend(Color line, Color background)
+    {
+        var a = line.A / 255d;
+        return Color.FromArgb(
+            (int)Math.Round(line.R * a + background.R * (1 - a)),
+            (int)Math.Round(line.G * a + background.G * (1 - a)),
+            (int)Math.Round(line.B * a + background.B * (1 - a)));
     }
 
     private static int FirstHitRow(ChromeForm form, int expected, int index = 0) =>

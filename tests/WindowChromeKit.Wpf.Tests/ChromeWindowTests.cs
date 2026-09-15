@@ -329,12 +329,18 @@ public sealed class ChromeWindowTests
             var nativeClose = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
             Assert.Equal(Color.FromRgb(0xC4, 0x2B, 0x1C), nativeClose.Color);
 
-            // 顶边那 1px 线必须跟着焦点切换，否则失活时会比 DWM 画的左边框深：
-            // Win10 实测 激活 #707070 / 失活 #AAAAAA
+            // 顶边那 1px 线用"半透明基色"模拟 DWM，参数由原生实测反解：
+            //   聚焦 #262626 @ 66%（黑底 25 / 白底 112）
+            //   失焦 #565656 @ 50%（黑底 43 / 白底 170）
+            // 半透明意味着它会与标题栏底色混合，自定义标题栏配色无需改动这两个画刷。
             var activeLine = Assert.IsType<SolidColorBrush>(window.TitleBarBorderBrush);
-            Assert.Equal(Color.FromRgb(0x70, 0x70, 0x70), activeLine.Color);
+            Assert.Equal(0xA8, activeLine.Color.A);
+            Assert.Equal(0x26, activeLine.Color.R);
             var inactiveLine = Assert.IsType<SolidColorBrush>(window.InactiveTitleBarBorderBrush);
-            Assert.Equal(Color.FromRgb(0xAA, 0xAA, 0xAA), inactiveLine.Color);
+            Assert.Equal(0x80, inactiveLine.Color.A);
+            Assert.Equal(0x56, inactiveLine.Color.R);
+            Assert.True(activeLine.Color.A < 255 && inactiveLine.Color.A < 255,
+                "both top line brushes must stay semi-transparent so they blend with any caption colour");
         }
         finally
         {

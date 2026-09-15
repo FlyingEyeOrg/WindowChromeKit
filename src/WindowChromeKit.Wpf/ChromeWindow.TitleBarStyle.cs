@@ -110,9 +110,14 @@ public partial class ChromeWindow
             CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
             CloseButtonPressedBackground = FrozenBrush(0xFF, 0xF1, 0x70, 0x7A);
         }
-        // 顶边线：与 DWM 画在其余三边的实测值一致（激活 #707070 / 失活 #AAAAAA），三套样式统一
-        TitleBarBorderBrush = FrozenBrush(0xFF, 0x70, 0x70, 0x70);
-        InactiveTitleBarBorderBrush = FrozenBrush(0xFF, 0xAA, 0xAA, 0xAA);
+        // 顶边线用"半透明基色"模拟 DWM，参数由原生边框实测反解（黑底/白底两组）：
+        //   聚焦：黑底 25 / 白底 112 -> 基色 #262626、alpha 66%
+        //   失焦：黑底 43 / 白底 170 -> 基色 #565656、alpha 50%
+        // 存的是 [alpha + 基色]，绘制时自动与【当前标题栏底色】混合，
+        // 因此自定义标题栏配色无需改动这里：
+        //   线色 = alpha * 基色 + (1 - alpha) * 标题栏底色
+        TitleBarBorderBrush = FrozenBrush(0xA8, 0x26, 0x26, 0x26);
+        InactiveTitleBarBorderBrush = FrozenBrush(0x80, 0x56, 0x56, 0x56);
         ShowTitleBarIcon = true;
     }
 }
