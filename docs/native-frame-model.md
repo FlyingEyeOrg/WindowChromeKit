@@ -47,7 +47,9 @@ resize 带、自定义标题栏」，尤其是**不把 resize 热区侵入客户
 等一整套管道，只为绕开这一件事。
 
 > 该方案已废弃。`git log` 中 `Move the WPF window onto the native frame model` 记录了迁移。
-> 分支 `verify/overlay-resize-border` 保留了 overlay 最后存在的状态，可用于对比验证。
+> overlay 最后存在的状态是提交 `3a98902`（即删除它的 `1f2cbc4` 的父提交），
+> `git show 3a98902:src/WindowChromeKit.Wpf/Internal/Frame/WindowResizeOverlay.cs`
+> 可以取回实现用于对比验证。
 
 ### 2.2 现方案（main）：缩放带收进窗口自己的非客户区
 
