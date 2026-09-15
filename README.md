@@ -142,6 +142,13 @@ public partial class MainWindow : ChromeWindow
 现有示例中包含一个独立的自定义标题栏窗口，演示内容插槽、可交互的标题栏文本框、
 自定义菜单、菜单高对比度状态、图标切换、标题栏图标显隐、操作控件以及运行时颜色切换。
 
+## 技术方案与踩坑记录
+
+窗口框架的实现原理（原生 frame 模型、命中优先级、顶边 1px 线的 DWM 混合公式），以及
+实现过程中实测发现和踩过的坑，记录在 [`docs/native-frame-model.md`](docs/native-frame-model.md)。
+
+该文档适合在改动窗口框架、命中判定或标题栏绘制相关代码前先读一遍，末尾附有验证自查清单。
+
 ## 项目结构
 
 - `src/WindowChromeKit.Wpf`：可复用的 WPF 类库。
@@ -154,9 +161,9 @@ public partial class MainWindow : ChromeWindow
 
   | 样式 | 标题栏高 | 按钮 | 图标位置 | 配色 |
   | --- | --- | --- | --- | --- |
-  | `Chrome`（默认） | 40 | 46×39 | 12px 位 | 跟随系统明暗 |
+  | `Chrome`（默认） | 40 | 最小化 45 / 其余 46，高 39 | 12px 位 | 跟随系统明暗 |
   | `VsCode` | 35 | 46×34 | 12px 位 | 固定深色 `#323233` |
-  | `Windows` | 32 | 44×32 | 贴左 3px 位 | 跟随系统明暗 |
+  | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 跟随系统明暗 |
 
   三套样式都画顶边线、关闭按钮都用系统标准红；需要完全自定义标题栏时不用这个枚举
   （继承 `ChromeFrame`，或 `ShowDefaultTitleBar = false` 自己绘制）。
