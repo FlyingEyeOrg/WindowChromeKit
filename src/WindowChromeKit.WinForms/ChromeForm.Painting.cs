@@ -42,22 +42,16 @@ public partial class ChromeForm
         var caption = new Rectangle(0, 0, client.Width, Metrics.CaptionHeight);
         if (!ShowDefaultTitleBar)
         {
-            // 完全自定义：底色、边框线与按钮都由 OnPaintTitleBar 负责
+            // 完全自定义：标题栏底色、图标、文字与按钮都由 OnPaintTitleBar 负责。
+            // 但**顶边线仍然绘制** —— 它是窗口边框的一部分（Win10 上 DWM 不画顶部这条边），
+            // 不该因为自定义了标题栏内容就缺一条边。不需要时用 ShowTopBorderLine = false 关掉。
             OnPaintTitleBar(new TitleBarPaintEventArgs(graphics, caption, active, maximized));
+            DrawTopBorderLine(graphics, active);
             return;
         }
 
         using (var background = new SolidBrush(active ? ActiveCaptionColor : InactiveCaptionColor))
             graphics.FillRectangle(background, caption);
-
-        // 顶边 1px 边框线：Win10 的 DWM 只在非客户区画边框，顶部这一条要自己补；
-        // 最大化时客户区正好等于工作区，画了会在屏幕顶端多出一条线（Chrome 最大化也没有）。
-        // Win11 上 DWM 会在同一行覆盖它，因此对 Win11 无影响。
-        if (ShowTopBorderLine && !maximized)
-        {
-            using var line = new Pen(active ? TopBorderLineActiveColor : TopBorderLineInactiveColor);
-            graphics.DrawLine(line, 0, 0, client.Width - 1, 0);
-        }
 
         var glyphColor = active ? CaptionTextColor : InactiveCaptionTextColor;
         PaintTitleBarIcon(graphics, caption);
@@ -65,6 +59,11 @@ public partial class ChromeForm
         PaintCaptionButtons(graphics, glyphColor);
 
         OnPaintTitleBar(new TitleBarPaintEventArgs(graphics, caption, active, maximized));
+
+        // 顶边 1px 边框线最后画，作为最上层（与 WPF 模板的覆盖层一致）：
+        // 无论按钮/自定义内容画到哪里，这条边都不会被盖住。绘制实现见
+        // ChromeFrame.TopBorderLine.cs（含实测反解出的 DWM 混合参数与最大化判定）。
+        DrawTopBorderLine(graphics, active);
     }
 
     private void PaintTitleBarIcon(Graphics graphics, Rectangle caption)

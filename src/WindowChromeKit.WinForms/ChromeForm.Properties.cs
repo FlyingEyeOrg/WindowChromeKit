@@ -27,16 +27,10 @@ public partial class ChromeForm
     private Color _captionButtonPressedColor = Color.FromArgb(0x5F, 0x5F, 0x5F);
     private Color _closeButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
     private Color _closeButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
-    // 顶边线用"半透明基色"模拟 DWM，参数由原生边框实测反解（黑底/白底两组）：
-    //   聚焦：黑底 25 / 白底 112 -> 基色 #262626、alpha 66%
-    //   失焦：黑底 43 / 白底 170 -> 基色 #565656、alpha 50%
-    // 存的是 [alpha + 基色]，绘制时自动与【当前标题栏底色】混合，因此换任何标题栏
-    // 配色都不需要改动这里：
-    //   线色 = alpha * 基色 + (1 - alpha) * 标题栏底色
-    private Color _topBorderLineActiveColor = Color.FromArgb(168, 0x26, 0x26, 0x26);
-    // 失焦：比聚焦更浅更柔（原生实测 #565656 @ 50%）。
-    private Color _topBorderLineInactiveColor = Color.FromArgb(128, 0x56, 0x56, 0x56);
-    private bool _showTopBorderLine = true;
+    // 顶边线的属性与绘制已上移到 ChromeFrame（它属于窗口边框，不属于标题栏内容）：
+    // TopBorderLineActiveColor / TopBorderLineInactiveColor / ShowTopBorderLine /
+    // ShouldDrawTopBorderLine / DrawTopBorderLine，见 ChromeFrame.TopBorderLine.cs。
+    // 那里也记录了实测反解出的混合参数。
 
     /// <summary>自绘标题栏高度（DIP）。实测 Chrome 为 40。</summary>
     [Category("WindowChromeKit")]
@@ -156,31 +150,6 @@ public partial class ChromeForm
     {
         get => _closeButtonPressedColor;
         set => SetOption(ref _closeButtonPressedColor, value);
-    }
-
-    /// <summary>顶边 1px 边框线（激活）：Win10 的 DWM 只在非客户区画边框，顶部这一条要自己补。</summary>
-    [Category("WindowChromeKit")]
-    public Color TopBorderLineActiveColor
-    {
-        get => _topBorderLineActiveColor;
-        set => SetOption(ref _topBorderLineActiveColor, value);
-    }
-
-    /// <summary>顶边 1px 边框线（失活）。</summary>
-    [Category("WindowChromeKit")]
-    public Color TopBorderLineInactiveColor
-    {
-        get => _topBorderLineInactiveColor;
-        set => SetOption(ref _topBorderLineInactiveColor, value);
-    }
-
-    /// <summary>是否自绘顶边线。Win11 上 DWM 会覆盖同一行，因此对 Win11 无影响。</summary>
-    [Category("WindowChromeKit")]
-    [DefaultValue(true)]
-    public bool ShowTopBorderLine
-    {
-        get => _showTopBorderLine;
-        set => SetOption(ref _showTopBorderLine, value);
     }
 
     /// <summary>当前样式下从客户区顶边算起的按钮顶行（设备像素，已按 DPI 缩放）。</summary>

@@ -174,6 +174,14 @@ public partial class MainWindow : ChromeWindow
   `TitleBarContent` / `TitleBarActions` 内容插槽、`SetHitTestRole` 逐控件命中角色
   （标记为 `Client` 的标题栏控件会自己接收鼠标，不会被当成拖动区）、
   以及 `ShowDefaultTitleBar = false` + `OnPaintTitleBar` 的完全自绘。
+
+  顶边 1 像素线属于**窗口边框**而不是标题栏内容（Windows 10 的 DWM 不画顶部那条边，
+  由本库补上，与左/右/下三条边同性质）。因此它定义在 `ChromeFrame` 上：
+  `TopBorderLineActiveColor` / `TopBorderLineInactiveColor` / `ShowTopBorderLine`，
+  颜色是半透明的（与标题栏底色混合，所以自定义配色不必改它们），
+  且**完全自定义标题栏时照画** —— 不想要就显式设 `ShowTopBorderLine = false`。
+  直接继承 `ChromeFrame` 时，在自己的 `OnPaint` 里调用一次 `DrawTopBorderLine(graphics)`
+  即可复用同一套实现，不必自己重测 DWM 的混合参数。
 - `samples/WindowChromeKit.Wpf.Sample`：交互式示例应用程序。
 - `samples/WindowChromeKit.WinForms.Sample`：WinForms 示例应用程序。
 - `samples/WindowChromeKit.Native.Sample`：纯 Win32（C++）参考示例，按真实 Chrome 窗口实测的参数

@@ -361,6 +361,83 @@ public sealed class ChromeFormTests
             "the Chrome close button keeps its lighter pressed shade");
     });
 
+    /// <summary>
+    /// 顶边线属于**窗口边框**，所以即使把标题栏内容完全自定义（ShowDefaultTitleBar = false），
+    /// 它也必须照画 —— 否则 Win10 上窗口会缺一条边（DWM 不画顶部）。
+    /// 关掉要用 ShowTopBorderLine = false，而不是靠自定义标题栏"顺带"弄丢。
+    /// </summary>
+    [Fact]
+    public void TopBorderLineSurvivesAFullyCustomTitleBar() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "custom caption",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // 完全自定义标题栏：基类不再画底色/图标/文字/按钮
+        form.ShowDefaultTitleBar = false;
+
+        // 但顶线仍然绘制，且默认是开着的
+        Assert.True(form.ShowTopBorderLine);
+        Assert.True(
+            TopBorderLineIsDrawn(form),
+            "the top border line belongs to the window frame and must survive a custom title bar");
+
+        // 显式关掉才不画
+        form.ShowTopBorderLine = false;
+        Assert.False(
+            TopBorderLineIsDrawn(form),
+            "ShowTopBorderLine = false must actually stop the line");
+    });
+
+    /// <summary>
+    /// 顶线的属性位于 ChromeFrame（窗口边框），ChromeForm 继承它们 —— 所以纯配色改动
+    /// 不会影响命中区，且从 ChromeFrame 派生也能拿到同一套实现与实测参数。
+    /// </summary>
+    [Fact]
+    public void TopBorderLineMembersLiveOnTheFrameBase() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "frame base",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // 属性在基类上声明（ChromeForm 不再自己定义）
+        var declaring = typeof(ChromeFrame).GetProperty(
+            nameof(ChromeForm.TopBorderLineActiveColor))?.DeclaringType;
+        Assert.Equal(typeof(ChromeFrame), declaring);
+        Assert.Equal(
+            typeof(ChromeFrame),
+            typeof(ChromeFrame).GetProperty(nameof(ChromeForm.ShowTopBorderLine))?.DeclaringType);
+
+        // 通过基类引用一样能读写（继承不破坏现有代码）
+        ChromeFrame frame = form;
+        Assert.True(frame.ShowTopBorderLine);
+        frame.ShowTopBorderLine = false;
+        Assert.False(form.ShowTopBorderLine);
+        frame.ShowTopBorderLine = true;
+
+        // 绘制实现也是基类提供的（ChromeFrame 上的 protected 方法）
+        var draw = typeof(ChromeFrame).GetMethod(
+            "DrawTopBorderLine",
+            System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(draw);
+        Assert.Equal(typeof(ChromeFrame), draw!.DeclaringType);
+    });
+
     /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>
@@ -428,6 +505,32 @@ public sealed class ChromeFormTests
             };
         }
         return text;
+    }
+
+    /// <summary>
+    /// 读取窗口标题栏区域，判断第 0 行是否画了顶边线。
+    /// 判据是「第 0 行与第 1 行颜色不同」而不是某个固定色 —— 顶线是半透明的，
+    /// 具体值随标题栏底色变化；完全自定义标题栏时底色更是不确定。
+    /// </summary>
+    private static bool TopBorderLineIsDrawn(ChromeForm form)
+    {
+        var window = WindowRect(form);
+        using var bitmap = new Bitmap(window.Right - window.Left, form.CaptionHeight + 2);
+        using var graphics = Graphics.FromImage(bitmap);
+        var hdc = graphics.GetHdc();
+        try
+        {
+            _ = PrintWindow(form.Handle, hdc, 0);
+        }
+        finally
+        {
+            graphics.ReleaseHdc(hdc);
+        }
+
+        var column = bitmap.Width / 2;
+        var row0 = bitmap.GetPixel(column, 0);
+        var row1 = bitmap.GetPixel(column, 1);
+        return row0.ToArgb() != row1.ToArgb();
     }
 
     /// <summary>把半透明的线条色叠在底色上，模拟实际看到的效果。</summary>

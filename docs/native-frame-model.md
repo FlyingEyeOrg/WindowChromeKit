@@ -209,7 +209,42 @@ WPF 的具体做法（`Generic.xaml`）：
 的目标**，导致 `PART_TopBorderLine` 永远用失活画刷、聚焦时不切色。在 Win11 上完全看不到
 （被 DWM 覆盖），只有 Win10 才暴露。
 
-### 5.6 线的可见性矩阵
+### 5.6 这条线属于「窗口边框」，不属于「标题栏内容」
+
+这是一次**职责归位**，不只是代码搬家。
+
+线要补的是 DWM 没画的**第 4 条边**，与左/右/下三条边同性质 —— 所以它属于窗口框架。
+但最初它被实现在 `ChromeForm`（标题栏绘制）里，于是有两个真实后果：
+
+1. **纯 `ChromeFrame` 子类拿不到它**：没有开关、没有颜色、没有最大化判定，使用者必须自己
+   重测一遍 DWM 的混合参数（那套参数是本项目花了几轮才反解出来的）；
+2. **`ShowDefaultTitleBar = false` 时线静默消失**：完全自定义标题栏的代码路径直接 `return`，
+   跳过了绘制。使用者想要的是自定义**标题栏内容**，未必想连窗口边框一起接管 ——
+   结果是 Win10 上顶部缺一条边，而且没有任何提示。
+
+现在的归属：
+
+| 成员 | 位置 |
+| --- | --- |
+| `TopBorderLineActiveColor` / `TopBorderLineInactiveColor` / `ShowTopBorderLine` | `ChromeFrame`（公开属性） |
+| `ShouldDrawTopBorderLine`（开关 && 非最大化） | `ChromeFrame`（可覆盖） |
+| `DrawTopBorderLine(graphics, active?)` | `ChromeFrame`（默认实现，`ChromeForm` 自动调用） |
+
+配套约定：
+
+- `ChromeForm` 在**所有**路径下都调用 `DrawTopBorderLine`，包括 `ShowDefaultTitleBar = false`。
+  该路径的注释与文档都写明了这一点；不想要就 `ShowTopBorderLine = false`；
+- 它画在**最上层**（与 WPF 覆盖层一致），无论按钮或自定义内容画到哪里都不会被盖住；
+- 纯 `ChromeFrame` 子类在自己的 `OnPaint` 里调一次 `DrawTopBorderLine(graphics)` 即可，
+  不必重测参数。
+
+**这里有一个必须警惕的坑（本此改动中实际踩到并修掉）**：判定"是否最大化"必须用
+**缓存的 `Metrics.Maximized`**，不能用实时查询的 `IsMaximized`。因为按钮的绘制矩形
+（`CaptionButtonTop` / `CaptionHitHeight`）是由那个缓存值算出来的 —— 两者必须**同源**。
+若顶线用实时值、按钮用缓存值，最大化/还原的那一帧会出现「线已消失但按钮还少一行」或
+「线已出现但按钮压住它」的错位。缓存值在 `WM_SIZE` 中更新，早于随后的重绘。
+
+### 5.7 线的可见性矩阵
 
 | 系统 | 顶部 1px 由谁画 | 自绘线是否可见 |
 | --- | --- | --- |
@@ -385,6 +420,9 @@ alpha 设计**，两者不要混淆。
 - [ ] 最大化：按钮铺满标题栏（第 0 行起）、无 1px 缝隙、顶部 8 行是 `HTCAPTION`
 - [ ] 最大化再还原，标题栏不出现 1px 缝隙（`WM_NCCALCSIZE` 早于 `WM_SIZE`）
 - [ ] 鼠标移到标题栏按钮上，顶线仍可见（按钮不能让出那一行）
+- [ ] `ShowDefaultTitleBar = false` 的完全自定义窗口，顶线仍在（它是窗口边框的一部分）；
+      不需要时用 `ShowTopBorderLine = false` 显式关掉
+- [ ] 最大化/还原切换时，顶线的出现/消失与按钮的铺满/让位**同一帧**发生（同源判定）
 - [ ] 窗口边缘外侧 8px（视觉上在阴影里）出现缩放光标；窗口矩形之外是 `HTNOWHERE`
 - [ ] 缩放窗口，客户区内容跟手（`SWP_FRAMECHANGED` 的 `WM_SIZE` 补发）
 - [ ] 多显示器 / 100%·125%·150%·200% DPI 下几何正确
