@@ -10,7 +10,7 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
 		<PackageId>WindowChromeKit.WinForms</PackageId>
-		<VersionPrefix>1.1.0</VersionPrefix>
+		<VersionPrefix>1.2.0</VersionPrefix>
 		<Authors>FlyingEyeOrg</Authors>
 		<Title>WindowChromeKit.WinForms</Title>
 		<Description>面向 .NET 的 WinForms 自定义窗口程序集：保留原生 WS_CAPTION/WS_THICKFRAME 边框（DWM 阴影与阴影中的缩放带），标题栏完全自绘。</Description>
