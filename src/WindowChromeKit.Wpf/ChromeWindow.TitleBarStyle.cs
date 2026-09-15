@@ -55,8 +55,8 @@ public partial class ChromeWindow
         switch (style)
         {
             case ChromeTitleBarStyle.VsCode:
-                // VS Code：标题栏 35、按钮 46×34，配色固定深色
-                palette = SystemTheme.Dark;
+                // VS Code：标题栏 35、按钮 46×34，配色固定深色（不跟随系统明暗）
+                palette = SystemTheme.VsCode;
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
@@ -98,12 +98,20 @@ public partial class ChromeWindow
         InactiveTitleBarForeground = palette.InactiveCaptionText;
         CaptionButtonHoverBackground = palette.ButtonHover;
         CaptionButtonPressedBackground = palette.ButtonPressed;
-        // 关闭按钮的红分两套：Windows 样式用原生实测值（悬停 #C42B1C），
-        // Chrome / VS Code 用经典的 #E81123
+        // 关闭按钮的红分三套：
+        //   Windows 用原生实测值（悬停 #C42B1C、按下 #A92316，按下变暗）；
+        //   Chrome 用经典 #E81123，它的按下是**变亮**的粉红 #F1707A（Chrome 自身行为）；
+        //   VS Code 悬停是 #e81123e6，工作台样式表里没有 :active 规则 —— 按下取更深的红，
+        //   否则按下与悬停同色会显得没有反馈。
         if (style == ChromeTitleBarStyle.Windows)
         {
             CloseButtonHoverBackground = FrozenBrush(0xFF, 0xC4, 0x2B, 0x1C);
             CloseButtonPressedBackground = FrozenBrush(0xFF, 0xA9, 0x23, 0x16);
+        }
+        else if (style == ChromeTitleBarStyle.VsCode)
+        {
+            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
+            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xC5, 0x0F, 0x1F);
         }
         else
         {

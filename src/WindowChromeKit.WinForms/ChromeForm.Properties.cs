@@ -245,13 +245,15 @@ public partial class ChromeForm
         switch (style)
         {
             case ChromeTitleBarStyle.VsCode:
-                // VS Code：标题栏 35、按钮 46×34，配色固定深色
-                palette = SystemTheme.Dark;
+                // VS Code：标题栏 35、按钮 46×34，配色固定深色（不跟随系统明暗）。
+                // 标题贴左：VS Code 的标题栏是三段式（左：菜单/导航，中：命令中心，右：按钮），
+                // 窗口标题不是居中的。
+                palette = SystemTheme.VsCode;
                 CaptionHeightDip = 35;
                 CaptionButtonWidthDip = 46;
                 CaptionButtonHeightDip = 34;
                 CaptionIconMarginDip = 12;
-                CaptionTextAlignment = ContentAlignment.MiddleCenter;
+                CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 MinimizeButtonWidthDip = 0;
                 break;
 
@@ -274,7 +276,9 @@ public partial class ChromeForm
                 break;
 
             default:
-                // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、标题居中
+                // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、标题贴左。
+                // 标题位置与 WPF 版保持一致：WPF 模板把标题 TextBlock 放在图标之后的横向
+                // StackPanel 里，天然贴左；三套样式都贴左（不再有居中的那套）。
                 palette = SystemTheme.Current;
                 CaptionHeightDip = 40;
                 CaptionButtonWidthDip = 46;
@@ -282,7 +286,7 @@ public partial class ChromeForm
                 MinimizeButtonWidthDip = 45;
                 CaptionButtonHeightDip = 39;
                 CaptionIconMarginDip = 12;
-                CaptionTextAlignment = ContentAlignment.MiddleCenter;
+                CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 break;
         }
 
@@ -292,12 +296,20 @@ public partial class ChromeForm
         InactiveCaptionTextColor = palette.InactiveCaptionText;
         CaptionButtonHoverColor = palette.ButtonHover;
         CaptionButtonPressedColor = palette.ButtonPressed;
-        // 关闭按钮的红分两套：Windows 样式用原生实测值（悬停 #C42B1C），
-        // Chrome / VS Code 用经典的 #E81123。顶边线三套都画。
+        // 关闭按钮的红分三套：
+        //   Windows 用原生实测值（悬停 #C42B1C、按下 #A92316，按下变暗）；
+        //   Chrome 用经典 #E81123，它的按下是**变亮**的粉红 #F1707A（Chrome 自身行为）；
+        //   VS Code 悬停是 #e81123e6，工作台样式表里没有 :active 规则 —— 按下取更深的红，
+        //   否则按下与悬停同色会显得没有反馈。顶边线三套都画。
         if (style == ChromeTitleBarStyle.Windows)
         {
             CloseButtonHoverColor = Color.FromArgb(0xC4, 0x2B, 0x1C);
             CloseButtonPressedColor = Color.FromArgb(0xA9, 0x23, 0x16);
+        }
+        else if (style == ChromeTitleBarStyle.VsCode)
+        {
+            CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
+            CloseButtonPressedColor = Color.FromArgb(0xC5, 0x0F, 0x1F);
         }
         else
         {

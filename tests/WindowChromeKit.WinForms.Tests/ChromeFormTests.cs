@@ -305,6 +305,62 @@ public sealed class ChromeFormTests
         Assert.True(form.TopBorderLineActiveColor.A < 255, "the line must stay semi-transparent");
     });
 
+    /// <summary>
+    /// VsCode 样式套用它自己的深色配色（取自 VS Code 的 2026-dark 主题定义），
+    /// 并且**必须与 Chrome / Windows 用的那套隔离** —— 后者在系统深色模式下也会取到深色，
+    /// 若两者共用一份配色，改 VS Code 就会连带改掉 Chrome。
+    /// </summary>
+    [Fact]
+    public void VsCodeStyleUsesItsOwnPaletteAndLeavesChromeAlone() => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "palette probe",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(900, 560),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // VS Code：主题定义 titleBar.activeBackground = #191A1B，激活与失活同色
+        form.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+        Assert.Equal(Color.FromArgb(0x19, 0x1A, 0x1B), form.ActiveCaptionColor);
+        Assert.Equal(Color.FromArgb(0x19, 0x1A, 0x1B), form.InactiveCaptionColor);
+        // titleBar.activeForeground = #8C8C8C，失活同色
+        Assert.Equal(Color.FromArgb(0x8C, 0x8C, 0x8C), form.CaptionTextColor);
+        Assert.Equal(Color.FromArgb(0x8C, 0x8C, 0x8C), form.InactiveCaptionTextColor);
+        // 标题贴左：VS Code 的标题栏是三段式布局，窗口标题不居中
+        Assert.Equal(ContentAlignment.MiddleLeft, form.CaptionTextAlignment);
+        var vsCaption = form.ActiveCaptionColor;
+
+        // Chrome：仍跟随系统明暗，且与 VS Code 不同色（证明两套配色是隔离的）
+        form.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+        Assert.NotEqual(vsCaption, form.ActiveCaptionColor);
+        // 标题也贴左：真实 Chrome 与 WPF 版都是贴左，三套样式一致
+        Assert.Equal(ContentAlignment.MiddleLeft, form.CaptionTextAlignment);
+
+        // Windows 样式同样贴左（三套一致，避免两库/多样式行为分叉）
+        form.TitleBarStyle = ChromeTitleBarStyle.Windows;
+        Assert.Equal(ContentAlignment.MiddleLeft, form.CaptionTextAlignment);
+
+        // 关闭按钮的红分三套：VS Code 按下必须比悬停更深（它的样式表没有 :active 规则）
+        form.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+        Assert.True(
+            form.CloseButtonPressedColor.R < form.CloseButtonHoverColor.R
+                && form.CloseButtonPressedColor.G < form.CloseButtonHoverColor.G,
+            "the VS Code close button must darken when pressed");
+        Assert.Equal(Color.FromArgb(0xE8, 0x11, 0x23), form.CloseButtonHoverColor);
+
+        // Chrome 的按下相反：变亮的粉红（Chrome 自身行为），不能被 VS Code 的规则带走
+        form.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+        Assert.True(
+            form.CloseButtonPressedColor.R > form.CloseButtonHoverColor.R
+                || form.CloseButtonPressedColor.G > form.CloseButtonHoverColor.G,
+            "the Chrome close button keeps its lighter pressed shade");
+    });
+
     /// <summary>按钮底边之下不再属于按钮（回归：按钮高度不能被拉长）。</summary>
     [Fact]
     public void RowBelowCaptionButtonIsCaption() => RunSta(() =>

@@ -40,14 +40,15 @@ public partial class ChromeForm
         set => SetTitleBarSlot(ref _titleBarActions, value);
     }
 
-    private ContentAlignment _captionTextAlignment = ContentAlignment.MiddleCenter;
+    private ContentAlignment _captionTextAlignment = ContentAlignment.MiddleLeft;
 
     /// <summary>
-    /// 默认标题栏里标题文字的对齐方式。默认居中（VS Code 风格），
-    /// 需要 Windows 传统的"图标右侧左对齐"可设为 <see cref="ContentAlignment.MiddleLeft"/>。
+    /// 默认标题栏里标题文字的对齐方式。默认贴左（图标右侧），与 WPF 版和真实 Chrome 一致；
+    /// 需要居中可设为 <see cref="ContentAlignment.MiddleCenter"/>。
+    /// 三套预置样式（Chrome / VsCode / Windows）都是贴左。
     /// </summary>
     [Category("WindowChromeKit")]
-    [DefaultValue(ContentAlignment.MiddleCenter)]
+    [DefaultValue(ContentAlignment.MiddleLeft)]
     public ContentAlignment CaptionTextAlignment
     {
         get => _captionTextAlignment;

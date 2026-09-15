@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -307,22 +307,37 @@ public sealed class ChromeWindowTests
         window.Show();
         try
         {
-            // VS Code：固定深色
+            // VS Code：固定深色，取自它的主题定义 2026-dark.json
+            // （titleBar.activeBackground = #191A1B，激活与失活同色）
             window.TitleBarStyle = ChromeTitleBarStyle.VsCode;
             var vsCode = Assert.IsType<SolidColorBrush>(window.ActiveTitleBarBackground);
-            Assert.Equal(Color.FromRgb(0x32, 0x32, 0x33), vsCode.Color);
+            Assert.Equal(Color.FromRgb(0x19, 0x1A, 0x1B), vsCode.Color);
+            var vsCodeInactive = Assert.IsType<SolidColorBrush>(window.InactiveTitleBarBackground);
+            Assert.Equal(Color.FromRgb(0x19, 0x1A, 0x1B), vsCodeInactive.Color);
 
-            // Chrome / Windows：跟随系统明暗，与 SystemTheme 的当前判定一致
+            // Chrome / Windows：跟随系统明暗，与 SystemTheme 的当前判定一致。
+            // VsCode 用的是**独立**的一套配色；这里显式断言它与 Chrome 不同，
+            // 保证以后不会有人把两者合并（合并会在系统深色模式下连带改掉 Chrome）。
             window.TitleBarStyle = ChromeTitleBarStyle.Chrome;
             var chrome = Assert.IsType<SolidColorBrush>(window.ActiveTitleBarBackground);
             var expected = SystemTheme.IsLightMode()
                 ? Color.FromRgb(0xFF, 0xFF, 0xFF)
                 : Color.FromRgb(0x32, 0x32, 0x33);
             Assert.Equal(expected, chrome.Color);
+            Assert.NotEqual(vsCode.Color, chrome.Color);
 
-            // 关闭按钮的红分两套：Chrome / VsCode 用经典 #E81123
+            // 关闭按钮的红分三套：Chrome 用经典 #E81123（按下变亮的粉红 #F1707A），
+            // VS Code 悬停同为 #E81123 但按下取更深一档的红。
             var close = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
             Assert.Equal(Color.FromRgb(0xE8, 0x11, 0x23), close.Color);
+
+            window.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+            var vsClose = Assert.IsType<SolidColorBrush>(window.CloseButtonHoverBackground);
+            var vsClosePressed = Assert.IsType<SolidColorBrush>(window.CloseButtonPressedBackground);
+            Assert.Equal(Color.FromRgb(0xE8, 0x11, 0x23), vsClose.Color);
+            Assert.True(
+                vsClosePressed.Color.R < vsClose.Color.R && vsClosePressed.Color.G < vsClose.Color.G,
+                "the VS Code close button must darken when pressed");
 
             // Windows 样式用原生实测值（悬停 #C42B1C）
             window.TitleBarStyle = ChromeTitleBarStyle.Windows;

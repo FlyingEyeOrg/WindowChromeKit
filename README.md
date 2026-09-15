@@ -159,11 +159,14 @@ public partial class MainWindow : ChromeWindow
   标题栏预置样式 `ChromeTitleBarStyle`（`ChromeWindow` / `ChromeForm` 上的 `TitleBarStyle`，
   默认 `Chrome`）——赋值时把该样式的几何与配色一次性套用，之后单独改属性以属性为准：
 
-  | 样式 | 标题栏高 | 按钮 | 图标位置 | 配色 |
-  | --- | --- | --- | --- | --- |
-  | `Chrome`（默认） | 40 | 最小化 45 / 其余 46，高 39 | 12px 位 | 跟随系统明暗 |
-  | `VsCode` | 35 | 46×34 | 12px 位 | 固定深色 `#323233` |
-  | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 跟随系统明暗 |
+  | 样式 | 标题栏高 | 按钮 | 图标位置 | 标题 | 配色 |
+  | --- | --- | --- | --- | --- | --- |
+  | `Chrome`（默认） | 40 | 最小化 45 / 其余 46，高 39 | 12px 位 | 贴左 | 跟随系统明暗 |
+  | `VsCode` | 35 | 46×34 | 12px 位 | 贴左 | 固定深色 `#191A1B`（取自 VS Code 的 2026-dark 主题） |
+  | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 贴左 | 跟随系统明暗 |
+
+  三套样式的标题文字都是**贴左**（图标右侧），与 WPF 版和真实 Chrome 一致。
+  `VsCode` 用的是**独立**的一套配色，改它不会影响 `Chrome` / `Windows` 在系统深色模式下的外观。
 
   三套样式都画顶边线、关闭按钮都用系统标准红；需要完全自定义标题栏时不用这个枚举
   （继承 `ChromeFrame`，或 `ShowDefaultTitleBar = false` 自己绘制）。

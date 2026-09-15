@@ -45,7 +45,10 @@ internal static class SystemTheme
         Color.FromArgb(0xE8, 0xEA, 0xED),
         Color.FromArgb(0xDA, 0xDC, 0xE0));
 
-    /// <summary>Chrome / VS Code 深色：#323233 底、#CCCCCC 文字、失活 #2D2D2D / #9D9D9D。</summary>
+    /// <summary>
+    /// Chrome 深色标题栏（系统"应用模式"为深色时 Chrome 样式使用）：
+    /// #323233 底、#CCCCCC 文字、失活 #2D2D2D / #9D9D9D。
+    /// </summary>
     internal static readonly ChromePalette Dark = new(
         Color.FromArgb(0x32, 0x32, 0x33),
         Color.FromArgb(0x2D, 0x2D, 0x2D),
@@ -53,6 +56,23 @@ internal static class SystemTheme
         Color.FromArgb(0x9D, 0x9D, 0x9D),
         Color.FromArgb(0x50, 0x50, 0x50),
         Color.FromArgb(0x5F, 0x5F, 0x5F));
+
+    /// <summary>
+    /// VS Code 深色标题栏（<c>VsCode</c> 样式专用，与系统明暗无关）。
+    /// 取自 VS Code 的主题定义 <c>2026-dark.json</c> 与工作台样式表：
+    /// <c>titleBar.activeBackground = #191A1B</c>（激活与失活同色）、
+    /// <c>titleBar.activeForeground = #8C8C8C</c>，
+    /// 按钮悬停是 <c>#ffffff1a</c>（白色 10% 叠加）落在 #191A1B 上的结果。
+    /// 独立成一套而不是复用 <see cref="Dark"/>：后者在系统深色模式下也被
+    /// Chrome / Windows 样式使用，改它会连带改变那两套样式。
+    /// </summary>
+    internal static readonly ChromePalette VsCode = new(
+        Color.FromArgb(0x19, 0x1A, 0x1B),
+        Color.FromArgb(0x19, 0x1A, 0x1B),
+        Color.FromArgb(0x8C, 0x8C, 0x8C),
+        Color.FromArgb(0x8C, 0x8C, 0x8C),
+        Color.FromArgb(0x2E, 0x2F, 0x30),
+        Color.FromArgb(0x3A, 0x3B, 0x3C));
 
     /// <summary>当前系统明暗对应的配色（读取"应用模式"设置，读不到时按浅色处理）。</summary>
     internal static ChromePalette Current => IsLightMode() ? Light : Dark;
