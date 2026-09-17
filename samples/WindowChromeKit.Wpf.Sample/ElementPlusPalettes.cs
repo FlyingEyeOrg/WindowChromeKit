@@ -26,6 +26,15 @@ internal static class ElementPlusPalettes
     private static readonly Color White = Colors.White;
     private static readonly Color Black = Colors.Black;
 
+    // 关闭按钮在**浅色底**上要用更深的红，否则"太淡"。
+    // 这不是审美问题，是可量化的：danger #F56C6C 与白底的对比度只有 2.90:1，
+    // 而原生 Windows 关闭按钮是 5.66:1；与 primary #409EFF 的对比度更是只有 1.04:1
+    // —— 因为两者的**亮度几乎相同**（0.312 vs 0.328），只剩色相差，看上去就是"糊"。
+    // 所以按 Element Plus 自己的混色公式往深走：dark-2 官方有，dark-3 按同一公式外推。
+    //   深色底（VsCode 款）相反：底色已经接近黑，越深越看不见，那边保持亮红。
+    private static readonly Color DangerDeep = Mix(Black, Danger, 0.20);   // danger-dark-2 #C45656
+    private static readonly Color DangerDeeper = Mix(Black, Danger, 0.30); // 外推一档 #AC4C4C
+
     /// <summary>
     /// 一款配色：标题栏底色/文字、按钮填充、关闭按钮，共 8 个值。
     /// 这里用普通类而非 record —— WPF 样例目标框架是 net6.0，没有 record 需要的
@@ -92,9 +101,9 @@ internal static class ElementPlusPalettes
             inactiveCaptionText: Frozen(Color.FromRgb(0x90, 0x93, 0x99)), // text-color secondary
             buttonHover: Frozen(Mix(White, Primary, 0.90)),            // primary light-9
             buttonPressed: Frozen(Mix(White, Primary, 0.80)),          // primary light-8
-            closeButtonHover: Frozen(Danger),
-            closeButtonPressed: Frozen(Mix(Black, Danger, 0.20)),
-            caption: "浅色中性底 + primary 强调：底色 #FFFFFF、按钮悬停 #ECF5FF"),
+            closeButtonHover: Frozen(DangerDeep),                      // 白底上要深红，见上面 DangerDeep 的说明
+            closeButtonPressed: Frozen(DangerDeeper),
+            caption: "浅色中性底 + primary 强调：底色 #FFFFFF、关闭按钮悬停 #C45656"),
 
         // Chrome 样式直接吃 primary 当标题栏底，最"品牌"的一款。
         _ => new Palette(
@@ -104,9 +113,9 @@ internal static class ElementPlusPalettes
             inactiveCaptionText: Frozen(Mix(White, Primary, 0.90)),    // primary light-9
             buttonHover: Frozen(Mix(White, Primary, 0.30)),            // primary light-3
             buttonPressed: Frozen(Mix(Black, Primary, 0.20)),          // primary dark-2
-            closeButtonHover: Frozen(Danger),
-            closeButtonPressed: Frozen(Mix(Black, Danger, 0.20)),
-            caption: "品牌主色底 #409EFF、失活 #79BBFF、按钮按下 #337ECC"),
+            closeButtonHover: Frozen(DangerDeep),                      // primary 底与 danger 亮度太近，须用深红
+            closeButtonPressed: Frozen(DangerDeeper),
+            caption: "品牌主色底 #409EFF、失活 #79BBFF、关闭按钮悬停 #C45656"),
     };
 
     /// <summary>
