@@ -1,16 +1,19 @@
 namespace WindowChromeKit.Wpf;
 
 /// <summary>
-/// 标题栏**配色来源**。与 <see cref="ChromeTitleBarStyle"/> 是两个正交的轴：
-/// 样式决定几何（标题栏高、按钮尺寸、图标位置），配色决定用哪套颜色。
+/// 标题栏**配色**。<see cref="ChromeTitleBarStyle"/> 提供骨架（几何）与它自带的那套默认配色，
+/// 本枚举提供另外多套可选配色 —— 两者是正交的两轴：
 ///
-/// 为什么不把配色做成 <see cref="ChromeTitleBarStyle"/> 的成员（例如
-/// <c>ChromeForElementPlus</c>）：那会让两者**相乘** —— 3 种几何 × N 种品牌配色
-/// = 3N 个成员，每加一个品牌就要多三个。拆成两轴后是 3 + N，
-/// 而且语义也更准：换品牌配色时几何一点没变，它本来就不是另一种"样式"。
+/// <code>
+/// window.TitleBarStyle   = ChromeTitleBarStyle.VsCode;              // 骨架 + 默认配色
+/// window.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;   // 换成想要的配色
+/// </code>
 ///
-/// 应用顺序：赋值 <see cref="ChromeWindow.TitleBarStyle"/> 或本属性都会把颜色
-/// **重新套用一次**；之后单独修改任何颜色属性都以属性为准，不会被覆盖回来。
+/// 之所以按"配色"而不是"品牌"划分值：这里每一套都是**一套完整的、可直接用的颜色**，
+/// 不随 <see cref="ChromeTitleBarStyle"/> 变化。想看全部取值，见 README 的配色对照表。
+///
+/// 应用顺序：赋值 <see cref="ChromeWindow.TitleBarStyle"/> 或本属性都会把颜色**重新套用一次**；
+/// 之后单独修改任何颜色属性都以属性为准，不会被覆盖回来。
 /// </summary>
 public enum ChromeTitleBarPalette
 {
@@ -22,10 +25,20 @@ public enum ChromeTitleBarPalette
     Default,
 
     /// <summary>
-    /// Element Plus 色板。三套几何样式**各有一款**：Chrome 用品牌主色当底、
-    /// VS Code 用它的深色主题、Windows 保持中性底只把主色用在按钮上。
-    /// 数值取自 Element Plus 自己的主题变量（<c>theme-chalk</c> 的
-    /// <c>common/var.scss</c> 与 <c>dark/var.scss</c>），派生色按它的混色公式算出。
+    /// Element Plus **主色**：品牌主色 <c>#409EFF</c> 直接当标题栏底色，白字。
+    /// 最"品牌"的一套，适合要让标题栏与产品主色一致的场景。
     /// </summary>
-    ElementPlus,
+    ElementPlusPrimary,
+
+    /// <summary>
+    /// Element Plus **深色**：取自它的深色主题（底色 <c>#141414</c>、文字 <c>#E5EAF3</c>、
+    /// 按钮填充用 dark fill-color）。标题栏本来就不抢眼，适合内容为主的工具类窗口。
+    /// </summary>
+    ElementPlusDark,
+
+    /// <summary>
+    /// Element Plus **中性**：浅色中性底（<c>#FFFFFF</c> / 失活 <c>#F2F6FC</c>）保持克制，
+    /// 只在按钮的悬停与按下处露出 primary 色阶。最接近原生观感的一套。
+    /// </summary>
+    ElementPlusNeutral,
 }

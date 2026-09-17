@@ -5,20 +5,23 @@ using WindowChromeKit.WinForms;
 namespace WindowChromeKit.WinForms.Sample;
 
 /// <summary>
-/// 演示标题栏的两个轴：<see cref="ChromeTitleBarStyle"/>（几何）与
-/// <see cref="ChromeTitleBarPalette"/>（配色）。Chrome / VS Code / Windows 三套几何
-/// 各配一款 Element Plus 配色，可以在这里逐一切换对比。
+/// 演示标题栏的两个轴：<see cref="ChromeTitleBarStyle"/>（骨架 + 它自带的默认配色）与
+/// <see cref="ChromeTitleBarPalette"/>（另外多套可选配色）。
 ///
-/// 两者正交，**谁后赋值都成立**；之后单独改颜色属性同样以属性为准。
+/// 界面上是**两行独立的按钮**：上行切换骨架、下行切换配色，两者自由组合互不干扰 ——
+/// 3 种骨架 × 3 套 Element Plus 配色 = 9 种组合，任何组合都能直接选。
+///
 /// 色板本身在库里（<c>ElementPlusTheme</c>），这里只负责切换与显示 ——
-/// 所以本示例的色块读的是窗口上**实际生效**的颜色，没有再抄一份表。
-///
-/// 顶边线不用管：它存的是半透明基色，绘制时与标题栏底色混合，换成任何配色都会自动跟随。
+/// 下面的色块读的是窗口上**实际生效**的颜色，没有再抄一份表。
 /// </summary>
 public sealed class ElementPlusTitleBarForm : ChromeForm
 {
     private readonly Label _status;
     private readonly FlowLayoutPanel _swatches;
+    private readonly Button[] _styleButtons;
+    private readonly Button[] _paletteButtons;
+    private ChromeTitleBarStyle _style = ChromeTitleBarStyle.Chrome;
+    private ChromeTitleBarPalette _palette = ChromeTitleBarPalette.ElementPlusPrimary;
 
     public ElementPlusTitleBarForm()
     {
@@ -45,15 +48,15 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
         var hint = new Label
         {
             Dock = DockStyle.Top,
-            Height = 152,
+            Height = 132,
             Padding = new Padding(24, 8, 24, 0),
             ForeColor = Color.FromArgb(0x60, 0x62, 0x66),
             Text =
-                "1. 标题栏是两个正交的轴：TitleBarStyle 管几何（标题栏高、按钮尺寸、图标位置），\r\n"
-                + "   TitleBarPalette 管配色。下面三个按钮同时切换两者（几何 + Element Plus 配色）。\r\n"
+                "1. 上行按钮换**骨架**（TitleBarStyle：标题栏高、按钮尺寸、图标位置），\r\n"
+                + "   下行按钮换**配色**（TitleBarPalette）。两行互不干扰，3×3 共 9 种组合。\r\n"
                 + "2. 两者谁后赋值都成立，不会互相覆盖；之后单独改颜色属性也以属性为准。\r\n"
-                + "3. 色板来自库里（ElementPlusTheme），数值取自 Element Plus 的官方变量：\r\n"
-                + "   浅色用 common/var.scss，深色用 dark/var.scss。\r\n"
+                + "3. 三套配色取自 Element Plus 的官方变量（common/var.scss 与 dark/var.scss）：\r\n"
+                + "   主色 = primary 当底；深色 = 它的深色主题；中性 = 浅色底只在按钮上出主色。\r\n"
                 + "4. 下面的色块读的是窗口上实际生效的颜色，不是另抄的一份表。",
         };
 
@@ -74,14 +77,16 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
             Text = string.Empty,
         };
 
-        var buttons = new FlowLayoutPanel
+        _styleButtons = new Button[3];
+        var styleRow = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 48,
+            Height = 44,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(24, 8, 0, 0),
+            Padding = new Padding(24, 6, 0, 0),
         };
+        var styleIndex = 0;
         foreach (var style in new[]
                  {
                      ChromeTitleBarStyle.Chrome,
@@ -91,19 +96,53 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
         {
             var button = new Button
             {
-                Text = style switch
-                {
-                    ChromeTitleBarStyle.VsCode => "VS Code 样式 × Element Plus 深色",
-                    ChromeTitleBarStyle.Windows => "Windows 样式 × Element Plus 中性",
-                    _ => "Chrome 样式 × Element Plus 主色",
-                },
+                Text = $"骨架：{style}",
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                Margin = new Padding(0, 0, 12, 0),
+                Margin = new Padding(0, 0, 8, 0),
             };
             var captured = style;
-            button.Click += (_, _) => UsePalette(captured);
-            buttons.Controls.Add(button);
+            button.Click += (_, _) =>
+            {
+                _style = captured;
+                Apply();
+            };
+            _styleButtons[styleIndex++] = button;
+            styleRow.Controls.Add(button);
+        }
+
+        _paletteButtons = new Button[3];
+        var paletteRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 44,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Padding = new Padding(24, 6, 0, 0),
+        };
+        var paletteIndex = 0;
+        foreach (var (palette, label) in new[]
+                 {
+                     (ChromeTitleBarPalette.ElementPlusPrimary, "配色：主色"),
+                     (ChromeTitleBarPalette.ElementPlusDark, "配色：深色"),
+                     (ChromeTitleBarPalette.ElementPlusNeutral, "配色：中性"),
+                 })
+        {
+            var button = new Button
+            {
+                Text = label,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Margin = new Padding(0, 0, 8, 0),
+            };
+            var captured = palette;
+            button.Click += (_, _) =>
+            {
+                _palette = captured;
+                Apply();
+            };
+            _paletteButtons[paletteIndex++] = button;
+            paletteRow.Controls.Add(button);
         }
 
         var spacer = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
@@ -112,23 +151,64 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
         Controls.Add(spacer);
         Controls.Add(_status);
         Controls.Add(_swatches);
-        Controls.Add(buttons);
+        Controls.Add(paletteRow);
+        Controls.Add(styleRow);
         Controls.Add(hint);
         Controls.Add(header);
 
-        UsePalette(ChromeTitleBarStyle.Chrome);
+        Apply();
     }
 
-    private void UsePalette(ChromeTitleBarStyle style)
+    /// <summary>把两个轴分别套上去，并刷新按钮状态、标题与色块。</summary>
+    private void Apply()
     {
-        // 两个轴分别赋值：样式管几何、配色管颜色。顺序任意，两者会自行组合。
-        TitleBarStyle = style;
-        TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        // 两个轴各管一半：样式管几何（以及 Default 配色时的颜色），配色管颜色。
+        // 顺序任意，两者会自行组合。
+        TitleBarStyle = _style;
+        TitleBarPalette = _palette;
+        UpdateStatus();
+    }
 
-        Text = $"Element Plus 配色 × {style} 样式";
-        _status.Text = $"当前：{style} 几何 + Element Plus 配色。{Describe(style)}";
+    private void UpdateStatus()
+    {
+        Text = $"{_style} 骨架 × {DescribePalette(_palette)}";
+        _status.Text = $"当前：{_style} 几何 + {DescribePalette(_palette)}。{Describe(_style)}";
+        HighlightSelection();
+        RefreshSwatches();
+    }
 
-        // 色块直接读窗口上实际生效的颜色 —— 不再抄一份配色表，改了库这里自动跟着变
+    /// <summary>把当前选中的骨架/配色按钮标出来（用粗体，不引入额外配色以免干扰观察）。</summary>
+    private void HighlightSelection()
+    {
+        ChromeTitleBarStyle[] styles =
+        {
+            ChromeTitleBarStyle.Chrome,
+            ChromeTitleBarStyle.VsCode,
+            ChromeTitleBarStyle.Windows,
+        };
+        for (var i = 0; i < _styleButtons.Length; i++)
+            SetSelected(_styleButtons[i], styles[i] == _style);
+
+        ChromeTitleBarPalette[] palettes =
+        {
+            ChromeTitleBarPalette.ElementPlusPrimary,
+            ChromeTitleBarPalette.ElementPlusDark,
+            ChromeTitleBarPalette.ElementPlusNeutral,
+        };
+        for (var i = 0; i < _paletteButtons.Length; i++)
+            SetSelected(_paletteButtons[i], palettes[i] == _palette);
+    }
+
+    private static void SetSelected(Button button, bool selected)
+    {
+        var style = selected ? FontStyle.Bold : FontStyle.Regular;
+        if (button.Font.Style != style)
+            button.Font = new Font(button.Font, style);
+    }
+
+    /// <summary>色块直接读窗口上实际生效的颜色 —— 不抄配色表，改了库这里自动跟着变。</summary>
+    private void RefreshSwatches()
+    {
         _swatches.Controls.Clear();
         AddSwatch("激活底", ActiveCaptionColor, Contrast(ActiveCaptionColor));
         AddSwatch("失活底", InactiveCaptionColor, Contrast(InactiveCaptionColor));
@@ -137,6 +217,14 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
         AddSwatch("关闭悬停", CloseButtonHoverColor, Contrast(CloseButtonHoverColor));
         AddSwatch("关闭按下", CloseButtonPressedColor, Contrast(CloseButtonPressedColor));
     }
+
+    private static string DescribePalette(ChromeTitleBarPalette palette) => palette switch
+    {
+        ChromeTitleBarPalette.ElementPlusPrimary => "Element Plus 主色",
+        ChromeTitleBarPalette.ElementPlusDark => "Element Plus 深色",
+        ChromeTitleBarPalette.ElementPlusNeutral => "Element Plus 中性",
+        _ => "样式自带配色",
+    };
 
     /// <summary>各款配色的一句话说明（色值由库提供，这里只讲它为什么这么选）。</summary>
     private static string Describe(ChromeTitleBarStyle style) => style switch

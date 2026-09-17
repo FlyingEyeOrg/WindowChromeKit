@@ -285,7 +285,13 @@ form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;     // 配色
 | `TitleBarPalette` | 含义 |
 | --- | --- |
 | `Default` | 该样式自带的那套（三套的红各不相同，见下） |
-| `ElementPlus` | Element Plus 色板，三套几何各一款 |
+| `ElementPlusPrimary` | Element Plus 主色：`#409EFF` 当底、白字 |
+| `ElementPlusDark` | Element Plus 深色主题：`#141414` 底 |
+| `ElementPlusNeutral` | 浅色中性底 `#FFFFFF`，只在按钮上出主色 |
+
+**配色值不依赖样式**：同一套配色配到哪套骨架上都是同样的颜色（有测试断言这一点）。
+只有 `Default` 例外 —— 它的定义就是"该样式自带的那套"，所以只有那一个分支需要样式参数。
+3 种骨架 × 4 种配色 = 12 种组合。
 
 两条实现契约：
 

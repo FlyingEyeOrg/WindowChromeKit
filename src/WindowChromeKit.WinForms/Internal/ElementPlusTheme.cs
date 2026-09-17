@@ -3,7 +3,8 @@ using System.Drawing;
 namespace WindowChromeKit.WinForms.Internal;
 
 /// <summary>
-/// Element Plus 配色：三套几何样式各一款。
+/// Element Plus 的三套配色。**按配色本身划分，不依赖几何样式** ——
+/// 同一套配色的颜色是固定的，配到哪套骨架上都是同样的颜色。
 ///
 /// 数值全部取自 Element Plus 自己的主题变量（<c>theme-chalk/src/common/var.scss</c> 与
 /// <c>theme-chalk/src/dark/var.scss</c>），派生色按它的混色公式算出，而不是抓屏反推：
@@ -41,10 +42,11 @@ internal static class ElementPlusTheme
     private static readonly Color CloseHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
     private static readonly Color ClosePressed = Color.FromArgb(0xA9, 0x23, 0x16);
 
-    internal static ChromeTitleBarLook Look(ChromeTitleBarStyle style) => style switch
+    internal static ChromeTitleBarLook Look(ChromeTitleBarPalette palette) => palette switch
     {
-        // VS Code 的标题栏本来就是深色，所以配 Element Plus 的**深色主题**。
-        ChromeTitleBarStyle.VsCode => new ChromeTitleBarLook(
+        // 深色：底色 dark bg、文字 dark text-color、按钮填充 dark fill-color。
+        // 注意深色主题的 dark-2 是**向白混**；但关闭按钮三套统一用 Windows 原生对（见上）。
+        ChromeTitleBarPalette.ElementPlusDark => new ChromeTitleBarLook(
             new ChromePalette(
                 activeCaption: DarkBg,
                 inactiveCaption: DarkOverlay,
@@ -55,9 +57,8 @@ internal static class ElementPlusTheme
             closeButtonHover: CloseHover,
             closeButtonPressed: ClosePressed),
 
-        // Windows 样式本来就贴近原生浅色，所以配**浅色中性色 + primary 强调**：
-        // 底色保持中性，只在按钮悬停/按下处露出 primary 色阶。
-        ChromeTitleBarStyle.Windows => new ChromeTitleBarLook(
+        // 中性：浅色中性底保持克制，只在按钮悬停/按下处露出 primary 色阶。
+        ChromeTitleBarPalette.ElementPlusNeutral => new ChromeTitleBarLook(
             new ChromePalette(
                 activeCaption: White,
                 inactiveCaption: NeutralCaption,
@@ -68,7 +69,7 @@ internal static class ElementPlusTheme
             closeButtonHover: CloseHover,
             closeButtonPressed: ClosePressed),
 
-        // Chrome 样式直接吃 primary 当标题栏底，最"品牌"的一款。
+        // 主色：primary 直接当标题栏底，白字。
         _ => new ChromeTitleBarLook(
             new ChromePalette(
                 activeCaption: Primary,

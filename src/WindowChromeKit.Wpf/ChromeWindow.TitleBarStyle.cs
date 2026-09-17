@@ -122,12 +122,16 @@ public partial class ChromeWindow
     /// <summary>
     /// 按当前的 <see cref="TitleBarPalette"/> 把颜色套到标题栏上。
     /// 几何不变，只改颜色 —— 这也是它与 <see cref="TitleBarStyle"/> 分成两个轴的原因。
+    ///
+    /// 配色**直接按枚举值取**，不看样式：同一套配色配到哪套骨架上都是同样的颜色。
+    /// 只有 <see cref="ChromeTitleBarPalette.Default"/> 例外 —— 它的定义就是"该样式自带的那套"，
+    /// 所以那一个分支才需要样式参数。
     /// </summary>
     private void ApplyTitleBarPalette(ChromeTitleBarStyle style)
     {
-        var look = TitleBarPalette == ChromeTitleBarPalette.ElementPlus
-            ? ElementPlusTheme.Look(style)
-            : SystemTheme.Look(style);
+        var look = TitleBarPalette == ChromeTitleBarPalette.Default
+            ? SystemTheme.Look(style)
+            : ElementPlusTheme.Look(TitleBarPalette);
         var palette = look.Palette;
         ActiveTitleBarBackground = palette.ActiveCaption;
         InactiveTitleBarBackground = palette.InactiveCaption;

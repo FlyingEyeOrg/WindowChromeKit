@@ -602,36 +602,79 @@ public sealed class ChromeFormTests
 
     /// <summary>
     /// 配色是**独立的一轴**：换配色只改颜色，几何一点不动。
-    /// Element Plus 三套几何各有一款配色，这里逐款核对，并断言几何与样式没被牵连。
+    /// 三套 Element Plus 配色逐个核对，并且断言它们配到三套骨架上颜色都一样 ——
+    /// 配色的值**不依赖样式**，这正是把它与样式拆成两轴的意义。
     /// </summary>
     [Fact]
-    public void ElementPlusPaletteChangesOnlyTheColours() => RunSta(() =>
+    public void ElementPlusPalettesChangeOnlyTheColours() => RunSta(() =>
     {
-        using var form = NewTestForm("element plus palette");
-        foreach (var style in new[]
+        using var form = NewTestForm("element plus palettes");
+        foreach (var palette in new[]
                  {
-                     ChromeTitleBarStyle.Chrome,
-                     ChromeTitleBarStyle.VsCode,
-                     ChromeTitleBarStyle.Windows,
+                     ChromeTitleBarPalette.ElementPlusPrimary,
+                     ChromeTitleBarPalette.ElementPlusDark,
+                     ChromeTitleBarPalette.ElementPlusNeutral,
                  })
         {
-            form.TitleBarStyle = style;
-            form.TitleBarPalette = ChromeTitleBarPalette.Default;
-            var geometry = Geometry(form);
+            var expected = ExpectedElementPlus(palette);
+            Color? seenOnChrome = null;
+            foreach (var style in new[]
+                     {
+                         ChromeTitleBarStyle.Chrome,
+                         ChromeTitleBarStyle.VsCode,
+                         ChromeTitleBarStyle.Windows,
+                     })
+            {
+                form.TitleBarStyle = style;
+                form.TitleBarPalette = ChromeTitleBarPalette.Default;
+                var geometry = Geometry(form);
 
-            form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+                form.TitleBarPalette = palette;
 
-            Assert.Equal(geometry, Geometry(form));
-            var expected = ExpectedElementPlus(style);
-            Assert.Equal(expected.Active, form.ActiveCaptionColor);
-            Assert.Equal(expected.Inactive, form.InactiveCaptionColor);
-            Assert.Equal(expected.Text, form.CaptionTextColor);
-            Assert.Equal(expected.InactiveText, form.InactiveCaptionTextColor);
-            Assert.Equal(expected.Hover, form.CaptionButtonHoverColor);
-            Assert.Equal(expected.Pressed, form.CaptionButtonPressedColor);
-            Assert.Equal(expected.CloseHover, form.CloseButtonHoverColor);
-            Assert.Equal(expected.ClosePressed, form.CloseButtonPressedColor);
+                // geometry untouched by the palette
+                Assert.Equal(geometry, Geometry(form));
+                Assert.Equal(expected.Active, form.ActiveCaptionColor);
+                Assert.Equal(expected.Inactive, form.InactiveCaptionColor);
+                Assert.Equal(expected.Text, form.CaptionTextColor);
+                Assert.Equal(expected.InactiveText, form.InactiveCaptionTextColor);
+                Assert.Equal(expected.Hover, form.CaptionButtonHoverColor);
+                Assert.Equal(expected.Pressed, form.CaptionButtonPressedColor);
+                Assert.Equal(expected.CloseHover, form.CloseButtonHoverColor);
+                Assert.Equal(expected.ClosePressed, form.CloseButtonPressedColor);
+
+                // the same palette paints the same colours regardless of the skeleton
+                if (seenOnChrome is null)
+                    seenOnChrome = form.ActiveCaptionColor;
+                else
+                    Assert.Equal(seenOnChrome, form.ActiveCaptionColor);
+            }
         }
+    });
+
+    /// <summary>
+    /// 三套 Element Plus 配色**互不相同** —— 否则"多套配色"就是摆设。
+    /// 主色 / 深色 / 中性三者的底色必须两两不同。
+    /// </summary>
+    [Fact]
+    public void ElementPlusPalettesAreDistinct() => RunSta(() =>
+    {
+        using var form = NewTestForm("distinct palettes");
+        form.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+        var seen = new List<Color>();
+        foreach (var palette in new[]
+                 {
+                     ChromeTitleBarPalette.ElementPlusPrimary,
+                     ChromeTitleBarPalette.ElementPlusDark,
+                     ChromeTitleBarPalette.ElementPlusNeutral,
+                 })
+        {
+            form.TitleBarPalette = palette;
+            seen.Add(form.ActiveCaptionColor);
+        }
+        Assert.Equal(3, seen.Distinct().Count());
+        Assert.Equal(Color.FromArgb(0x40, 0x9E, 0xFF), seen[0]);   // 主色
+        Assert.Equal(Color.FromArgb(0x14, 0x14, 0x14), seen[1]);   // 深色
+        Assert.Equal(Color.White, seen[2]);                        // 中性
     });
 
     /// <summary>
@@ -643,10 +686,10 @@ public sealed class ChromeFormTests
     {
         using var styleFirst = NewTestForm("style first");
         styleFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
-        styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;
 
         using var paletteFirst = NewTestForm("palette first");
-        paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;
         paletteFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
 
         Assert.Equal(Geometry(styleFirst), Geometry(paletteFirst));
@@ -671,7 +714,7 @@ public sealed class ChromeFormTests
         form.TitleBarStyle = ChromeTitleBarStyle.Chrome;
         var chromeOwn = (form.ActiveCaptionColor, form.CloseButtonHoverColor, form.CloseButtonPressedColor);
 
-        form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        form.TitleBarPalette = ChromeTitleBarPalette.ElementPlusPrimary;
         Assert.NotEqual(chromeOwn.ActiveCaptionColor, form.ActiveCaptionColor);
 
         form.TitleBarPalette = ChromeTitleBarPalette.Default;
@@ -697,39 +740,38 @@ public sealed class ChromeFormTests
             form.CaptionTextAlignment);
 
     /// <summary>
-    /// Element Plus 三款配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
+    /// Element Plus 三套配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
     /// 与库内 <c>ElementPlusTheme</c> 是同一套算法（这里独立算一遍，避免"用实现测实现"）。
     /// </summary>
     private static (Color Active, Color Inactive, Color Text, Color InactiveText,
         Color Hover, Color Pressed, Color CloseHover, Color ClosePressed)
-        ExpectedElementPlus(ChromeTitleBarStyle style)
+        ExpectedElementPlus(ChromeTitleBarPalette palette)
     {
         var primary = Color.FromArgb(0x40, 0x9E, 0xFF);
-        var danger = Color.FromArgb(0xF5, 0x6C, 0x6C);
         var darkBg = Color.FromArgb(0x14, 0x14, 0x14);
-        // 三款配色的关闭按钮共用同一对：Windows 原生实测值
-        var nativeHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
-        var nativePressed = Color.FromArgb(0xA9, 0x23, 0x16);
-        return style switch
+        // 三套共用的关闭按钮：Windows 原生实测值
+        var closeHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
+        var closePressed = Color.FromArgb(0xA9, 0x23, 0x16);
+        return palette switch
         {
-            ChromeTitleBarStyle.VsCode => (
+            ChromeTitleBarPalette.ElementPlusDark => (
                 darkBg,
                 Color.FromArgb(0x1D, 0x1E, 0x1F),
                 MixWith(Color.FromArgb(0xF0, 0xF5, 0xFF), darkBg, 0.95),
                 MixWith(Color.FromArgb(0xF0, 0xF5, 0xFF), darkBg, 0.65),
                 MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.12),
                 MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.20),
-                nativeHover,
-                nativePressed),
-            ChromeTitleBarStyle.Windows => (
+                closeHover,
+                closePressed),
+            ChromeTitleBarPalette.ElementPlusNeutral => (
                 Color.White,
                 Color.FromArgb(0xF2, 0xF6, 0xFC),
                 Color.FromArgb(0x30, 0x31, 0x33),
                 Color.FromArgb(0x90, 0x93, 0x99),
                 MixWith(Color.White, primary, 0.90),
                 MixWith(Color.White, primary, 0.80),
-                nativeHover,
-                nativePressed),
+                closeHover,
+                closePressed),
             _ => (
                 primary,
                 MixWith(Color.White, primary, 0.30),
@@ -737,8 +779,8 @@ public sealed class ChromeFormTests
                 MixWith(Color.White, primary, 0.90),
                 MixWith(Color.White, primary, 0.30),
                 MixWith(Color.Black, primary, 0.20),
-                nativeHover,
-                nativePressed),
+                closeHover,
+                closePressed),
         };
     }
 

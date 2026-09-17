@@ -1053,39 +1053,88 @@ public sealed class ChromeWindowTests
 
     /// <summary>
     /// 配色是**独立的一轴**：换配色只改颜色，几何一点不动。
-    /// Element Plus 三套几何各有一款配色，这里逐款核对，并断言几何与样式没被牵连。
+    /// 三套 Element Plus 配色逐个核对，并且断言它们配到三套骨架上颜色都一样 ——
+    /// 配色的值**不依赖样式**，这正是把它与样式拆成两轴的意义。
     /// </summary>
     [Fact]
-    public void ElementPlusPaletteChangesOnlyTheColours() => RunSta(() =>
+    public void ElementPlusPalettesChangeOnlyTheColours() => RunSta(() =>
     {
         var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
         window.Show();
         try
         {
-            foreach (var style in new[]
+            foreach (var palette in new[]
                      {
-                         ChromeTitleBarStyle.Chrome,
-                         ChromeTitleBarStyle.VsCode,
-                         ChromeTitleBarStyle.Windows,
+                         ChromeTitleBarPalette.ElementPlusPrimary,
+                         ChromeTitleBarPalette.ElementPlusDark,
+                         ChromeTitleBarPalette.ElementPlusNeutral,
                      })
             {
-                window.TitleBarStyle = style;
-                window.TitleBarPalette = ChromeTitleBarPalette.Default;
-                var geometry = Geometry(window);
+                var expected = ExpectedElementPlus(palette);
+                Color? seenOnChrome = null;
+                foreach (var style in new[]
+                         {
+                             ChromeTitleBarStyle.Chrome,
+                             ChromeTitleBarStyle.VsCode,
+                             ChromeTitleBarStyle.Windows,
+                         })
+                {
+                    window.TitleBarStyle = style;
+                    window.TitleBarPalette = ChromeTitleBarPalette.Default;
+                    var geometry = Geometry(window);
 
-                window.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+                    window.TitleBarPalette = palette;
 
-                Assert.Equal(geometry, Geometry(window));
-                var expected = ExpectedElementPlus(style);
-                Assert.Equal(expected.Active, ColorOf(window.ActiveTitleBarBackground));
-                Assert.Equal(expected.Inactive, ColorOf(window.InactiveTitleBarBackground));
-                Assert.Equal(expected.Text, ColorOf(window.ActiveTitleBarForeground));
-                Assert.Equal(expected.InactiveText, ColorOf(window.InactiveTitleBarForeground));
-                Assert.Equal(expected.Hover, ColorOf(window.CaptionButtonHoverBackground));
-                Assert.Equal(expected.Pressed, ColorOf(window.CaptionButtonPressedBackground));
-                Assert.Equal(expected.CloseHover, ColorOf(window.CloseButtonHoverBackground));
-                Assert.Equal(expected.ClosePressed, ColorOf(window.CloseButtonPressedBackground));
+                    Assert.Equal(geometry, Geometry(window));
+                    Assert.Equal(expected.Active, ColorOf(window.ActiveTitleBarBackground));
+                    Assert.Equal(expected.Inactive, ColorOf(window.InactiveTitleBarBackground));
+                    Assert.Equal(expected.Text, ColorOf(window.ActiveTitleBarForeground));
+                    Assert.Equal(expected.InactiveText, ColorOf(window.InactiveTitleBarForeground));
+                    Assert.Equal(expected.Hover, ColorOf(window.CaptionButtonHoverBackground));
+                    Assert.Equal(expected.Pressed, ColorOf(window.CaptionButtonPressedBackground));
+                    Assert.Equal(expected.CloseHover, ColorOf(window.CloseButtonHoverBackground));
+                    Assert.Equal(expected.ClosePressed, ColorOf(window.CloseButtonPressedBackground));
+
+                    if (seenOnChrome is null)
+                        seenOnChrome = ColorOf(window.ActiveTitleBarBackground);
+                    else
+                        Assert.Equal(seenOnChrome, ColorOf(window.ActiveTitleBarBackground));
+                }
             }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 三套 Element Plus 配色**互不相同** —— 否则"多套配色"就是摆设。
+    /// 主色 / 深色 / 中性三者的底色必须两两不同。
+    /// </summary>
+    [Fact]
+    public void ElementPlusPalettesAreDistinct() => RunSta(() =>
+    {
+        var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        window.Show();
+        try
+        {
+            window.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+            var seen = new List<Color>();
+            foreach (var palette in new[]
+                     {
+                         ChromeTitleBarPalette.ElementPlusPrimary,
+                         ChromeTitleBarPalette.ElementPlusDark,
+                         ChromeTitleBarPalette.ElementPlusNeutral,
+                     })
+            {
+                window.TitleBarPalette = palette;
+                seen.Add(ColorOf(window.ActiveTitleBarBackground));
+            }
+            Assert.Equal(3, seen.Distinct().Count());
+            Assert.Equal(Color.FromRgb(0x40, 0x9E, 0xFF), seen[0]);   // 主色
+            Assert.Equal(Color.FromRgb(0x14, 0x14, 0x14), seen[1]);   // 深色
+            Assert.Equal(Colors.White, seen[2]);                      // 中性
         }
         finally
         {
@@ -1107,9 +1156,9 @@ public sealed class ChromeWindowTests
         try
         {
             styleFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
-            styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+            styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;
 
-            paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+            paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;
             paletteFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
 
             Assert.Equal(Geometry(styleFirst), Geometry(paletteFirst));
@@ -1154,7 +1203,7 @@ public sealed class ChromeWindowTests
                 ColorOf(window.CloseButtonHoverBackground),
                 ColorOf(window.CloseButtonPressedBackground));
 
-            window.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+            window.TitleBarPalette = ChromeTitleBarPalette.ElementPlusPrimary;
             Assert.NotEqual(own.Item1, ColorOf(window.ActiveTitleBarBackground));
 
             window.TitleBarPalette = ChromeTitleBarPalette.Default;
@@ -1187,39 +1236,38 @@ public sealed class ChromeWindowTests
             window.CaptionIconBoxMargin);
 
     /// <summary>
-    /// Element Plus 三款配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
+    /// Element Plus 三套配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
     /// 这里独立算一遍，避免"用实现测实现"。
     /// </summary>
     private static (Color Active, Color Inactive, Color Text, Color InactiveText,
         Color Hover, Color Pressed, Color CloseHover, Color ClosePressed)
-        ExpectedElementPlus(ChromeTitleBarStyle style)
+        ExpectedElementPlus(ChromeTitleBarPalette palette)
     {
         var primary = Color.FromRgb(0x40, 0x9E, 0xFF);
-        var danger = Color.FromRgb(0xF5, 0x6C, 0x6C);
         var darkBg = Color.FromRgb(0x14, 0x14, 0x14);
-        // 三款配色的关闭按钮共用同一对：Windows 原生实测值
-        var nativeHover = Color.FromRgb(0xC4, 0x2B, 0x1C);
-        var nativePressed = Color.FromRgb(0xA9, 0x23, 0x16);
-        return style switch
+        // 三套共用的关闭按钮：Windows 原生实测值
+        var closeHover = Color.FromRgb(0xC4, 0x2B, 0x1C);
+        var closePressed = Color.FromRgb(0xA9, 0x23, 0x16);
+        return palette switch
         {
-            ChromeTitleBarStyle.VsCode => (
+            ChromeTitleBarPalette.ElementPlusDark => (
                 darkBg,
                 Color.FromRgb(0x1D, 0x1E, 0x1F),
                 MixWith(Color.FromRgb(0xF0, 0xF5, 0xFF), darkBg, 0.95),
                 MixWith(Color.FromRgb(0xF0, 0xF5, 0xFF), darkBg, 0.65),
                 MixWith(Color.FromRgb(0xFA, 0xFC, 0xFF), darkBg, 0.12),
                 MixWith(Color.FromRgb(0xFA, 0xFC, 0xFF), darkBg, 0.20),
-                nativeHover,
-                nativePressed),
-            ChromeTitleBarStyle.Windows => (
+                closeHover,
+                closePressed),
+            ChromeTitleBarPalette.ElementPlusNeutral => (
                 Colors.White,
                 Color.FromRgb(0xF2, 0xF6, 0xFC),
                 Color.FromRgb(0x30, 0x31, 0x33),
                 Color.FromRgb(0x90, 0x93, 0x99),
                 MixWith(Colors.White, primary, 0.90),
                 MixWith(Colors.White, primary, 0.80),
-                nativeHover,
-                nativePressed),
+                closeHover,
+                closePressed),
             _ => (
                 primary,
                 MixWith(Colors.White, primary, 0.30),
@@ -1227,8 +1275,8 @@ public sealed class ChromeWindowTests
                 MixWith(Colors.White, primary, 0.90),
                 MixWith(Colors.White, primary, 0.30),
                 MixWith(Colors.Black, primary, 0.20),
-                nativeHover,
-                nativePressed),
+                closeHover,
+                closePressed),
         };
     }
 

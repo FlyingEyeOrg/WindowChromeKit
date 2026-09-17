@@ -167,19 +167,24 @@ public partial class MainWindow : ChromeWindow
   | `VsCode` | 35 | 46×34 | 12px 位 | 贴左 |
   | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 贴左 |
 
-  | `TitleBarPalette` | 含义 |
-  | --- | --- |
-  | `Default`（默认） | 该样式自带的那套：`Chrome` / `Windows` 跟随系统明暗，`VsCode` 固定深色 `#191A1B` |
-  | `ElementPlus` | Element Plus 色板，三套几何**各有一款**：Chrome 用品牌主色当底、VS Code 用它的深色主题、Windows 保持中性底只把主色用在按钮上 |
+  | `TitleBarPalette` | 激活底 | 失活底 | 文字 | 按钮 hover / pressed |
+  | --- | --- | --- | --- | --- |
+  | `Default`（默认） | 该样式自带，见上表 | | | |
+  | `ElementPlusPrimary` | `#409EFF` | `#79BBFF` | `#FFFFFF` / `#ECF5FF` | `#79BBFF` / `#337ECC` |
+  | `ElementPlusDark` | `#141414` | `#1D1E1F` | `#E5EAF3` / `#A3A6AD` | `#303030` / `#424243` |
+  | `ElementPlusNeutral` | `#FFFFFF` | `#F2F6FC` | `#303133` / `#909399` | `#ECF5FF` / `#D9ECFF` |
+
+  三套配色的关闭按钮**统一用 Windows 原生那一对**（悬停 `#C42B1C`、按下 `#A92316`）。
 
   ```csharp
-  form.TitleBarStyle = ChromeTitleBarStyle.VsCode;
-  form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;   // 顺序任意，两者自行组合
+  form.TitleBarStyle = ChromeTitleBarStyle.VsCode;              // 骨架 + 默认配色
+  form.TitleBarPalette = ChromeTitleBarPalette.ElementPlusDark;  // 换成想要的配色
   ```
 
-  两个轴**谁后赋值都成立**，不会互相覆盖。之所以拆成两轴而不是加 `ChromeForElementPlus`
-  这类枚举成员：那会让两者相乘（3 种几何 × N 种品牌配色 = 3N 个成员），
-  而换品牌配色时几何其实一点没变，它本来就不是另一种"样式"。
+  两个轴**谁后赋值都成立**，不会互相覆盖：3 种骨架 × 4 种配色 = 12 种组合任选。
+  每套配色的颜色是**固定的**，配到哪套骨架上都是同样的颜色。
+  之所以拆成两轴而不是加 `ChromeForElementPlus` 这类枚举成员：那会让两者相乘
+  （3 种几何 × N 种配色 = 3N 个成员），而换配色时几何一点没变，它本来就不是另一种"样式"。
 
   三套样式的标题文字都是**贴左**（图标右侧），与 WPF 版和真实 Chrome 一致。
   `VsCode` 用的是**独立**的一套配色，改它不会影响 `Chrome` / `Windows` 在系统深色模式下的外观。

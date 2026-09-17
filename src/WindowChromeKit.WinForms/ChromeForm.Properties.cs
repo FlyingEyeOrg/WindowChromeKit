@@ -238,11 +238,12 @@ public partial class ChromeForm
     }
 
     /// <summary>
-    /// 标题栏配色来源（默认 <see cref="ChromeTitleBarPalette.Default"/>，即该样式自带的那套）。
+    /// 标题栏配色（默认 <see cref="ChromeTitleBarPalette.Default"/>，即该样式自带的那套）。
     ///
-    /// 与 <see cref="TitleBarStyle"/> 正交：样式管几何，本属性管颜色。赋值时只重新套用颜色，
-    /// **几何不变**；之后单独修改任何颜色属性都以属性为准。
-    /// 两个属性谁后赋值都成立 —— 改样式会按当前配色来源重新上色，改配色来源会按当前样式上色。
+    /// 与 <see cref="TitleBarStyle"/> 正交：样式给骨架与默认配色，本属性换成别的配色。
+    /// 赋值时只重新套用颜色，**几何不变**；之后单独修改任何颜色属性都以属性为准。
+    /// 两个属性谁后赋值都成立 —— 改样式会按当前配色重新上色（Default 时套用新样式自带的那套），
+    /// 改配色则与当前样式无关。
     /// </summary>
     [Category("WindowChromeKit")]
     [DefaultValue(ChromeTitleBarPalette.Default)]
@@ -320,12 +321,16 @@ public partial class ChromeForm
     /// <summary>
     /// 按当前的 <see cref="TitleBarPalette"/> 把颜色套到标题栏上。
     /// 几何不变，只改颜色 —— 这也是它与 <see cref="ChromeTitleBarStyle"/> 分成两个轴的原因。
+    ///
+    /// 配色**直接按枚举值取**，不看样式：同一套配色配到哪套骨架上都是同样的颜色。
+    /// 只有 <see cref="ChromeTitleBarPalette.Default"/> 例外 —— 它的定义就是"该样式自带的那套"，
+    /// 所以那一个分支才需要样式参数。
     /// </summary>
     private void ApplyTitleBarPalette(ChromeTitleBarStyle style)
     {
-        var look = TitleBarPalette == ChromeTitleBarPalette.ElementPlus
-            ? ElementPlusTheme.Look(style)
-            : SystemTheme.Look(style);
+        var look = TitleBarPalette == ChromeTitleBarPalette.Default
+            ? SystemTheme.Look(style)
+            : ElementPlusTheme.Look(TitleBarPalette);
         var palette = look.Palette;
         ActiveCaptionColor = palette.ActiveCaption;
         InactiveCaptionColor = palette.InactiveCaption;

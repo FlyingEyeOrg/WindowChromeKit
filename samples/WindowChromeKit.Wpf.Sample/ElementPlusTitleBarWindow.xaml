@@ -33,25 +33,43 @@
                    LineHeight="20"
                    Foreground="#606266"
                    TextWrapping="Wrap"
-                   Text="1. 标题栏是两个正交的轴：TitleBarStyle 管几何（标题栏高、按钮尺寸、图标位置），&#x0a;   TitleBarPalette 管配色。下面三个按钮同时切换两者（几何 + Element Plus 配色）。&#x0a;2. 两者谁后赋值都成立，不会互相覆盖；之后单独改颜色属性也以属性为准。&#x0a;3. 色板来自库里（ElementPlusTheme），数值取自 Element Plus 的官方变量：&#x0a;   浅色用 common/var.scss，深色用 dark/var.scss。&#x0a;4. 下面的色块读的是窗口上实际生效的颜色，不是另抄的一份表。" />
+                   Text="1. 上行按钮换「骨架」（TitleBarStyle：标题栏高、按钮尺寸、图标位置），&#x0a;   下行按钮换「配色」（TitleBarPalette）。两行互不干扰，3×3 共 9 种组合。&#x0a;2. 两者谁后赋值都成立，不会互相覆盖；之后单独改颜色属性也以属性为准。&#x0a;3. 三套配色取自 Element Plus 的官方变量（common/var.scss 与 dark/var.scss）：&#x0a;   主色 = primary 当底；深色 = 它的深色主题；中性 = 浅色底只在按钮上出主色。&#x0a;4. 下面的色块读的是窗口上实际生效的颜色，不是另抄的一份表。" />
 
         <StackPanel Grid.Row="2"
-                    Margin="24,12,24,0"
-                    Orientation="Horizontal">
-            <Button Margin="0,0,12,0"
-                    Padding="16,8"
-                    AutomationProperties.AutomationId="ElementPlusChromeButton"
-                    Click="OnChromeClicked"
-                    Content="Chrome 样式 × Element Plus 主色" />
-            <Button Margin="0,0,12,0"
-                    Padding="16,8"
-                    AutomationProperties.AutomationId="ElementPlusVsCodeButton"
-                    Click="OnVsCodeClicked"
-                    Content="VS Code 样式 × Element Plus 深色" />
-            <Button Padding="16,8"
-                    AutomationProperties.AutomationId="ElementPlusWindowsButton"
-                    Click="OnWindowsClicked"
-                    Content="Windows 样式 × Element Plus 中性" />
+                    Margin="24,12,24,0">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="StyleChromeButton"
+                        Margin="0,0,8,0"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="StyleChromeButton"
+                        Content="骨架：Chrome" />
+                <Button x:Name="StyleVsCodeButton"
+                        Margin="0,0,8,0"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="StyleVsCodeButton"
+                        Content="骨架：VS Code" />
+                <Button x:Name="StyleWindowsButton"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="StyleWindowsButton"
+                        Content="骨架：Windows" />
+            </StackPanel>
+            <StackPanel Margin="0,8,0,0"
+                        Orientation="Horizontal">
+                <Button x:Name="PalettePrimaryButton"
+                        Margin="0,0,8,0"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="PalettePrimaryButton"
+                        Content="配色：主色" />
+                <Button x:Name="PaletteDarkButton"
+                        Margin="0,0,8,0"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="PaletteDarkButton"
+                        Content="配色：深色" />
+                <Button x:Name="PaletteNeutralButton"
+                        Padding="14,6"
+                        AutomationProperties.AutomationId="PaletteNeutralButton"
+                        Content="配色：中性" />
+            </StackPanel>
         </StackPanel>
 
         <StackPanel Grid.Row="3"
