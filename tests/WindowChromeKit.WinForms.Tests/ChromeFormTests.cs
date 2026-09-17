@@ -707,7 +707,7 @@ public sealed class ChromeFormTests
         var primary = Color.FromArgb(0x40, 0x9E, 0xFF);
         var danger = Color.FromArgb(0xF5, 0x6C, 0x6C);
         var darkBg = Color.FromArgb(0x14, 0x14, 0x14);
-        // 浅色底的关闭按钮用 Windows 原生那一对（实测值），不用 danger 色阶
+        // 三款配色的关闭按钮共用同一对：Windows 原生实测值
         var nativeHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
         var nativePressed = Color.FromArgb(0xA9, 0x23, 0x16);
         return style switch
@@ -719,8 +719,8 @@ public sealed class ChromeFormTests
                 MixWith(Color.FromArgb(0xF0, 0xF5, 0xFF), darkBg, 0.65),
                 MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.12),
                 MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.20),
-                danger,
-                MixWith(Color.White, danger, 0.20)),   // 深色主题 dark-2 向白混
+                nativeHover,
+                nativePressed),
             ChromeTitleBarStyle.Windows => (
                 Color.White,
                 Color.FromArgb(0xF2, 0xF6, 0xFC),

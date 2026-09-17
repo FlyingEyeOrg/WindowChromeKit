@@ -308,8 +308,7 @@ form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;     // 配色
 | `Chrome` / `Default` | `#E81123` | `#F1707A` | 按下**变亮**（Chrome 自身行为） |
 | `Windows` / `Default` | `#C42B1C` | `#A92316` | 按下变暗（原生实测） |
 | `VsCode` / `Default` | `#E81123` | `#C50F1F` | 按下变深（它的样式表没有 `:active`） |
-| `ElementPlus`（Chrome / Windows 款） | `#C42B1C` | `#A92316` | **直接用 Windows 原生那一对**，见下 |
-| `ElementPlus`（VS Code 款） | `#F56C6C` | `#F78989` | 深色主题的 `dark-2` 向**白**混，按下变亮 |
+| `ElementPlus`（三款共用） | `#C42B1C` | `#A92316` | **直接用 Windows 原生那一对**，见下 |
 
 所以关闭色被收进了一个完整的「配色」结构
 （`ChromeTitleBarLook` = 调色板六色 + 关闭按钮两色），
@@ -329,12 +328,13 @@ form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;     // 配色
 `#F56C6C` 与 `#409EFF` 的**亮度几乎相同**（0.312 vs 0.328），只剩色相差，
 所以蓝底上的红块看上去是"糊"的。
 
-浅色底那两款因此**直接复用 Windows 原生那一对**（悬停 `#C42B1C`、按下 `#A92316`）：
+三款因此**共用同一对**：直接复用 Windows 原生那一对（悬停 `#C42B1C`、按下 `#A92316`）。
 在白底上正好是原生实测的 5.66:1，在 primary 底上也比自己按 `danger` 色阶推的任何一档清楚
 （2.04:1 对 1.57:1）。**用实测值比自己推色阶更有依据**，也少一套要维护的推导。
 
-深色底（VS Code 款）不用这一对 —— 原生红在近黑底上只有 3.25:1，那边保留 Element Plus
-的亮红 `#F56C6C`（6.35:1）。
+统一成同一对的理由是一致性：否则使用者得记住"深色款的红和浅色款不是同一个"。
+代价是深色底上原生红比 EP 亮红略暗（3.25:1 对 6.35:1）——
+按下的方向仍然正确（比悬停更深），而且与 `Windows` 样式完全是同一对值，三处不必分别记。
 
 ### 标题文字一律贴左
 

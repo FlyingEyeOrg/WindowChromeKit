@@ -15,7 +15,6 @@ namespace WindowChromeKit.WinForms.Internal;
 internal static class ElementPlusTheme
 {
     private static readonly Color Primary = Color.FromArgb(0x40, 0x9E, 0xFF);    // color-primary
-    private static readonly Color Danger = Color.FromArgb(0xF5, 0x6C, 0x6C);     // color-danger
     private static readonly Color DarkBg = Color.FromArgb(0x14, 0x14, 0x14);     // dark bg-color ''
     private static readonly Color DarkOverlay = Color.FromArgb(0x1D, 0x1E, 0x1F); // dark bg-color overlay
     private static readonly Color FillBase = Color.FromArgb(0xFA, 0xFC, 0xFF);   // dark fill-color base
@@ -27,7 +26,7 @@ internal static class ElementPlusTheme
     private static readonly Color Black = Color.Black;
 
     /// <summary>
-    /// 浅色底上的关闭按钮直接用 **Windows 原生那一对**（悬停 #C42B1C、按下 #A92316）。
+    /// 三款配色的关闭按钮**共用同一对**红：Windows 原生实测值（悬停 #C42B1C、按下 #A92316）。
     ///
     /// 不用 Element Plus 的 danger #F56C6C：它在浅底上太淡，这是可量化的 ——
     /// 与白底的对比度只有 2.90:1（原生是 5.66:1），与 primary #409EFF 更是只有 1.04:1，
@@ -35,16 +34,16 @@ internal static class ElementPlusTheme
     /// 原生这对在白底上正好就是 5.66:1，在 primary 底上也比按 danger 色阶推的任何一档更清楚
     /// （2.04:1 对 1.57:1）—— 而且它是实测值，比自己推的色阶更有依据。
     ///
-    /// 深色底（VS Code 款）不用这一对：原生红在近黑底上偏暗（3.25:1），
-    /// 那边保留 Element Plus 的亮红 danger（6.35:1）。
+    /// 三款统一成同一对，是为了"一套 ElementPlus 只有一种关闭按钮"这个更简单的规则：
+    /// 否则使用者得记住"深色款的红和浅色款不是同一个"。代价是深色底上原生红比 EP 亮红略暗
+    /// （3.25:1 对 6.35:1），但按下仍比悬停更深，反馈方向与原生一致。
     /// </summary>
-    private static readonly Color NativeCloseHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
-    private static readonly Color NativeClosePressed = Color.FromArgb(0xA9, 0x23, 0x16);
+    private static readonly Color CloseHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
+    private static readonly Color ClosePressed = Color.FromArgb(0xA9, 0x23, 0x16);
 
     internal static ChromeTitleBarLook Look(ChromeTitleBarStyle style) => style switch
     {
         // VS Code 的标题栏本来就是深色，所以配 Element Plus 的**深色主题**。
-        // 注意深色主题的 dark-2 是向白混，所以关闭按钮按下比悬停更亮。
         ChromeTitleBarStyle.VsCode => new ChromeTitleBarLook(
             new ChromePalette(
                 activeCaption: DarkBg,
@@ -53,8 +52,8 @@ internal static class ElementPlusTheme
                 inactiveCaptionText: Mix(TextBase, DarkBg, 0.65),  // text-color secondary
                 buttonHover: Mix(FillBase, DarkBg, 0.12),          // fill-color ''
                 buttonPressed: Mix(FillBase, DarkBg, 0.20)),       // fill-color darker
-            closeButtonHover: Danger,
-            closeButtonPressed: Mix(White, Danger, 0.20)),
+            closeButtonHover: CloseHover,
+            closeButtonPressed: ClosePressed),
 
         // Windows 样式本来就贴近原生浅色，所以配**浅色中性色 + primary 强调**：
         // 底色保持中性，只在按钮悬停/按下处露出 primary 色阶。
@@ -66,8 +65,8 @@ internal static class ElementPlusTheme
                 inactiveCaptionText: LightCaptionTextDim,
                 buttonHover: Mix(White, Primary, 0.90),            // primary light-9
                 buttonPressed: Mix(White, Primary, 0.80)),         // primary light-8
-            closeButtonHover: NativeCloseHover,
-            closeButtonPressed: NativeClosePressed),
+            closeButtonHover: CloseHover,
+            closeButtonPressed: ClosePressed),
 
         // Chrome 样式直接吃 primary 当标题栏底，最"品牌"的一款。
         _ => new ChromeTitleBarLook(
@@ -78,8 +77,8 @@ internal static class ElementPlusTheme
                 inactiveCaptionText: Mix(White, Primary, 0.90),    // primary light-9
                 buttonHover: Mix(White, Primary, 0.30),            // primary light-3
                 buttonPressed: Mix(Black, Primary, 0.20)),         // primary dark-2
-            closeButtonHover: NativeCloseHover,
-            closeButtonPressed: NativeClosePressed),
+            closeButtonHover: CloseHover,
+            closeButtonPressed: ClosePressed),
     };
 
     /// <summary>按 Element Plus 的混色公式：<paramref name="pct"/> 是 <paramref name="fg"/> 的占比。</summary>
