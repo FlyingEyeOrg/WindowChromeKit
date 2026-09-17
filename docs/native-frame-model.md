@@ -259,11 +259,82 @@ WPF 的具体做法（`Generic.xaml`）：
 
 三套样式在赋值时把几何与配色一次性套用，之后单独改属性以属性为准。
 
-| 样式 | 标题栏高 | 按钮 | 图标位置 | 标题 | 配色 |
+| 样式 | 标题栏高 | 按钮 | 图标位置 | 标题 | 默认配色 |
 | --- | --- | --- | --- | --- | --- |
 | `Chrome`（默认） | 40 | 最小化 45 / 最大化 46 / 关闭 46，高 39 | 12px 位 | 贴左 | 跟随系统明暗 |
 | `VsCode` | 35 | 46×34 | 12px 位 | 贴左 | 固定深色 `#191A1B` |
 | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 贴左 | 跟随系统明暗 |
+
+### 6.1 为什么是「样式 + 配色」两个轴，而不是 `ChromeForElementPlus`
+
+标题栏的外观其实是两件独立的事：**几何**（标题栏多高、按钮多大、图标在哪）与
+**配色**（底色、文字、按钮填充）。最初的枚举把两者绑在一张表里，于是想换品牌配色时
+只有两条路：要么加枚举成员，要么使用者自己抄一遍颜色赋值。
+
+加成员的问题是**相乘**：3 种几何 × N 种品牌配色 = 3N 个成员，每加一个品牌就要多三个；
+枚举会慢慢变成一个被拍平的二维矩阵。而换品牌配色时几何**一点没变** ——
+它本来就不是另一种"样式"，把它叫做样式会让枚举的语义变浑。
+
+所以拆成两个正交的属性：
+
+```csharp
+form.TitleBarStyle   = ChromeTitleBarStyle.VsCode;            // 几何
+form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;     // 配色
+```
+
+| `TitleBarPalette` | 含义 |
+| --- | --- |
+| `Default` | 该样式自带的那套（三套的红各不相同，见下） |
+| `ElementPlus` | Element Plus 色板，三套几何各一款 |
+
+两条实现契约：
+
+1. **两个轴谁后赋值都成立**。`TitleBarStyle` 的 setter 会按*当前*配色来源上色，
+   `TitleBarPalette` 的 setter 会按*当前*样式上色 —— 两条路殊途同归。
+   测试 `StyleAndPaletteComposeInEitherOrder` 断言两种顺序得到完全一致的状态。
+2. **改配色不动几何**。`ApplyTitleBarPalette` 只写颜色属性，
+   `ApplyTitleBarGeometry` 只写几何与布局开关，两者互不调用。
+   测试 `ElementPlusPaletteChangesOnlyTheColours` 逐款断言几何在换配色前后完全相等。
+
+### 6.2 关闭按钮的红必须随配色走，不能只看样式
+
+这是实现时最容易踩的一点：关闭按钮的颜色最初是**按样式分支**算的
+（`if (style == Windows) … else if (style == VsCode) … else …`），
+因为调色板结构体里只有六个字段、不含关闭色。加上配色轴后这就不够了 ——
+同一个样式在不同配色下需要不同的红：
+
+| | 悬停 | 按下 | 特点 |
+| --- | --- | --- | --- |
+| `Chrome` / `Default` | `#E81123` | `#F1707A` | 按下**变亮**（Chrome 自身行为） |
+| `Windows` / `Default` | `#C42B1C` | `#A92316` | 按下变暗（原生实测） |
+| `VsCode` / `Default` | `#E81123` | `#C50F1F` | 按下变深（它的样式表没有 `:active`） |
+| `ElementPlus`（Chrome / Windows 款） | `#C42B1C` | `#A92316` | **直接用 Windows 原生那一对**，见下 |
+| `ElementPlus`（VS Code 款） | `#F56C6C` | `#F78989` | 深色主题的 `dark-2` 向**白**混，按下变亮 |
+
+所以关闭色被收进了一个完整的「配色」结构
+（`ChromeTitleBarLook` = 调色板六色 + 关闭按钮两色），
+`SystemTheme.Look(style)` 与 `ElementPlusTheme.Look(style)` 各自返回一套完整配色，
+`ApplyTitleBarPalette` 不再需要任何样式分支。
+
+### 6.3 Element Plus 的关闭按钮为什么用深红
+
+`danger` 原色 `#F56C6C` 在浅色底上**太淡**，这是可量化的：
+
+| 底色 | `#F56C6C` | Windows 原生 `#C42B1C` |
+| --- | --- | --- |
+| `primary #409EFF`（Chrome 款） | 1.04:1 | **2.04:1** |
+| `#FFFFFF`（Windows 款） | 2.90:1 | **5.66:1**（正是原生实测值） |
+| `#141414`（VS Code 款） | **6.35:1** ✅ | 3.25:1（偏暗，不用） |
+
+`#F56C6C` 与 `#409EFF` 的**亮度几乎相同**（0.312 vs 0.328），只剩色相差，
+所以蓝底上的红块看上去是"糊"的。
+
+浅色底那两款因此**直接复用 Windows 原生那一对**（悬停 `#C42B1C`、按下 `#A92316`）：
+在白底上正好是原生实测的 5.66:1，在 primary 底上也比自己按 `danger` 色阶推的任何一档清楚
+（2.04:1 对 1.57:1）。**用实测值比自己推色阶更有依据**，也少一套要维护的推导。
+
+深色底（VS Code 款）不用这一对 —— 原生红在近黑底上只有 3.25:1，那边保留 Element Plus
+的亮红 `#F56C6C`（6.35:1）。
 
 ### 标题文字一律贴左
 

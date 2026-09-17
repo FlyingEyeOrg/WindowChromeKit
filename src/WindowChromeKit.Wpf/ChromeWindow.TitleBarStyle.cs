@@ -21,6 +21,19 @@ public partial class ChromeWindow
     }
 
     /// <summary>
+    /// 标题栏配色来源（默认 <see cref="ChromeTitleBarPalette.Default"/>，即该样式自带的那套）。
+    ///
+    /// 与 <see cref="TitleBarStyle"/> 正交：样式管几何，本属性管颜色。赋值时只重新套用颜色，
+    /// **几何不变**；之后单独修改任何颜色属性都以属性为准。
+    /// 两个属性谁后赋值都成立 —— 改样式会按当前配色来源重新上色，改配色来源会按当前样式上色。
+    /// </summary>
+    public ChromeTitleBarPalette TitleBarPalette
+    {
+        get => (ChromeTitleBarPalette)GetValue(TitleBarPaletteProperty);
+        set => SetValue(TitleBarPaletteProperty, value);
+    }
+
+    /// <summary>
     /// 系统菜单（图标）盒子距标题栏左边缘的距离（DIP）。
     /// Chrome / VsCode 样式为 9（图标留在 12px 位），Windows 样式为 0（图标贴左）。
     /// </summary>
@@ -51,12 +64,17 @@ public partial class ChromeWindow
 
     private void ApplyTitleBarStyle(ChromeTitleBarStyle style)
     {
-        ChromePalette palette;
+        ApplyTitleBarGeometry(style);
+        ApplyTitleBarPalette(style);
+    }
+
+    /// <summary>只套几何；配色由 <see cref="ApplyTitleBarPalette"/> 负责。</summary>
+    private void ApplyTitleBarGeometry(ChromeTitleBarStyle style)
+    {
         switch (style)
         {
             case ChromeTitleBarStyle.VsCode:
                 // VS Code：标题栏 35、按钮 46×34，配色固定深色（不跟随系统明暗）
-                palette = SystemTheme.VsCode;
                 TitleBarHeight = 35d;
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
@@ -68,7 +86,6 @@ public partial class ChromeWindow
                 // 贴近 Windows 11 原生（96dpi 实测一个原生 WPF Window）：
                 // 标题栏可见高 31、按钮 36×22（SM_CXSIZE × SM_CYSIZE）、
                 // 图标盒子贴左且顶边在第 8 行（frame 内缩）
-                palette = SystemTheme.Current;
                 TitleBarHeight = 31d;
                 // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)
                 CaptionButtonWidth = 45d;
@@ -82,7 +99,6 @@ public partial class ChromeWindow
 
             default:
                 // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位
-                palette = SystemTheme.Current;
                 TitleBarHeight = 40d;
                 CaptionButtonWidth = 46d;
                 // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
@@ -92,32 +108,6 @@ public partial class ChromeWindow
                 break;
         }
 
-        ActiveTitleBarBackground = palette.ActiveCaption;
-        InactiveTitleBarBackground = palette.InactiveCaption;
-        ActiveTitleBarForeground = palette.CaptionText;
-        InactiveTitleBarForeground = palette.InactiveCaptionText;
-        CaptionButtonHoverBackground = palette.ButtonHover;
-        CaptionButtonPressedBackground = palette.ButtonPressed;
-        // 关闭按钮的红分三套：
-        //   Windows 用原生实测值（悬停 #C42B1C、按下 #A92316，按下变暗）；
-        //   Chrome 用经典 #E81123，它的按下是**变亮**的粉红 #F1707A（Chrome 自身行为）；
-        //   VS Code 悬停是 #e81123e6，工作台样式表里没有 :active 规则 —— 按下取更深的红，
-        //   否则按下与悬停同色会显得没有反馈。
-        if (style == ChromeTitleBarStyle.Windows)
-        {
-            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xC4, 0x2B, 0x1C);
-            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xA9, 0x23, 0x16);
-        }
-        else if (style == ChromeTitleBarStyle.VsCode)
-        {
-            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
-            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xC5, 0x0F, 0x1F);
-        }
-        else
-        {
-            CloseButtonHoverBackground = FrozenBrush(0xFF, 0xE8, 0x11, 0x23);
-            CloseButtonPressedBackground = FrozenBrush(0xFF, 0xF1, 0x70, 0x7A);
-        }
         // 顶边线用"半透明基色"模拟 DWM，参数由原生边框实测反解（黑底/白底两组）：
         //   聚焦：黑底 25 / 白底 112 -> 基色 #262626、alpha 66%
         //   失焦：黑底 43 / 白底 170 -> 基色 #565656、alpha 50%
@@ -127,5 +117,25 @@ public partial class ChromeWindow
         TitleBarBorderBrush = FrozenBrush(0xA8, 0x26, 0x26, 0x26);
         InactiveTitleBarBorderBrush = FrozenBrush(0x80, 0x56, 0x56, 0x56);
         ShowTitleBarIcon = true;
+    }
+
+    /// <summary>
+    /// 按当前的 <see cref="TitleBarPalette"/> 把颜色套到标题栏上。
+    /// 几何不变，只改颜色 —— 这也是它与 <see cref="TitleBarStyle"/> 分成两个轴的原因。
+    /// </summary>
+    private void ApplyTitleBarPalette(ChromeTitleBarStyle style)
+    {
+        var look = TitleBarPalette == ChromeTitleBarPalette.ElementPlus
+            ? ElementPlusTheme.Look(style)
+            : SystemTheme.Look(style);
+        var palette = look.Palette;
+        ActiveTitleBarBackground = palette.ActiveCaption;
+        InactiveTitleBarBackground = palette.InactiveCaption;
+        ActiveTitleBarForeground = palette.CaptionText;
+        InactiveTitleBarForeground = palette.InactiveCaptionText;
+        CaptionButtonHoverBackground = palette.ButtonHover;
+        CaptionButtonPressedBackground = palette.ButtonPressed;
+        CloseButtonHoverBackground = look.CloseButtonHover;
+        CloseButtonPressedBackground = look.CloseButtonPressed;
     }
 }

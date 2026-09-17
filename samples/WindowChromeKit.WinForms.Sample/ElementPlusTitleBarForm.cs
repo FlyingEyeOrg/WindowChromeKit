@@ -5,12 +5,13 @@ using WindowChromeKit.WinForms;
 namespace WindowChromeKit.WinForms.Sample;
 
 /// <summary>
-/// 基于预置样式再改配色的示例：Chrome / VS Code / Windows **三套几何样式各配一款**
-/// Element Plus 配色，可以在这里逐一切换对比。
+/// 演示标题栏的两个轴：<see cref="ChromeTitleBarStyle"/>（几何）与
+/// <see cref="ChromeTitleBarPalette"/>（配色）。Chrome / VS Code / Windows 三套几何
+/// 各配一款 Element Plus 配色，可以在这里逐一切换对比。
 ///
-/// **顺序很重要**：<c>TitleBarStyle</c> 赋值时会一次性套用整张样式表（几何 + 配色），
-/// 所以必须**先选样式、后改颜色**；反过来改的颜色会被样式覆盖回去。
-/// 这里统一由 <see cref="ElementPlusPalettes.Apply"/> 处理这个顺序。
+/// 两者正交，**谁后赋值都成立**；之后单独改颜色属性同样以属性为准。
+/// 色板本身在库里（<c>ElementPlusTheme</c>），这里只负责切换与显示 ——
+/// 所以本示例的色块读的是窗口上**实际生效**的颜色，没有再抄一份表。
 ///
 /// 顶边线不用管：它存的是半透明基色，绘制时与标题栏底色混合，换成任何配色都会自动跟随。
 /// </summary>
@@ -48,12 +49,12 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
             Padding = new Padding(24, 8, 24, 0),
             ForeColor = Color.FromArgb(0x60, 0x62, 0x66),
             Text =
-                "1. 同一个窗口里切换「几何样式」（Chrome / VS Code / Windows），每套都换上一款 Element Plus 配色。\r\n"
-                + "2. 顺序：先 TitleBarStyle，再改颜色属性 —— 反过来写样式表会把颜色覆盖回默认值。\r\n"
-                + "   本示例统一走 ElementPlusPalettes.Apply，它固定按这个顺序赋值。\r\n"
-                + "3. 顶边 1 像素线不用改：它是半透明基色，与标题栏底色混合，换任何配色都自动跟随。\r\n"
-                + "4. 配色取自 Element Plus 的官方变量：浅色用 common/var.scss，深色用 dark/var.scss。\r\n"
-                + "   注意深色主题的 dark-2 是「向白混」，所以 VS Code 那款的关闭按钮按下会比悬停更亮。",
+                "1. 标题栏是两个正交的轴：TitleBarStyle 管几何（标题栏高、按钮尺寸、图标位置），\r\n"
+                + "   TitleBarPalette 管配色。下面三个按钮同时切换两者（几何 + Element Plus 配色）。\r\n"
+                + "2. 两者谁后赋值都成立，不会互相覆盖；之后单独改颜色属性也以属性为准。\r\n"
+                + "3. 色板来自库里（ElementPlusTheme），数值取自 Element Plus 的官方变量：\r\n"
+                + "   浅色用 common/var.scss，深色用 dark/var.scss。\r\n"
+                + "4. 下面的色块读的是窗口上实际生效的颜色，不是另抄的一份表。",
         };
 
         _swatches = new FlowLayoutPanel
@@ -120,19 +121,30 @@ public sealed class ElementPlusTitleBarForm : ChromeForm
 
     private void UsePalette(ChromeTitleBarStyle style)
     {
-        var palette = ElementPlusPalettes.Apply(this, style);
+        // 两个轴分别赋值：样式管几何、配色管颜色。顺序任意，两者会自行组合。
+        TitleBarStyle = style;
+        TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
 
         Text = $"Element Plus 配色 × {style} 样式";
-        _status.Text = $"当前：{style} 几何 + Element Plus 配色。{palette.Caption}";
+        _status.Text = $"当前：{style} 几何 + Element Plus 配色。{Describe(style)}";
 
+        // 色块直接读窗口上实际生效的颜色 —— 不再抄一份配色表，改了库这里自动跟着变
         _swatches.Controls.Clear();
-        AddSwatch("激活底", palette.ActiveCaption, Contrast(palette.ActiveCaption));
-        AddSwatch("失活底", palette.InactiveCaption, Contrast(palette.InactiveCaption));
-        AddSwatch("悬停填充", palette.ButtonHover, Contrast(palette.ButtonHover));
-        AddSwatch("按下填充", palette.ButtonPressed, Contrast(palette.ButtonPressed));
-        AddSwatch("关闭悬停", palette.CloseButtonHover, Contrast(palette.CloseButtonHover));
-        AddSwatch("关闭按下", palette.CloseButtonPressed, Contrast(palette.CloseButtonPressed));
+        AddSwatch("激活底", ActiveCaptionColor, Contrast(ActiveCaptionColor));
+        AddSwatch("失活底", InactiveCaptionColor, Contrast(InactiveCaptionColor));
+        AddSwatch("悬停填充", CaptionButtonHoverColor, Contrast(CaptionButtonHoverColor));
+        AddSwatch("按下填充", CaptionButtonPressedColor, Contrast(CaptionButtonPressedColor));
+        AddSwatch("关闭悬停", CloseButtonHoverColor, Contrast(CloseButtonHoverColor));
+        AddSwatch("关闭按下", CloseButtonPressedColor, Contrast(CloseButtonPressedColor));
     }
+
+    /// <summary>各款配色的一句话说明（色值由库提供，这里只讲它为什么这么选）。</summary>
+    private static string Describe(ChromeTitleBarStyle style) => style switch
+    {
+        ChromeTitleBarStyle.VsCode => "VS Code 的标题栏本来就深，配 Element Plus 的深色主题（按下比悬停更亮）",
+        ChromeTitleBarStyle.Windows => "保持中性底以贴近原生，只在按钮悬停/按下处露出 primary 色阶",
+        _ => "直接用品牌主色当标题栏底，最醒目的一款",
+    };
 
     /// <summary>按背景亮度选黑或白前景，保证色块上的文字可读。</summary>
     private static Color Contrast(Color background) =>

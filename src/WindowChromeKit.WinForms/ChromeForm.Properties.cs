@@ -9,6 +9,7 @@ namespace WindowChromeKit.WinForms;
 public partial class ChromeForm
 {
     private ChromeTitleBarStyle _titleBarStyle = ChromeTitleBarStyle.Chrome;
+    private ChromeTitleBarPalette _titleBarPalette = ChromeTitleBarPalette.Default;
     private int _captionHeightDip = 40;
     private int _captionButtonWidthDip = 46;
     private int _minimizeButtonWidthDip;
@@ -217,8 +218,9 @@ public partial class ChromeForm
 
     /// <summary>
     /// 标题栏预置样式（默认 <see cref="ChromeTitleBarStyle.Chrome"/>）。
-    /// 赋值时把该样式的几何、配色与布局开关**应用一次**；之后单独修改任何属性都以属性为准，
-    /// 样式不会再覆盖回来。默认标题栏关闭时（<see cref="ChromeForm.ShowDefaultTitleBar"/> 为 false）
+    /// 赋值时把该样式的几何、配色与布局开关**应用一次**（配色取自当前的
+    /// <see cref="TitleBarPalette"/>）；之后单独修改任何属性都以属性为准，样式不会再覆盖回来。
+    /// 默认标题栏关闭时（<see cref="ChromeForm.ShowDefaultTitleBar"/> 为 false）
     /// 或使用 <see cref="ChromeFrame"/> 自绘时，本属性不生效。
     /// </summary>
     [Category("WindowChromeKit")]
@@ -235,17 +237,43 @@ public partial class ChromeForm
         }
     }
 
+    /// <summary>
+    /// 标题栏配色来源（默认 <see cref="ChromeTitleBarPalette.Default"/>，即该样式自带的那套）。
+    ///
+    /// 与 <see cref="TitleBarStyle"/> 正交：样式管几何，本属性管颜色。赋值时只重新套用颜色，
+    /// **几何不变**；之后单独修改任何颜色属性都以属性为准。
+    /// 两个属性谁后赋值都成立 —— 改样式会按当前配色来源重新上色，改配色来源会按当前样式上色。
+    /// </summary>
+    [Category("WindowChromeKit")]
+    [DefaultValue(ChromeTitleBarPalette.Default)]
+    public ChromeTitleBarPalette TitleBarPalette
+    {
+        get => _titleBarPalette;
+        set
+        {
+            if (_titleBarPalette == value)
+                return;
+            _titleBarPalette = value;
+            ApplyTitleBarPalette(_titleBarStyle);
+        }
+    }
+
     /// <summary>把预置样式套到标题栏上（几何 + 配色 + 布局开关，一次性应用）。</summary>
     private void ApplyTitleBarStyle(ChromeTitleBarStyle style)
     {
-        ChromePalette palette;
+        ApplyTitleBarGeometry(style);
+        ApplyTitleBarPalette(style);
+    }
+
+    /// <summary>只套几何与布局开关；配色由 <see cref="ApplyTitleBarPalette"/> 负责。</summary>
+    private void ApplyTitleBarGeometry(ChromeTitleBarStyle style)
+    {
         switch (style)
         {
             case ChromeTitleBarStyle.VsCode:
                 // VS Code：标题栏 35、按钮 46×34，配色固定深色（不跟随系统明暗）。
                 // 标题贴左：VS Code 的标题栏是三段式（左：菜单/导航，中：命令中心，右：按钮），
                 // 窗口标题不是居中的。
-                palette = SystemTheme.VsCode;
                 CaptionHeightDip = 35;
                 CaptionButtonWidthDip = 46;
                 CaptionButtonHeightDip = 34;
@@ -258,7 +286,6 @@ public partial class ChromeForm
                 // 贴近 Windows 11 原生（96dpi 实测一个原生 WPF Window）：
                 // 标题栏可见高 31、按钮 36×22（SM_CXSIZE × SM_CYSIZE）、
                 // 图标盒子 19×22 贴左且顶边在第 8 行（frame 内缩），标题左对齐
-                palette = SystemTheme.Current;
                 CaptionHeightDip = 31;
                 // 视觉格子 45（原生悬停块实测）= SM_CXSIZE(36) + 2×SM_CXPADDEDBORDER(4)；
                 // 注意原生"命中带"只有 33 宽，那是内缩后的判定区，不是画出来的格子
@@ -276,7 +303,6 @@ public partial class ChromeForm
                 // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、标题贴左。
                 // 标题位置与 WPF 版保持一致：WPF 模板把标题 TextBlock 放在图标之后的横向
                 // StackPanel 里，天然贴左；三套样式都贴左（不再有居中的那套）。
-                palette = SystemTheme.Current;
                 CaptionHeightDip = 40;
                 CaptionButtonWidthDip = 46;
                 // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
@@ -287,34 +313,28 @@ public partial class ChromeForm
                 break;
         }
 
+        ShowTitleBarIcon = true;
+        ShowTopBorderLine = true;
+    }
+
+    /// <summary>
+    /// 按当前的 <see cref="TitleBarPalette"/> 把颜色套到标题栏上。
+    /// 几何不变，只改颜色 —— 这也是它与 <see cref="ChromeTitleBarStyle"/> 分成两个轴的原因。
+    /// </summary>
+    private void ApplyTitleBarPalette(ChromeTitleBarStyle style)
+    {
+        var look = TitleBarPalette == ChromeTitleBarPalette.ElementPlus
+            ? ElementPlusTheme.Look(style)
+            : SystemTheme.Look(style);
+        var palette = look.Palette;
         ActiveCaptionColor = palette.ActiveCaption;
         InactiveCaptionColor = palette.InactiveCaption;
         CaptionTextColor = palette.CaptionText;
         InactiveCaptionTextColor = palette.InactiveCaptionText;
         CaptionButtonHoverColor = palette.ButtonHover;
         CaptionButtonPressedColor = palette.ButtonPressed;
-        // 关闭按钮的红分三套：
-        //   Windows 用原生实测值（悬停 #C42B1C、按下 #A92316，按下变暗）；
-        //   Chrome 用经典 #E81123，它的按下是**变亮**的粉红 #F1707A（Chrome 自身行为）；
-        //   VS Code 悬停是 #e81123e6，工作台样式表里没有 :active 规则 —— 按下取更深的红，
-        //   否则按下与悬停同色会显得没有反馈。顶边线三套都画。
-        if (style == ChromeTitleBarStyle.Windows)
-        {
-            CloseButtonHoverColor = Color.FromArgb(0xC4, 0x2B, 0x1C);
-            CloseButtonPressedColor = Color.FromArgb(0xA9, 0x23, 0x16);
-        }
-        else if (style == ChromeTitleBarStyle.VsCode)
-        {
-            CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
-            CloseButtonPressedColor = Color.FromArgb(0xC5, 0x0F, 0x1F);
-        }
-        else
-        {
-            CloseButtonHoverColor = Color.FromArgb(0xE8, 0x11, 0x23);
-            CloseButtonPressedColor = Color.FromArgb(0xF1, 0x70, 0x7A);
-        }
-        ShowTitleBarIcon = true;
-        ShowTopBorderLine = true;
+        CloseButtonHoverColor = look.CloseButtonHover;
+        CloseButtonPressedColor = look.CloseButtonPressed;
     }
 
     /// <summary>

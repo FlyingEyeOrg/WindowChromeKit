@@ -102,6 +102,15 @@ public partial class ChromeWindow
             IsDefinedTitleBarStyle
         );
 
+    public static readonly DependencyProperty TitleBarPaletteProperty =
+        DependencyProperty.Register(
+            nameof(TitleBarPalette),
+            typeof(ChromeTitleBarPalette),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(ChromeTitleBarPalette.Default, OnTitleBarPaletteChanged),
+            IsDefinedTitleBarPalette
+        );
+
     public static readonly DependencyProperty CaptionIconBoxMarginProperty =
         DependencyProperty.Register(
             nameof(CaptionIconBoxMargin),
@@ -474,11 +483,22 @@ public partial class ChromeWindow
     private static bool IsDefinedTitleBarStyle(object value) =>
         value is ChromeTitleBarStyle style && Enum.IsDefined(typeof(ChromeTitleBarStyle), style);
 
+    private static bool IsDefinedTitleBarPalette(object value) =>
+        value is ChromeTitleBarPalette palette && Enum.IsDefined(typeof(ChromeTitleBarPalette), palette);
+
     private static void OnTitleBarStyleChanged(
         DependencyObject dependencyObject,
         DependencyPropertyChangedEventArgs eventArgs
     ) =>
         ((ChromeWindow)dependencyObject).ApplyTitleBarStyle((ChromeTitleBarStyle)eventArgs.NewValue);
+
+    private static void OnTitleBarPaletteChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs eventArgs
+    ) =>
+        ((ChromeWindow)dependencyObject).ApplyTitleBarPalette(
+            (ChromeTitleBarStyle)((ChromeWindow)dependencyObject).TitleBarStyle
+        );
 
     private static void OnChromeMetricChanged(
         DependencyObject dependencyObject,

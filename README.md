@@ -158,14 +158,28 @@ public partial class MainWindow : ChromeWindow
   原生 frame 模型：保留 `WS_CAPTION | WS_THICKFRAME`，客户区从窗口矩形内缩出 frame，
   `WM_NCHITTEST` 按 Chrome 实测的优先级判定。与 WPF 版一样内嵌了两个可选窗口图标
   （`WindowChromeIcons.Windows10` / `WindowChromeIcons.Windows7`，直接赋给 `Form.Icon`）。
-  标题栏预置样式 `ChromeTitleBarStyle`（`ChromeWindow` / `ChromeForm` 上的 `TitleBarStyle`，
-  默认 `Chrome`）——赋值时把该样式的几何与配色一次性套用，之后单独改属性以属性为准：
+  标题栏有**两个正交的轴**：`TitleBarStyle` 管几何，`TitleBarPalette` 管配色。
+  赋值时各自**套用一次**，之后单独改属性以属性为准：
 
-  | 样式 | 标题栏高 | 按钮 | 图标位置 | 标题 | 配色 |
-  | --- | --- | --- | --- | --- | --- |
-  | `Chrome`（默认） | 40 | 最小化 45 / 其余 46，高 39 | 12px 位 | 贴左 | 跟随系统明暗 |
-  | `VsCode` | 35 | 46×34 | 12px 位 | 贴左 | 固定深色 `#191A1B`（取自 VS Code 的 2026-dark 主题） |
-  | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 贴左 | 跟随系统明暗 |
+  | `TitleBarStyle` | 标题栏高 | 按钮 | 图标位置 | 标题 |
+  | --- | --- | --- | --- | --- |
+  | `Chrome`（默认） | 40 | 最小化 45 / 其余 46，高 39 | 12px 位 | 贴左 |
+  | `VsCode` | 35 | 46×34 | 12px 位 | 贴左 |
+  | `Windows` | 31 | 45×31（视觉格子） | 贴左 8px | 贴左 |
+
+  | `TitleBarPalette` | 含义 |
+  | --- | --- |
+  | `Default`（默认） | 该样式自带的那套：`Chrome` / `Windows` 跟随系统明暗，`VsCode` 固定深色 `#191A1B` |
+  | `ElementPlus` | Element Plus 色板，三套几何**各有一款**：Chrome 用品牌主色当底、VS Code 用它的深色主题、Windows 保持中性底只把主色用在按钮上 |
+
+  ```csharp
+  form.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+  form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;   // 顺序任意，两者自行组合
+  ```
+
+  两个轴**谁后赋值都成立**，不会互相覆盖。之所以拆成两轴而不是加 `ChromeForElementPlus`
+  这类枚举成员：那会让两者相乘（3 种几何 × N 种品牌配色 = 3N 个成员），
+  而换品牌配色时几何其实一点没变，它本来就不是另一种"样式"。
 
   三套样式的标题文字都是**贴左**（图标右侧），与 WPF 版和真实 Chrome 一致。
   `VsCode` 用的是**独立**的一套配色，改它不会影响 `Chrome` / `Windows` 在系统深色模式下的外观。

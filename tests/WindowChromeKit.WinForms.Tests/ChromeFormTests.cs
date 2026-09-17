@@ -600,6 +600,154 @@ public sealed class ChromeFormTests
         Assert.Equal(ChromeCaptionButton.Maximize, form.HoveredCaptionButton);
     });
 
+    /// <summary>
+    /// 配色是**独立的一轴**：换配色只改颜色，几何一点不动。
+    /// Element Plus 三套几何各有一款配色，这里逐款核对，并断言几何与样式没被牵连。
+    /// </summary>
+    [Fact]
+    public void ElementPlusPaletteChangesOnlyTheColours() => RunSta(() =>
+    {
+        using var form = NewTestForm("element plus palette");
+        foreach (var style in new[]
+                 {
+                     ChromeTitleBarStyle.Chrome,
+                     ChromeTitleBarStyle.VsCode,
+                     ChromeTitleBarStyle.Windows,
+                 })
+        {
+            form.TitleBarStyle = style;
+            form.TitleBarPalette = ChromeTitleBarPalette.Default;
+            var geometry = Geometry(form);
+
+            form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+
+            Assert.Equal(geometry, Geometry(form));
+            var expected = ExpectedElementPlus(style);
+            Assert.Equal(expected.Active, form.ActiveCaptionColor);
+            Assert.Equal(expected.Inactive, form.InactiveCaptionColor);
+            Assert.Equal(expected.Text, form.CaptionTextColor);
+            Assert.Equal(expected.InactiveText, form.InactiveCaptionTextColor);
+            Assert.Equal(expected.Hover, form.CaptionButtonHoverColor);
+            Assert.Equal(expected.Pressed, form.CaptionButtonPressedColor);
+            Assert.Equal(expected.CloseHover, form.CloseButtonHoverColor);
+            Assert.Equal(expected.ClosePressed, form.CloseButtonPressedColor);
+        }
+    });
+
+    /// <summary>
+    /// 两个轴**谁后赋值都成立**：先样式后配色与先配色后样式，最终状态必须一致。
+    /// 这条守住"改样式会按当前配色来源重新上色"这个契约。
+    /// </summary>
+    [Fact]
+    public void StyleAndPaletteComposeInEitherOrder() => RunSta(() =>
+    {
+        using var styleFirst = NewTestForm("style first");
+        styleFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+        styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+
+        using var paletteFirst = NewTestForm("palette first");
+        paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        paletteFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+
+        Assert.Equal(Geometry(styleFirst), Geometry(paletteFirst));
+        Assert.Equal(styleFirst.ActiveCaptionColor, paletteFirst.ActiveCaptionColor);
+        Assert.Equal(styleFirst.InactiveCaptionColor, paletteFirst.InactiveCaptionColor);
+        Assert.Equal(styleFirst.CaptionTextColor, paletteFirst.CaptionTextColor);
+        Assert.Equal(styleFirst.InactiveCaptionTextColor, paletteFirst.InactiveCaptionTextColor);
+        Assert.Equal(styleFirst.CaptionButtonHoverColor, paletteFirst.CaptionButtonHoverColor);
+        Assert.Equal(styleFirst.CaptionButtonPressedColor, paletteFirst.CaptionButtonPressedColor);
+        Assert.Equal(styleFirst.CloseButtonHoverColor, paletteFirst.CloseButtonHoverColor);
+        Assert.Equal(styleFirst.CloseButtonPressedColor, paletteFirst.CloseButtonPressedColor);
+    });
+
+    /// <summary>
+    /// 切回 <c>Default</c> 要还原成该样式自带的那套配色 —— 包括关闭按钮的红
+    /// （三套样式的红本来就不同：Chrome 按下变亮、Windows 变暗、VS Code 变深）。
+    /// </summary>
+    [Fact]
+    public void SwitchingBackToDefaultRestoresTheStylesOwnColours() => RunSta(() =>
+    {
+        using var form = NewTestForm("palette round trip");
+        form.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+        var chromeOwn = (form.ActiveCaptionColor, form.CloseButtonHoverColor, form.CloseButtonPressedColor);
+
+        form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+        Assert.NotEqual(chromeOwn.ActiveCaptionColor, form.ActiveCaptionColor);
+
+        form.TitleBarPalette = ChromeTitleBarPalette.Default;
+        Assert.Equal(chromeOwn.ActiveCaptionColor, form.ActiveCaptionColor);
+        Assert.Equal(chromeOwn.CloseButtonHoverColor, form.CloseButtonHoverColor);
+        Assert.Equal(chromeOwn.CloseButtonPressedColor, form.CloseButtonPressedColor);
+
+        // Windows 样式的关闭按钮按下必须仍然"变暗"（原生行为），不被 Element Plus 的规则带走
+        form.TitleBarStyle = ChromeTitleBarStyle.Windows;
+        Assert.True(
+            form.CloseButtonPressedColor.R < form.CloseButtonHoverColor.R,
+            "Windows 样式的关闭按钮按下应当比悬停更深");
+    });
+
+    /// <summary>样式决定的那几个几何量（换配色时这些必须一个都不变）。</summary>
+    private static (int Height, int Width, int ButtonHeight, int IconMargin, int MinWidth, ContentAlignment Align)
+        Geometry(ChromeForm form) => (
+            form.CaptionHeightDip,
+            form.CaptionButtonWidthDip,
+            form.CaptionButtonHeightDip,
+            form.CaptionIconMarginDip,
+            form.MinimizeButtonWidthDip,
+            form.CaptionTextAlignment);
+
+    /// <summary>
+    /// Element Plus 三款配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
+    /// 与库内 <c>ElementPlusTheme</c> 是同一套算法（这里独立算一遍，避免"用实现测实现"）。
+    /// </summary>
+    private static (Color Active, Color Inactive, Color Text, Color InactiveText,
+        Color Hover, Color Pressed, Color CloseHover, Color ClosePressed)
+        ExpectedElementPlus(ChromeTitleBarStyle style)
+    {
+        var primary = Color.FromArgb(0x40, 0x9E, 0xFF);
+        var danger = Color.FromArgb(0xF5, 0x6C, 0x6C);
+        var darkBg = Color.FromArgb(0x14, 0x14, 0x14);
+        // 浅色底的关闭按钮用 Windows 原生那一对（实测值），不用 danger 色阶
+        var nativeHover = Color.FromArgb(0xC4, 0x2B, 0x1C);
+        var nativePressed = Color.FromArgb(0xA9, 0x23, 0x16);
+        return style switch
+        {
+            ChromeTitleBarStyle.VsCode => (
+                darkBg,
+                Color.FromArgb(0x1D, 0x1E, 0x1F),
+                MixWith(Color.FromArgb(0xF0, 0xF5, 0xFF), darkBg, 0.95),
+                MixWith(Color.FromArgb(0xF0, 0xF5, 0xFF), darkBg, 0.65),
+                MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.12),
+                MixWith(Color.FromArgb(0xFA, 0xFC, 0xFF), darkBg, 0.20),
+                danger,
+                MixWith(Color.White, danger, 0.20)),   // 深色主题 dark-2 向白混
+            ChromeTitleBarStyle.Windows => (
+                Color.White,
+                Color.FromArgb(0xF2, 0xF6, 0xFC),
+                Color.FromArgb(0x30, 0x31, 0x33),
+                Color.FromArgb(0x90, 0x93, 0x99),
+                MixWith(Color.White, primary, 0.90),
+                MixWith(Color.White, primary, 0.80),
+                nativeHover,
+                nativePressed),
+            _ => (
+                primary,
+                MixWith(Color.White, primary, 0.30),
+                Color.White,
+                MixWith(Color.White, primary, 0.90),
+                MixWith(Color.White, primary, 0.30),
+                MixWith(Color.Black, primary, 0.20),
+                nativeHover,
+                nativePressed),
+        };
+    }
+
+    /// <summary>Element Plus 的混色公式：<paramref name="pct"/> 是 <paramref name="foreground"/> 的占比。</summary>
+    private static Color MixWith(Color foreground, Color background, double pct) => Color.FromArgb(
+        (int)Math.Round(foreground.R * pct + background.R * (1 - pct)),
+        (int)Math.Round(foreground.G * pct + background.G * (1 - pct)),
+        (int)Math.Round(foreground.B * pct + background.B * (1 - pct)));
+
     /// <summary>新建一个用于状态机测试的窗口（已显示并处理完初始消息）。</summary>
     private static ChromeForm NewTestForm(string title)
     {

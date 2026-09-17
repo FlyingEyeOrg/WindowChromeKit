@@ -77,6 +77,32 @@ internal static class SystemTheme
     /// <summary>当前系统明暗对应的配色（读取"应用模式"设置，读不到时按浅色处理）。</summary>
     internal static ChromePalette Current => IsLightMode() ? Light : Dark;
 
+    /// <summary>
+    /// 某个样式在 <see cref="ChromeTitleBarPalette.Default"/> 下的完整配色
+    /// （调色板 + 关闭按钮）。
+    ///
+    /// 关闭按钮的红按样式分三套，都是实测得来的：
+    ///   Windows 用原生值（悬停 #C42B1C、按下 #A92316，按下**变暗**）；
+    ///   Chrome 用经典 #E81123，它按下是**变亮**的粉红 #F1707A（Chrome 自身行为）；
+    ///   VS Code 的悬停是 #e81123e6，它的样式表没有 :active 规则 —— 按下取更深的红，
+    ///   否则按下与悬停同色会显得没有反馈。
+    /// </summary>
+    internal static ChromeTitleBarLook Look(ChromeTitleBarStyle style) => style switch
+    {
+        ChromeTitleBarStyle.VsCode => new ChromeTitleBarLook(
+            VsCode,
+            closeButtonHover: Freeze(0xFF, 0xE8, 0x11, 0x23),
+            closeButtonPressed: Freeze(0xFF, 0xC5, 0x0F, 0x1F)),
+        ChromeTitleBarStyle.Windows => new ChromeTitleBarLook(
+            Current,
+            closeButtonHover: Freeze(0xFF, 0xC4, 0x2B, 0x1C),
+            closeButtonPressed: Freeze(0xFF, 0xA9, 0x23, 0x16)),
+        _ => new ChromeTitleBarLook(
+            Current,
+            closeButtonHover: Freeze(0xFF, 0xE8, 0x11, 0x23),
+            closeButtonPressed: Freeze(0xFF, 0xF1, 0x70, 0x7A)),
+    };
+
     /// <summary>系统当前是否使用浅色"应用模式"。</summary>
     internal static bool IsLightMode()
     {

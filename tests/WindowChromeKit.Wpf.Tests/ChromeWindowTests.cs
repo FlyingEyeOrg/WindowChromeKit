@@ -1051,6 +1051,193 @@ public sealed class ChromeWindowTests
         window.UpdateLayout();
     });
 
+    /// <summary>
+    /// 配色是**独立的一轴**：换配色只改颜色，几何一点不动。
+    /// Element Plus 三套几何各有一款配色，这里逐款核对，并断言几何与样式没被牵连。
+    /// </summary>
+    [Fact]
+    public void ElementPlusPaletteChangesOnlyTheColours() => RunSta(() =>
+    {
+        var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        window.Show();
+        try
+        {
+            foreach (var style in new[]
+                     {
+                         ChromeTitleBarStyle.Chrome,
+                         ChromeTitleBarStyle.VsCode,
+                         ChromeTitleBarStyle.Windows,
+                     })
+            {
+                window.TitleBarStyle = style;
+                window.TitleBarPalette = ChromeTitleBarPalette.Default;
+                var geometry = Geometry(window);
+
+                window.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+
+                Assert.Equal(geometry, Geometry(window));
+                var expected = ExpectedElementPlus(style);
+                Assert.Equal(expected.Active, ColorOf(window.ActiveTitleBarBackground));
+                Assert.Equal(expected.Inactive, ColorOf(window.InactiveTitleBarBackground));
+                Assert.Equal(expected.Text, ColorOf(window.ActiveTitleBarForeground));
+                Assert.Equal(expected.InactiveText, ColorOf(window.InactiveTitleBarForeground));
+                Assert.Equal(expected.Hover, ColorOf(window.CaptionButtonHoverBackground));
+                Assert.Equal(expected.Pressed, ColorOf(window.CaptionButtonPressedBackground));
+                Assert.Equal(expected.CloseHover, ColorOf(window.CloseButtonHoverBackground));
+                Assert.Equal(expected.ClosePressed, ColorOf(window.CloseButtonPressedBackground));
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// 两个轴**谁后赋值都成立**：先样式后配色与先配色后样式，最终状态必须一致。
+    /// 这条守住"改样式会按当前配色来源重新上色"这个契约。
+    /// </summary>
+    [Fact]
+    public void StyleAndPaletteComposeInEitherOrder() => RunSta(() =>
+    {
+        var styleFirst = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        var paletteFirst = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        styleFirst.Show();
+        paletteFirst.Show();
+        try
+        {
+            styleFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+            styleFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+
+            paletteFirst.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+            paletteFirst.TitleBarStyle = ChromeTitleBarStyle.VsCode;
+
+            Assert.Equal(Geometry(styleFirst), Geometry(paletteFirst));
+            foreach (var read in Reads())
+            {
+                Assert.Equal(read(styleFirst), read(paletteFirst));
+            }
+        }
+        finally
+        {
+            styleFirst.Close();
+            paletteFirst.Close();
+        }
+
+        static Func<ChromeWindow, Color>[] Reads() => new Func<ChromeWindow, Color>[]
+        {
+            w => ColorOf(w.ActiveTitleBarBackground),
+            w => ColorOf(w.InactiveTitleBarBackground),
+            w => ColorOf(w.ActiveTitleBarForeground),
+            w => ColorOf(w.InactiveTitleBarForeground),
+            w => ColorOf(w.CaptionButtonHoverBackground),
+            w => ColorOf(w.CaptionButtonPressedBackground),
+            w => ColorOf(w.CloseButtonHoverBackground),
+            w => ColorOf(w.CloseButtonPressedBackground),
+        };
+    });
+
+    /// <summary>
+    /// 切回 <c>Default</c> 要还原成该样式自带的那套配色 —— 包括关闭按钮的红
+    /// （三套样式的红本来就不同：Chrome 按下变亮、Windows 变暗、VS Code 变深）。
+    /// </summary>
+    [Fact]
+    public void SwitchingBackToDefaultRestoresTheStylesOwnColours() => RunSta(() =>
+    {
+        var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
+        window.Show();
+        try
+        {
+            window.TitleBarStyle = ChromeTitleBarStyle.Chrome;
+            var own = (
+                ColorOf(window.ActiveTitleBarBackground),
+                ColorOf(window.CloseButtonHoverBackground),
+                ColorOf(window.CloseButtonPressedBackground));
+
+            window.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;
+            Assert.NotEqual(own.Item1, ColorOf(window.ActiveTitleBarBackground));
+
+            window.TitleBarPalette = ChromeTitleBarPalette.Default;
+            Assert.Equal(own.Item1, ColorOf(window.ActiveTitleBarBackground));
+            Assert.Equal(own.Item2, ColorOf(window.CloseButtonHoverBackground));
+            Assert.Equal(own.Item3, ColorOf(window.CloseButtonPressedBackground));
+
+            // Windows 样式的关闭按钮按下必须仍然"变暗"（原生行为），不被 Element Plus 的规则带走
+            window.TitleBarStyle = ChromeTitleBarStyle.Windows;
+            var hover = ColorOf(window.CloseButtonHoverBackground);
+            var pressed = ColorOf(window.CloseButtonPressedBackground);
+            Assert.True(pressed.R < hover.R, "Windows 样式的关闭按钮按下应当比悬停更深");
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static Color ColorOf(Brush brush) =>
+        Assert.IsType<SolidColorBrush>(brush).Color;
+
+    /// <summary>样式决定的那几个几何量（换配色时这些必须一个都不变）。</summary>
+    private static (double Height, double Width, double ButtonHeight, double MinWidth, Thickness IconMargin)
+        Geometry(ChromeWindow window) => (
+            window.TitleBarHeight,
+            window.CaptionButtonWidth,
+            window.CaptionButtonHeight,
+            window.MinimizeButtonWidth,
+            window.CaptionIconBoxMargin);
+
+    /// <summary>
+    /// Element Plus 三款配色的期望值，全部由它在 <c>theme-chalk</c> 里的官方变量与混色公式推出，
+    /// 这里独立算一遍，避免"用实现测实现"。
+    /// </summary>
+    private static (Color Active, Color Inactive, Color Text, Color InactiveText,
+        Color Hover, Color Pressed, Color CloseHover, Color ClosePressed)
+        ExpectedElementPlus(ChromeTitleBarStyle style)
+    {
+        var primary = Color.FromRgb(0x40, 0x9E, 0xFF);
+        var danger = Color.FromRgb(0xF5, 0x6C, 0x6C);
+        var darkBg = Color.FromRgb(0x14, 0x14, 0x14);
+        // 浅色底的关闭按钮用 Windows 原生那一对（实测值），不用 danger 色阶
+        var nativeHover = Color.FromRgb(0xC4, 0x2B, 0x1C);
+        var nativePressed = Color.FromRgb(0xA9, 0x23, 0x16);
+        return style switch
+        {
+            ChromeTitleBarStyle.VsCode => (
+                darkBg,
+                Color.FromRgb(0x1D, 0x1E, 0x1F),
+                MixWith(Color.FromRgb(0xF0, 0xF5, 0xFF), darkBg, 0.95),
+                MixWith(Color.FromRgb(0xF0, 0xF5, 0xFF), darkBg, 0.65),
+                MixWith(Color.FromRgb(0xFA, 0xFC, 0xFF), darkBg, 0.12),
+                MixWith(Color.FromRgb(0xFA, 0xFC, 0xFF), darkBg, 0.20),
+                danger,
+                MixWith(Colors.White, danger, 0.20)),   // 深色主题 dark-2 向白混
+            ChromeTitleBarStyle.Windows => (
+                Colors.White,
+                Color.FromRgb(0xF2, 0xF6, 0xFC),
+                Color.FromRgb(0x30, 0x31, 0x33),
+                Color.FromRgb(0x90, 0x93, 0x99),
+                MixWith(Colors.White, primary, 0.90),
+                MixWith(Colors.White, primary, 0.80),
+                nativeHover,
+                nativePressed),
+            _ => (
+                primary,
+                MixWith(Colors.White, primary, 0.30),
+                Colors.White,
+                MixWith(Colors.White, primary, 0.90),
+                MixWith(Colors.White, primary, 0.30),
+                MixWith(Colors.Black, primary, 0.20),
+                nativeHover,
+                nativePressed),
+        };
+    }
+
+    /// <summary>Element Plus 的混色公式：<paramref name="pct"/> 是 <paramref name="foreground"/> 的占比。</summary>
+    private static Color MixWith(Color foreground, Color background, double pct) => Color.FromRgb(
+        (byte)Math.Round(foreground.R * pct + background.R * (1 - pct)),
+        (byte)Math.Round(foreground.G * pct + background.G * (1 - pct)),
+        (byte)Math.Round(foreground.B * pct + background.B * (1 - pct)));
+
     private sealed class TestChromeFrame : ChromeFrame { }
 
     private static IntPtr PackScreenPoint(Point point)
