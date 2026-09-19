@@ -729,6 +729,30 @@ public sealed class ChromeFormTests
             "Windows 样式的关闭按钮按下应当比悬停更深");
     });
 
+    /// <summary>
+    /// 标题栏按钮的字形必须用 **WPF 那一套字体图标**（<c>Segoe MDL2 Assets</c> 的
+    /// <c>U+E921 / E922 / E923 / E8BB</c>），不能退回手绘矢量。
+    ///
+    /// 手绘矢量无论怎么调都与字体字形有像素差 —— 尺寸、线宽、关闭斜线的粗细、
+    /// 还原双框的结构都对不上，和原生窗口差得更远。用同一个字体、同一码位之后，
+    /// 两个库一致是靠"用同一个字形"保证的，不再依赖逼近。
+    ///
+    /// 这里把四个码位直接钉死，等同于 WPF 模板里的四个 <c>TextBlock</c>。
+    /// </summary>
+    [Fact]
+    public void CaptionGlyphsAreTheSameFontGlyphsAsWpf()
+    {
+        // 与 src/WindowChromeKit.Wpf/Themes/Generic.xaml 中的 Text 属性逐一对应
+        Assert.Equal("\uE921", ChromeForm.MinimizeGlyph);
+        Assert.Equal("\uE922", ChromeForm.MaximizeGlyph);
+        Assert.Equal("\uE923", ChromeForm.RestoreGlyph);
+        Assert.Equal("\uE8BB", ChromeForm.CloseGlyph);
+
+        // 字体与字号也要和 WPF 模板一致（FontFamily="Segoe MDL2 Assets", FontSize=10）
+        Assert.Equal("Segoe MDL2 Assets", ChromeForm.CaptionGlyphFontFamilyName);
+        Assert.Equal(10, ChromeForm.CaptionGlyphSizeDip);
+    }
+
     /// <summary>样式决定的那几个几何量（换配色时这些必须一个都不变）。</summary>
     private static (int Height, int Width, int ButtonHeight, int IconMargin, int MinWidth, ContentAlignment Align)
         Geometry(ChromeForm form) => (

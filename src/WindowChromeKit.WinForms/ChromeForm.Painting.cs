@@ -1,5 +1,5 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Windows.Forms;
 using WindowChromeKit.WinForms.Internal;
 
@@ -9,8 +9,25 @@ namespace WindowChromeKit.WinForms;
 public partial class ChromeForm
 {
     private const int DiNormal = 0x0003;
+
+    /// <summary>标题栏字形用的字体，与 WPF 模板的 <c>FontFamily</c> 一致。</summary>
+    internal const string CaptionGlyphFontFamilyName = "Segoe MDL2 Assets";
+
+    /// <summary>标题栏字形字号（dip）。WPF 模板是 <c>FontSize="10"</c>。</summary>
+    internal const int CaptionGlyphSizeDip = 10;
+
+    // 四个码位与 src/WindowChromeKit.Wpf/Themes/Generic.xaml 中四个 TextBlock 的 Text 一一对应
+    internal const string MinimizeGlyph = "\uE921";
+    internal const string MaximizeGlyph = "\uE922";
+    internal const string RestoreGlyph = "\uE923";
+    internal const string CloseGlyph = "\uE8BB";
+
     private Font? _scaledCaptionFont;
     private uint _scaledCaptionFontDpi;
+
+    /// <summary>按 DPI 缓存的字形字体（与 <see cref="_scaledCaptionFont"/> 同样按 DPI 失效）。</summary>
+    private Font? _captionGlyphFont;
+    private uint _captionGlyphFontDpi;
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -24,6 +41,8 @@ public partial class ChromeForm
         {
             _scaledCaptionFont?.Dispose();
             _scaledCaptionFont = null;
+            _captionGlyphFont?.Dispose();
+            _captionGlyphFont = null;
         }
         base.Dispose(disposing);
     }
@@ -177,6 +196,21 @@ public partial class ChromeForm
             height);
     }
 
+    /// <summary>
+    /// 标题栏按钮的字形。
+    ///
+    /// **直接用 WPF 那一套字体图标**：WPF 模板里是 <c>Segoe MDL2 Assets</c> 的
+    /// <c>U+E921</c>(最小化) / <c>E922</c>(最大化) / <c>E923</c>(还原) / <c>E8BB</c>(关闭)，
+    /// <c>FontSize="10"</c>（设备无关单位，96dpi 下 em = 10px），居中显示。
+    ///
+    /// 以前这里是**手绘矢量**（DrawLine / DrawRectangle），无论怎么调都和字体字形有像素差：
+    /// 尺寸差 2px、线宽不同、关闭的斜线更细、还原双框的结构也不一样，与原生的关闭按钮差得更远。
+    /// 改成画**同一个字体、同一码位、同一字号、同样居中**之后，两边一致是靠"用同一个字形"
+    /// 保证的，不再依赖逼近。
+    ///
+    /// 字形颜色由调用方传入，所以聚焦/失活的换色（以及关闭按钮悬停时的白色）自动跟随。
+    /// 最大化时画 <c>U+E923</c>，与 WPF 的 <c>WindowState=Maximized</c> 触发器一致。
+    /// </summary>
     private void DrawCaptionGlyph(
         Graphics graphics,
         Rectangle bounds,
@@ -184,31 +218,53 @@ public partial class ChromeForm
         bool maximized,
         Color color)
     {
-        var centerX = (bounds.Left + bounds.Right) / 2;
-        var centerY = (bounds.Top + bounds.Bottom) / 2;
-        var half = ScaleDip(5, Metrics.Dpi);
-        using var pen = new Pen(color);
-        pen.Alignment = PenAlignment.Center;
-        switch (button)
+        var glyph = button switch
         {
-            case ChromeCaptionButton.Minimize:
-                graphics.DrawLine(pen, centerX - half, centerY, centerX + half + 1, centerY);
-                break;
-            case ChromeCaptionButton.Maximize when !maximized:
-                graphics.DrawRectangle(pen, centerX - half, centerY - half, half * 2 + 1, half * 2 + 1);
-                break;
-            case ChromeCaptionButton.Maximize:
-                // 还原：两个错开的方框
-                graphics.DrawRectangle(pen, centerX - half, centerY - half + 2, half * 2 - 1, half * 2 - 1);
-                graphics.DrawLine(pen, centerX - half + 2, centerY - half + 2, centerX - half + 2, centerY - half);
-                graphics.DrawLine(pen, centerX - half + 2, centerY - half, centerX + half + 1, centerY - half);
-                graphics.DrawLine(pen, centerX + half + 1, centerY - half, centerX + half + 1, centerY + half - 2);
-                break;
-            case ChromeCaptionButton.Close:
-                graphics.DrawLine(pen, centerX - half, centerY - half, centerX + half + 1, centerY + half + 1);
-                graphics.DrawLine(pen, centerX + half, centerY - half, centerX - half - 1, centerY + half + 1);
-                break;
+            ChromeCaptionButton.Minimize => MinimizeGlyph,
+            ChromeCaptionButton.Close => CloseGlyph,
+            // 最大化按钮在最大化状态下变成"还原"，与 WPF 的 WindowState 触发器一致
+            _ => maximized ? RestoreGlyph : MaximizeGlyph,
+        };
+
+        // 与 WPF 一致地用 ClearType。保存后恢复，别影响同一个 Graphics 上的其它绘制。
+        var previousHint = graphics.TextRenderingHint;
+        graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        try
+        {
+            // GenericTypographic 不带 GenericDefault 额外加的那圈行距/边距，更贴近 WPF 的文本布局
+            using var format = new StringFormat(StringFormat.GenericTypographic)
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+                FormatFlags = StringFormatFlags.NoClip | StringFormatFlags.NoWrap,
+            };
+            using var brush = new SolidBrush(color);
+            graphics.DrawString(glyph, ResolveCaptionGlyphFont(), brush, bounds, format);
         }
+        finally
+        {
+            graphics.TextRenderingHint = previousHint;
+        }
+    }
+
+    /// <summary>
+    /// 标题栏字形用的字体，与 WPF 模板的
+    /// <c>&lt;TextBlock FontFamily="Segoe MDL2 Assets" FontSize="10" /&gt;</c> 对应。
+    /// </summary>
+    private Font ResolveCaptionGlyphFont()
+    {
+        if (_captionGlyphFont is not null && _captionGlyphFontDpi == Metrics.Dpi)
+            return _captionGlyphFont;
+        _captionGlyphFont?.Dispose();
+        // GraphicsUnit.Pixel 不随 DPI 自动缩放，所以自己换算成设备像素，
+        // 与标题栏其它几何（ScaleDip）走同一套缩放：96dpi 下 10、150% 下 15。
+        _captionGlyphFont = new Font(
+            CaptionGlyphFontFamilyName,
+            ScaleDip(CaptionGlyphSizeDip, Metrics.Dpi),
+            FontStyle.Regular,
+            GraphicsUnit.Pixel);
+        _captionGlyphFontDpi = Metrics.Dpi;
+        return _captionGlyphFont;
     }
 
     private Font ResolveCaptionFont()
