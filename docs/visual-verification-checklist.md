@@ -1,5 +1,9 @@
 # 视觉验证清单
 
+> **平台前提：Windows 10 及以上。** 本清单的全部期望值都以 Win10+ 为前提；本项目
+> **不支持 Windows 7 / 8 / 8.1**（原因见 [`native-frame-model.md`](native-frame-model.md) 第 0 节）。
+> 在 Win7 上跑这些步骤没有意义 —— 帧模型的前提本身不成立。
+
 改动窗口框架、命中判定或标题栏绘制之后，按本文验证。清单分两部分：
 
 - **第 1 部分：自动化**（单元测试 + VM 实测脚本）—— 可重复执行，给出像素级证据；
@@ -25,7 +29,7 @@ cd /mnt/d/Project/FlyingEye/WindowChromeKit
   tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj -c Debug --nologo
 ```
 
-**通过标准**：WinForms **16/16**、WPF **35/35**，0 失败。
+**通过标准**：WinForms **24/24**、WPF **40/40**，0 失败。
 
 覆盖的关键契约（回归时重点看这些不红）：
 
@@ -275,7 +279,7 @@ VM   ：Win10-Test 已登录？ Y/N
 
 ```
 构建：0 error / 0 warning
-单测：WinForms 16/16   WPF 35/35
+单测：WinForms 24/24   WPF 40/40
 VM  ：顶线 6/6        三套样式 × 普通/最大化，普通态有线、最大化无线
       标题贴左 6/6    三套样式 × 两种状态，全部 MiddleLeft
       标题栏配色 6/6  Chrome (255,255,255)/(241,243,244)、VsCode (25,26,27)×2、

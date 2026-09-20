@@ -1,8 +1,25 @@
 # WindowChromeKit
 
-WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自 SoftwareHub DesktopAgent
+WindowChromeKit 是一个面向 .NET 的 WPF 自定义窗口程序集，源自 SoftwareHub DesktopAgent
 中稳定使用的原生窗口边框实现。它保留标准的顶级 WPF HWND 和 DWM 合成，同时使用 WPF
 绘制可定制的标题栏。
+
+## 系统要求
+
+**支持 Windows 10 及以上（含 Windows 11）。不支持 Windows 7 / 8 / 8.1。**
+
+这不是"还没适配"，而是整套方案有几处**架构性依赖**只在新系统上成立，在 Windows 7 上会
+抛异常或画出错误内容，而不是优雅降级：
+
+| 依赖 | 引入版本 | Windows 7 上的后果 |
+| --- | --- | --- |
+| DWM 的 `DWMNCRENDERINGPOLICY` 语义 | Windows 10 | 不生效；Win7 上顶部那圈 `frame` 是**真的缩放边框**，客户区不内缩就会把自绘标题栏画到缩放带上 |
+| `GetDpiForWindow` / `GetSystemMetricsForDpi` | Windows 10 1607 | `EntryPointNotFoundException`（`user32.dll` 里没有这两个导出） |
+| `GetDpiForMonitor`（`shcore.dll`） | Windows 8.1 | `DllNotFoundException` —— Win7 上**连这个 DLL 都不存在**，`catch (EntryPointNotFoundException)` 拦不住 |
+| 标题栏字形 `Segoe MDL2 Assets` | Windows 10 | 字体缺失，GDI/WPF **静默回退**到默认字体，画出的是错误字形（不报错） |
+
+另外 DWM 合成在 Win7 上依赖 Aero 主题，关闭 Aero（Win7 Basic / 经典主题）时合成整个不可用，
+阴影、可见边框和"阴影里那圈"缩放带都不存在。
 
 ## 功能特性
 
@@ -14,7 +31,9 @@ WindowChromeKit 是一个面向 .NET 8 的 WPF 自定义窗口程序集，源自
 - 最大化时客户区正好等于工作区，任务栏位于屏幕任意边缘都能正确铺满。
 - 支持多显示器居中和工作区约束，包括负坐标显示器。
 - 提供可模板化的 `ChromeWindow`，其画刷和尺寸均可通过依赖属性绑定。
-- 提供 Windows 7 和 Windows 10 风格的可选多尺寸窗口图标资源，不改变 WPF 原有的窗口图标规则。
+- 提供两种**美术风格**的可选多尺寸窗口图标资源（`WindowChromeIcons.Windows7` /
+  `WindowChromeIcons.Windows10`）。注意这只是图标画得像哪一代 Windows，**与受支持的操作系统无关** ——
+  两种风格在 Windows 10 及以上都能用。不改变 WPF 原有的窗口图标规则。
 - 保留标准 WPF `ResizeMode`、`Owner`、`Closing` 和模态窗口语义。
 
 本程序集不依赖 SoftwareHub、WebView2、SignalR 或 Serilog。

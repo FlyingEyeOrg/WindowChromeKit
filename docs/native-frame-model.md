@@ -14,6 +14,25 @@ resize 带、自定义标题栏」，尤其是**不把 resize 热区侵入客户
 
 ---
 
+## 0. 适用系统：Windows 10 及以上
+
+**本文描述的所有行为都以 Windows 10+ 为前提，不支持 Windows 7 / 8 / 8.1。** 这不是"还没适配"，
+而是下面几条前提在旧系统上不成立 —— 而且失败方式是**抛异常或静默画错**，不是优雅降级：
+
+| 前提 | 引入版本 | Windows 7 上的表现 |
+| --- | --- | --- |
+| 普通态**顶部那圈 `frame` 不属于非客户区**（所以可以不内缩） | Windows 10 | 不成立：Win7 上顶部 `8px` 是**真正的缩放边框**，不内缩就会把自绘标题栏画到缩放带上，同时那圈仍是拖拽/缩放热区 |
+| `DWMNCRENDERINGPOLICY` 可控（第 4 节） | Windows 10 | 语义不存在，`DwmSetWindowAttribute` 返回错误码（被忽略），阴影与边框行为不可控 |
+| `GetDpiForWindow` / `GetSystemMetricsForDpi` | Windows 10 1607 | `EntryPointNotFoundException`（`user32.dll` 无此导出） |
+| `GetDpiForMonitor`（`shcore.dll`） | Windows 8.1 | `DllNotFoundException` —— Win7 上**连 DLL 都不存在**，`catch (EntryPointNotFoundException)` 拦不住 |
+| 标题栏字形 `Segoe MDL2 Assets` | Windows 10 | 字体缺失，GDI/WPF **静默回退**到默认字体，画出错误字形 |
+
+另外 **DWM 合成在 Win7 上依赖 Aero 主题**：关闭 Aero（Win7 Basic / 经典主题）时合成整个不可用，
+第 3 节的缩放带、DWM 阴影和可见边框都不存在。要支持 Win7 需要另一套完全不同的绘制策略
+（自绘边框 + `CS_DROPSHADOW`），属于另一个方案，不在本文范围内。
+
+---
+
 ## 1. 目标与矛盾的根源
 
 要同时满足三件事：
