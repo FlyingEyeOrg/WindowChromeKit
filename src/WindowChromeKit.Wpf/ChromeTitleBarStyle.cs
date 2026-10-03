@@ -5,7 +5,7 @@ namespace WindowChromeKit.Wpf;
 /// <see cref="ChromeWindow.TitleBarStyle"/> 时**应用一次**；之后单独修改任何属性都以属性为准。
 ///
 /// 需要完全自定义标题栏时不使用本枚举：换 <see cref="ChromeWindow"/> 的 ControlTemplate，
-/// 或用 TitleBarContent / TitleBarActions 插槽填自己的内容。
+/// 或用 TitleBarContent 插槽填自己的内容。
 /// </summary>
 public enum ChromeTitleBarStyle
 {

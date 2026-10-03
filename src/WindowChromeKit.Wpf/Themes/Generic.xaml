@@ -83,44 +83,49 @@
                                 local:ChromeWindow.HitTestRole="Caption">
                             <Grid Background="Transparent">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" MinWidth="0" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" MinWidth="0" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <Grid Grid.Column="0" MinWidth="0" Background="Transparent">
-                                    <StackPanel x:Name="PART_DefaultTitleContent"
-                                                Orientation="Horizontal"
-                                                VerticalAlignment="Center"
-                                                Visibility="Collapsed">
-                                        <!-- 图标：16px、左边距 12px（图标固定在 12..27），标题文字从 36px 起 -->
-                                        <Border x:Name="PART_SystemMenu"
-                                                Width="Auto"
-                                                Background="Transparent">
-                                            <!-- 系统菜单命中盒子：与原生标题栏同形状 —— SM_CXSMSIZE × SM_CYSMSIZE
-                                                 （96dpi 下 22×22 的正方形、竖向居中），中心对准图标；
-                                                 盒子之外的标题栏（含图标左边那点空白）仍然可拖动 -->
-                                            <Border Width="22"
-                                                    Height="22"
-                                                    Margin="{TemplateBinding CaptionIconBoxMargin}"
-                                                    HorizontalAlignment="Left"
-                                                    VerticalAlignment="Center"
-                                                    Background="Transparent"
-                                                    local:ChromeWindow.HitTestRole="SystemMenu">
-                                                <Image Width="16"
-                                                       Height="16"
-                                                       Margin="3,0,0,0"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Center"
-                                                       Source="{TemplateBinding EffectiveTitleBarIcon}"
-                                                       Stretch="Uniform" />
-                                            </Border>
-                                        </Border>
-                                        <TextBlock Margin="8,0,0,0"
-                                                   VerticalAlignment="Center"
-                                                   Text="{TemplateBinding Title}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
+                                <!-- 图标：**独立成列，不受 TitleBarContent 影响**。
+                                     以前它和默认标题文字同在一个 StackPanel 里，设置 TitleBarContent 时
+                                     整个 StackPanel 被折叠，图标跟着消失。图标是窗口自己的一部分
+                                     （系统菜单入口、任务栏身份），不该因为换了标题栏内容就没了 ——
+                                     这里与 WinForms 的插槽语义对齐：内容从图标右侧开始排。
+                                     ShowTitleBarIcon=false 时整个折叠，Auto 列随之收为 0 宽。 -->
+                                <Border x:Name="PART_SystemMenu"
+                                        Grid.Column="0"
+                                        Width="Auto"
+                                        Background="Transparent">
+                                    <!-- 系统菜单命中盒子：与原生标题栏同形状 —— SM_CXSMSIZE × SM_CYSMSIZE
+                                         （96dpi 下 22×22 的正方形、竖向居中），中心对准图标；
+                                         盒子之外的标题栏（含图标左边那点空白）仍然可拖动 -->
+                                    <Border Width="22"
+                                            Height="22"
+                                            Margin="{TemplateBinding CaptionIconBoxMargin}"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Background="Transparent"
+                                            local:ChromeWindow.HitTestRole="SystemMenu">
+                                        <Image Width="16"
+                                               Height="16"
+                                               Margin="3,0,0,0"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Source="{TemplateBinding EffectiveTitleBarIcon}"
+                                               Stretch="Uniform" />
+                                    </Border>
+                                </Border>
+
+                                <Grid Grid.Column="1" MinWidth="0" Background="Transparent">
+                                    <!-- 默认标题文字：只有没给 TitleBarContent 时才显示 -->
+                                    <TextBlock x:Name="PART_DefaultTitleContent"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Visibility="Collapsed"
+                                               Text="{TemplateBinding Title}"
+                                               TextTrimming="CharacterEllipsis" />
                                     <ContentPresenter x:Name="PART_TitleBarContentPresenter"
                                                       Content="{TemplateBinding TitleBarContent}"
                                                       ContentTemplate="{TemplateBinding TitleBarContentTemplate}"
@@ -128,15 +133,6 @@
                                                       HorizontalAlignment="Stretch"
                                                       VerticalAlignment="Stretch" />
                                 </Grid>
-
-                                <ContentPresenter x:Name="PART_TitleBarActionsPresenter"
-                                                  Grid.Column="1"
-                                                  Content="{TemplateBinding TitleBarActions}"
-                                                  ContentTemplate="{TemplateBinding TitleBarActionsTemplate}"
-                                                  ContentTemplateSelector="{TemplateBinding TitleBarActionsTemplateSelector}"
-                                                  HorizontalAlignment="Right"
-                                                  VerticalAlignment="Stretch"
-                                                  local:ChromeWindow.HitTestRole="Client" />
 
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal"
@@ -219,6 +215,9 @@
                             <Setter TargetName="PART_TitleBar" Property="Background" Value="{Binding ActiveTitleBarBackground, RelativeSource={RelativeSource TemplatedParent}}" />
                             <Setter TargetName="PART_TitleBar" Property="TextElement.Foreground" Value="{Binding ActiveTitleBarForeground, RelativeSource={RelativeSource TemplatedParent}}" />
                         </Trigger>
+                        <!-- 默认标题文字与 TitleBarContent 二选一。
+                             注意**图标不在这个触发器里**：PART_SystemMenu 已经独立成列，
+                             设置 TitleBarContent 后图标照常显示（与 WinForms 的插槽语义一致）。 -->
                         <Trigger Property="TitleBarContent" Value="{x:Null}">
                             <Setter TargetName="PART_DefaultTitleContent" Property="Visibility" Value="Visible" />
                             <Setter TargetName="PART_TitleBarContentPresenter" Property="Visibility" Value="Collapsed" />

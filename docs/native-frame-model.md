@@ -361,6 +361,48 @@ form.TitleBarPalette = ChromeTitleBarPalette.ElementPlus;     // 配色
 代价是深色底上原生红比 EP 亮红略暗（3.25:1 对 6.35:1）——
 按下的方向仍然正确（比悬停更深），而且与 `Windows` 样式完全是同一对值，三处不必分别记。
 
+### `TitleBarContent` 只替换标题文字，不替换图标
+
+WPF 模板里图标（`PART_SystemMenu`）**独立成一列**，设置 `TitleBarContent` 时只有默认标题文字让位，
+图标照常显示：
+
+```
+[ 图标列 (Auto) ][ 标题文字 / TitleBarContent (*) ][ 三个按钮 (Auto) ]
+```
+
+**这是踩过的坑**：图标原先和标题文字同在一个 `StackPanel` 里，模板用
+`TitleBarContent == null` 的触发器把整个 `StackPanel` 折叠 —— 于是换了标题栏内容，图标跟着消失。
+样例当初是靠"在 `TitleBarContent` 里自己再画一个图标"绕过去的，而 WinForms 一直没有这个问题
+（它的内容插槽本来就从图标右侧起排）。两边语义应当一致，所以按 WinForms 的语义改。
+
+图标那一列的宽度是 **`CaptionIconBoxMargin.Left + SM_CXSMSIZE`**（`SM_CXSMSIZE` 为 22，即系统菜单
+命中盒子），96dpi 下 Chrome/VsCode 是 9 + 22 = **31**、Windows 样式是 5 + 22 = **27**。
+
+`ChromeWindow.CaptionLeadingWidth`（用于算最小窗口宽度）**必须按这个列宽报**，而不是图标的墨迹宽度
+（12 边距 + 16 图标 = 28）。原先它报 28 而实际列宽 31，差值被"图标在弹性列里、缩到最窄时被裁掉
+几像素"掩盖了；图标独立成 `Auto` 列后列宽不再收缩，少算的 3px 就会把三个按钮挤出客户区右侧
+（`TitleBarContentKeepsTheWindowIcon` 与 `DefaultTemplateHostsContentAndTracksResizeMode` 覆盖这两点）。
+
+#### 2.0.0：删掉了 `TitleBarActions` 插槽
+
+原先还有第四列 `TitleBarActions`（右对齐、紧贴按钮组左侧）。实测它与 `TitleBarContent` **完全重叠**：
+
+| 放法 | `WM_NCHITTEST` | 结果 |
+| --- | --- | --- |
+| 内容里未标记的按钮 | `HTCAPTION`（2） | 点击变成拖窗口 |
+| 内容里标了 `HitTestRole=Client` | `HTCLIENT`（1） | 可交互 |
+| 放在 `TitleBarActions`（不标任何东西） | `HTCLIENT`（1） | 可交互 |
+
+后两行**完全等价** —— `TitleBarActions` 唯一的作用就是模板给它加了
+`HitTestRole="Client"`，而那是**可继承**的附加属性，使用者自己标容器即可。
+加上"右侧贴按钮组"这个停靠位本身也不合理（内容想要的是"从图标一路铺到按钮前"），
+2.0.0 因此把三个成员（`TitleBarActions` / `TitleBarActionsTemplate` /
+`TitleBarActionsTemplateSelector`）与 WinForms 的 `TitleBarActions` / `TitleBarActionsBounds`
+一并删除，布局简化为 `[图标][内容 *][三个按钮]`。
+
+迁移：把原来放在 `TitleBarActions` 里的控件挪进 `TitleBarContent`，并给容器加
+`chrome:ChromeWindow.HitTestRole="Client"`（WinForms 用 `ChromeForm.SetHitTestRole(控件, ChromeHitTestRole.Client)`）。
+
 ### 标题文字一律贴左
 
 三套样式的标题都在**图标右侧、贴左**绘制，与真实 Chrome 和 WPF 版一致。

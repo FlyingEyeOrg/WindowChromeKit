@@ -20,30 +20,17 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <!-- 图标区宽 12+16=28、撑满标题栏高度：可交互元素要占满整个标题栏，
-                 否则它上方的空白会被顶部缩放带（HTTOP）接管。 -->
-            <Border Width="28"
+            <!-- 这里**不再自己画图标**：窗口左侧那个图标是模板里的 PART_SystemMenu，
+                 它在设置了 TitleBarContent 之后照常显示（和 WinForms 的插槽语义一致）。
+                 内容从它右侧开始排 —— 第一个 Grid 列留 31px 就是它的位置
+                 （CaptionIconBoxMargin.Left 9 + 系统菜单命中盒子 22）。 -->
+            <Border Grid.Column="0"
+                    Width="31"
                     Background="Transparent"
-                    chrome:ChromeWindow.HitTestRole="SystemMenu">
-                <Border.Style>
-                    <Style TargetType="{x:Type Border}">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ShowTitleBarIcon, RelativeSource={RelativeSource AncestorType={x:Type chrome:ChromeWindow}}}"
-                                         Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <Image Width="16"
-                       Height="16"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       IsHitTestVisible="False"
-                       Source="{Binding EffectiveTitleBarIcon, RelativeSource={RelativeSource AncestorType={x:Type chrome:ChromeWindow}}}"
-                       Stretch="Uniform" />
-            </Border>
+                    chrome:ChromeWindow.HitTestRole="SystemMenu" />
             <StackPanel Grid.Column="1"
                         VerticalAlignment="Center">
                 <TextBlock FontSize="12"
@@ -53,7 +40,7 @@
                            Opacity="0.7"
                            Text="可拖动的自定义标题内容" />
             </StackPanel>
-            <TextBox Grid.Column="2"
+            <TextBox Grid.Column="3"
                      Width="220"
                      Height="20"
                      Margin="18,0,8,0"
@@ -67,14 +54,16 @@
                      Foreground="#102A43"
                      Text="标题栏中的可交互输入框"
                      chrome:ChromeWindow.HitTestRole="Client" />
-        </Grid>
-    </chrome:ChromeWindow.TitleBarContent>
 
-    <chrome:ChromeWindow.TitleBarActions>
-        <Menu Margin="4,0,8,0"
-              Background="Transparent"
-              Foreground="#F0F4F8"
-              chrome:ChromeWindow.HitTestRole="Client">
+            <!-- 菜单也放在 TitleBarContent 里，靠右排在输入框右侧。
+                 以前它用 TitleBarActions 插槽（库会把它右对齐贴到按钮组左侧），
+                 但那个插槽与 TitleBarContent 语义重叠 —— 唯一区别只是默认替你标了 Client。 -->
+            <Menu Grid.Column="4"
+                  Margin="4,0,8,0"
+                  Background="Transparent"
+                  Foreground="#F0F4F8"
+                  VerticalAlignment="Center"
+                  chrome:ChromeWindow.HitTestRole="Client">
             <Menu.Resources>
                 <Style x:Key="TitleBarMenuItemStyle" TargetType="{x:Type MenuItem}">
                     <Setter Property="Height" Value="35" />
@@ -141,8 +130,9 @@
                           Style="{StaticResource PopupMenuItemStyle}"
                           Click="OnAboutClicked" />
             </MenuItem>
-        </Menu>
-    </chrome:ChromeWindow.TitleBarActions>
+            </Menu>
+        </Grid>
+    </chrome:ChromeWindow.TitleBarContent>
 
     <Grid Background="#F5F7FA">
         <StackPanel Width="620"
@@ -164,7 +154,7 @@
                     BorderThickness="1">
                 <TextBlock FontFamily="Consolas"
                            TextWrapping="Wrap"
-                           Text="ChromeWindow.HitTestRole=&quot;Client&quot;&#x0a;TitleBarContent / TitleBarActions&#x0a;CaptionButtonHoverBackground / CaptionButtonPressedBackground" />
+                           Text="ChromeWindow.HitTestRole=&quot;Client&quot;&#x0a;TitleBarContent（菜单与输入框都在里面）&#x0a;CaptionButtonHoverBackground / CaptionButtonPressedBackground" />
             </Border>
         </StackPanel>
     </Grid>

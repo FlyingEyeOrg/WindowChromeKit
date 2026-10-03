@@ -170,26 +170,6 @@ public partial class ChromeWindow
             typeof(ChromeWindow)
         );
 
-    public static readonly DependencyProperty TitleBarActionsProperty = DependencyProperty.Register(
-        nameof(TitleBarActions),
-        typeof(object),
-        typeof(ChromeWindow)
-    );
-
-    public static readonly DependencyProperty TitleBarActionsTemplateProperty =
-        DependencyProperty.Register(
-            nameof(TitleBarActionsTemplate),
-            typeof(DataTemplate),
-            typeof(ChromeWindow)
-        );
-
-    public static readonly DependencyProperty TitleBarActionsTemplateSelectorProperty =
-        DependencyProperty.Register(
-            nameof(TitleBarActionsTemplateSelector),
-            typeof(DataTemplateSelector),
-            typeof(ChromeWindow)
-        );
-
     public static readonly DependencyProperty CaptionButtonHoverBackgroundProperty =
         DependencyProperty.Register(
             nameof(CaptionButtonHoverBackground),
@@ -375,27 +355,6 @@ public partial class ChromeWindow
     {
         get => (DataTemplateSelector?)GetValue(TitleBarContentTemplateSelectorProperty);
         set => SetValue(TitleBarContentTemplateSelectorProperty, value);
-    }
-
-    /// <summary>获取或设置标题栏右侧、系统按钮之前的操作区域内容。</summary>
-    public object? TitleBarActions
-    {
-        get => GetValue(TitleBarActionsProperty);
-        set => SetValue(TitleBarActionsProperty, value);
-    }
-
-    /// <summary>获取或设置标题栏操作区域的数据模板。</summary>
-    public DataTemplate? TitleBarActionsTemplate
-    {
-        get => (DataTemplate?)GetValue(TitleBarActionsTemplateProperty);
-        set => SetValue(TitleBarActionsTemplateProperty, value);
-    }
-
-    /// <summary>获取或设置标题栏操作区域的数据模板选择器。</summary>
-    public DataTemplateSelector? TitleBarActionsTemplateSelector
-    {
-        get => (DataTemplateSelector?)GetValue(TitleBarActionsTemplateSelectorProperty);
-        set => SetValue(TitleBarActionsTemplateSelectorProperty, value);
     }
 
     /// <summary>获取或设置普通标题按钮的悬停背景。</summary>

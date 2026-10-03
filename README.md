@@ -103,9 +103,9 @@ public partial class MainWindow : ChromeWindow
 
 ## 自定义标题栏
 
-使用 `TitleBarContent` 放置品牌、标题或导航内容，使用 `TitleBarActions` 放置位于原生标题栏
-按钮之前的 WPF 控件。操作区域默认可交互；在主标题区域内，需要为每个可交互的子树明确
-指定命中测试角色：
+使用 `TitleBarContent` 放置品牌、标题、导航内容或按钮 —— 它铺满**图标右侧到三个窗口按钮之间**
+的整条空间，右侧想放什么都行。内容区域默认不可交互（当作拖动区）；需要接收鼠标的子树要
+明确指定命中测试角色，标记会沿控件树**向下继承**，所以标在最外层容器上即可：
 
 ```xml
 <chrome:ChromeWindow.TitleBarContent>
@@ -121,6 +121,12 @@ public partial class MainWindow : ChromeWindow
 `HitTestRole` 是可继承的附加属性，支持 `Client`、`Caption`、`SystemMenu`、
 `MinimizeButton`、`MaximizeButton` 和 `CloseButton`。透明的 `Panel` 或 `Border` 必须设置
 `Background="Transparent"`，才能参与 WPF 命中测试。角色区域重叠时，最上层的可见元素优先。
+
+设置 `TitleBarContent` 只替换**默认标题文字**，**窗口图标照常显示**（与 WinForms 的插槽语义
+一致：内容从图标右侧开始排）。图标是窗口自己的一部分 —— 系统菜单入口与窗口身份 —— 所以不需要、
+也不应该在内容里再画一个。图标那一列的宽度是
+`CaptionIconBoxMargin.Left + 系统菜单命中盒子`（默认 9 + 22 = 31），内容从这个位置起排即可；
+用 `ShowTitleBarIcon="False"` 可整列隐藏，内容随之左移。
 
 如果使用完全自定义的 `ControlTemplate`，应把角色设置在实际参与命中测试的元素上。程序集
 不要求固定的元素类型，缺少可选区域时也不会抛出异常。自定义按钮建议绑定 WPF
@@ -211,7 +217,7 @@ public partial class MainWindow : ChromeWindow
   三套样式都画顶边线、关闭按钮都用系统标准红；需要完全自定义标题栏时不用这个枚举
   （继承 `ChromeFrame`，或 `ShowDefaultTitleBar = false` 自己绘制）。
   标题栏自定义能力也与 WPF 版对齐：
-  `TitleBarContent` / `TitleBarActions` 内容插槽、`SetHitTestRole` 逐控件命中角色
+  `TitleBarContent` 内容插槽、`SetHitTestRole` 逐控件命中角色
   （标记为 `Client` 的标题栏控件会自己接收鼠标，不会被当成拖动区）、
   以及 `ShowDefaultTitleBar = false` + `OnPaintTitleBar` 的完全自绘。
 

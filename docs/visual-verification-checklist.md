@@ -29,7 +29,7 @@ cd /mnt/d/Project/FlyingEye/WindowChromeKit
   tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj -c Debug --nologo
 ```
 
-**通过标准**：WinForms **24/24**、WPF **40/40**，0 失败。
+**通过标准**：WinForms **24/24**、WPF **42/42**，0 失败。
 
 覆盖的关键契约（回归时重点看这些不红）：
 
@@ -45,6 +45,8 @@ cd /mnt/d/Project/FlyingEye/WindowChromeKit
 | `VsCodeStyleUsesItsOwnPaletteAndLeavesChromeAlone` | VsCode 配色与 Chrome/Windows 隔离 |
 | `WindowsStylePlacesTheIconLikeANativeCaption` | 图标居中与原生度量 |
 | `NativeMinimumAndMaximumUseCurrentMonitorWorkArea` | 最小宽度含图标区+按钮 |
+| `TitleBarContentKeepsTheWindowIcon` | 设置 `TitleBarContent` 后窗口图标仍在（内容排在图标右侧） |
+| `TitleBarContentSpansUpToTheCaptionButtons` | 内容铺满到三个按钮前（`TitleBarActions` 已删除） |
 
 ### 1.2 完整构建
 
@@ -279,7 +281,7 @@ VM   ：Win10-Test 已登录？ Y/N
 
 ```
 构建：0 error / 0 warning
-单测：WinForms 24/24   WPF 40/40
+单测：WinForms 24/24   WPF 42/42
 VM  ：顶线 6/6        三套样式 × 普通/最大化，普通态有线、最大化无线
       标题贴左 6/6    三套样式 × 两种状态，全部 MiddleLeft
       标题栏配色 6/6  Chrome (255,255,255)/(241,243,244)、VsCode (25,26,27)×2、

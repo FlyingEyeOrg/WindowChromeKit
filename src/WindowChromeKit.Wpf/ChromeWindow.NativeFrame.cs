@@ -18,8 +18,18 @@ public partial class ChromeWindow
 
     protected override double CaptionHeight => TitleBarHeight;
 
-    /// <summary>图标区宽度：与 Themes/Generic.xaml 里 PART_SystemMenu 的 28（12 边距 + 16 图标）一致。</summary>
-    protected override double CaptionLeadingWidth => ShowTitleBarIcon ? 28d : 0d;
+    /// <summary>
+    /// 图标列的宽度，用于计算最小窗口宽度：<c>CaptionIconBoxMargin.Left + SM_CXSMSIZE</c>。
+    ///
+    /// 要按**模板里那一列的真实宽度**算，而不是图标的墨迹宽度（12 边距 + 16 图标 = 28）。
+    /// 那一列装的是系统菜单命中盒子（96dpi 下 22×22），盒子的左边距才是列的起点：
+    /// Chrome/VsCode 是 9 + 22 = 31，Windows 样式是 5 + 22 = 27。
+    ///
+    /// 这不是理论值 —— 图标原先在弹性列里，缩到最窄时会被裁掉几个像素，掩盖了这个差值；
+    /// 独立成列后列宽不肯收缩，少算的宽度就会把三个按钮挤出客户区右侧。
+    /// </summary>
+    protected override double CaptionLeadingWidth =>
+        ShowTitleBarIcon ? CaptionIconBoxMargin.Left + SystemMenuBoxSizeDip : 0d;
 
     protected override void OnFrameAttached()
     {

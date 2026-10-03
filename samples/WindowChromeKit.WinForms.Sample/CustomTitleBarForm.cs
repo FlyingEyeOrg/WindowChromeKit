@@ -5,8 +5,8 @@ using WindowChromeKit.WinForms;
 namespace WindowChromeKit.WinForms.Sample;
 
 /// <summary>
-/// 自定义标题栏示例：标题栏里放一个真实菜单（<see cref="ChromeForm.TitleBarContent"/>）
-/// 和一个按钮（<see cref="ChromeForm.TitleBarActions"/>），两者都用
+/// 自定义标题栏示例：标题栏里放一个真实菜单和一个按钮，
+/// 两者都放进 <see cref="ChromeForm.TitleBarContent"/> 并用
 /// <see cref="ChromeForm.SetHitTestRole"/> 标记为可交互内容；勾选"完全自绘"后
 /// 连默认标题栏都不画，全部由 <see cref="ChromeForm.OnPaintTitleBar"/> 负责。
 /// </summary>
@@ -30,7 +30,9 @@ public sealed class CustomTitleBarForm : ChromeForm
         MinimumSize = new Size(460, 260);
         StartPosition = FormStartPosition.CenterScreen;
 
-        // 标题栏操作：右对齐、紧挨三个窗口按钮
+        // 标题栏右侧的按钮：**和菜单一样放进 TitleBarContent**，靠 SetHitTestRole 标记为可交互。
+        // 以前这里用 TitleBarActions 插槽（库会在内部把它右对齐贴到按钮组左侧），
+        // 但那个插槽与 TitleBarContent 语义重叠 —— 唯一区别只是默认替你标了 Client。
         _actionButton = new Button
         {
             Text = "标题栏按钮",
@@ -43,7 +45,6 @@ public sealed class CustomTitleBarForm : ChromeForm
         _actionButton.FlatAppearance.BorderColor = Color.FromArgb(0x1A, 0x73, 0xE8);
         _actionButton.Click += (_, _) => MessageBox.Show(this, "标题栏按钮被点击了。", "WinForms 标题栏");
         ChromeForm.SetHitTestRole(_actionButton, ChromeHitTestRole.Client);
-        TitleBarActions = _actionButton;
 
         var info = new Label
         {
@@ -54,7 +55,7 @@ public sealed class CustomTitleBarForm : ChromeForm
                 "标题栏完全自定义（WinForms）\r\n"
                 + "・「文件 / 视图 / 帮助」是真实的 MenuStrip，放在 TitleBarContent 插槽里，\r\n"
                 + "  用 SetHitTestRole(menu, Client) 标记后可交互，不会被当成窗口拖动区。\r\n"
-                + "・右侧「标题栏按钮」放在 TitleBarActions 插槽，紧挨最小化/最大化/关闭。\r\n"
+                + "・右侧「标题栏按钮」同样放在 TitleBarContent 里，用 SetHitTestRole(Client) 标记。\r\n"
                 + "・勾选下面的“完全自绘标题栏”，ShowDefaultTitleBar 关闭，\r\n"
                 + "  底色、顶边线和文字全部由 OnPaintTitleBar 绘制，按钮状态机仍然可用。\r\n"
                 + "・把鼠标移到窗口外侧边缘（阴影里那一圈）可缩放；拖标题栏空白处可移动。\r\n"
@@ -132,6 +133,7 @@ public sealed class CustomTitleBarForm : ChromeForm
         // （与 WPF 的 TitleBarContent + HitTestRole=Client 语义一致）。
         _contentHost = new Panel { BackColor = Color.Transparent, Height = 39 };
         _contentHost.Controls.Add(_menu);
+        _contentHost.Controls.Add(_actionButton);
         _contentHost.SizeChanged += (_, _) => LayoutMenu();
         TitleBarContent = _contentHost;
 
@@ -161,14 +163,24 @@ public sealed class CustomTitleBarForm : ChromeForm
     }
 
     /// <summary>
-    /// 菜单按内容宽度摆放，插槽留出一小段未标记的空白：库会给未标记的插槽控件
-    /// 挂上"按下即拖动窗口"的处理，所以插槽里的空白同样能拖窗口。
+    /// 内容插槽里摆两样东西：菜单贴左、按钮贴右。
+    /// 插槽按"内容宽度"摆放，所以右边留一小段未标记的空白 —— 库会给未标记的插槽控件
+    /// 挂上"按下即拖动窗口"的处理，插槽里的空白同样能拖窗口。
     /// </summary>
     private void LayoutMenu()
     {
         var preferred = _menu.PreferredSize;
-        _contentHost.Size = new Size(preferred.Width + 24, _contentHost.Height);
+        // 插槽宽度 = 菜单 + 间距 + 按钮 + 右侧留白
+        var hostWidth = preferred.Width + 24 + _actionButton.PreferredSize.Width + 12;
+        _contentHost.Size = new Size(hostWidth, _contentHost.Height);
         _menu.SetBounds(0, 0, preferred.Width, _contentHost.ClientSize.Height);
+        // 按钮贴插槽右侧、竖直居中
+        var buttonSize = _actionButton.PreferredSize;
+        _actionButton.SetBounds(
+            Math.Max(0, _contentHost.ClientSize.Width - buttonSize.Width - 12),
+            Math.Max(0, (_contentHost.ClientSize.Height - buttonSize.Height) / 2),
+            buttonSize.Width,
+            buttonSize.Height);
         // 顶级菜单项撑满标题栏高度：命中区与悬停高亮覆盖整条，点标题栏里任意高度都能展开
         var itemHeight = Math.Max(1, CaptionHeight - 1);
         foreach (ToolStripItem item in _menu.Items)
@@ -258,11 +270,10 @@ public sealed class CustomTitleBarForm : ChromeForm
         {
             e.Graphics.DrawLine(pen, caption.Left, caption.Bottom - 1, caption.Right, caption.Bottom - 1);
         }
-        // 标题居中绘制，避开左右内容：内容插槽是铺满的面板，真正的占用看菜单自身右边界，
-        // 右侧用 TitleBarActionsBounds（库公开的插槽矩形）避让。
-        var contentRight = _menu.Visible ? _menu.Right : TitleBarContentBounds.Right;
+        // 标题居中绘制，避开左右内容：内容插槽是铺满的面板，真正的占用看菜单与按钮自身的边界。
+        var contentRight = _menu.Visible ? _menu.Right : 12;
         var left = Math.Max(12, contentRight + 8);
-        var right = TitleBarActionsBounds.IsEmpty ? caption.Right - 12 : TitleBarActionsBounds.Left - 8;
+        var right = _actionButton.Left - 8;
         if (right > left)
         {
             TextRenderer.DrawText(

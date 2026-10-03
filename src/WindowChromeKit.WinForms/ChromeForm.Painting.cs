@@ -112,10 +112,8 @@ public partial class ChromeForm
         if (TitleBarContent is not null)
             return;
         var left = Metrics.IconMargin + (ShowTitleBarIcon ? Metrics.IconSize + ScaleDip(8, Metrics.Dpi) : 0);
-        // 右侧避让：设置了操作插槽时贴到插槽左侧，否则避让三个窗口按钮
-        var right = TitleBarActionsBounds.IsEmpty
-            ? client.Width - Metrics.TotalCaptionButtonWidth - ScaleDip(8, Metrics.Dpi)
-            : TitleBarActionsBounds.Left - ScaleDip(8, Metrics.Dpi);
+        // 右侧避让三个窗口按钮
+        var right = client.Width - Metrics.TotalCaptionButtonWidth - ScaleDip(8, Metrics.Dpi);
         if (right <= left)
             return;
         var bounds = new Rectangle(left, 0, right - left, Metrics.CaptionHeight);

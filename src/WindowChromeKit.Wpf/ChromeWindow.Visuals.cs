@@ -17,6 +17,16 @@ public partial class ChromeWindow
     internal const string PartMinimizeButton = "PART_MinimizeButton";
     internal const string PartMaximizeButton = "PART_MaximizeButton";
     internal const string PartCloseButton = "PART_CloseButton";
+
+    /// <summary>
+    /// 图标那一列里系统菜单命中盒子的边长（DIP）：96dpi 下等于 <c>SM_CXSMSIZE</c>（22）。
+    ///
+    /// 必须与 <c>Themes/Generic.xaml</c> 里 <c>PART_SystemMenu</c> 内层 Border 的
+    /// <c>Width</c>/<c>Height</c> 一致 —— 最小窗口宽度按「这个边长 + <c>CaptionIconBoxMargin.Left</c>」
+    /// 计算（见 <see cref="CaptionLeadingWidth"/>），两处不一致会把三个按钮挤出客户区右侧。
+    /// </summary>
+    internal const double SystemMenuBoxSizeDip = 22d;
+
     private const uint WmGetIcon = 0x007F;
     private const int IconSmall = 0;
     private const int IconBig = 1;

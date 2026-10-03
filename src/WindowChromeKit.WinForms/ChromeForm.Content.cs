@@ -8,7 +8,7 @@ namespace WindowChromeKit.WinForms;
 
 /// <summary>
 /// 标题栏自定义：内容插槽、命中角色与默认标题栏开关。
-/// 与 WPF 版的 <c>TitleBarContent</c> / <c>TitleBarActions</c> / <c>SetHitTestRole</c> 对应。
+/// 与 WPF 版的 <c>TitleBarContent</c> / <c>SetHitTestRole</c> 对应。
 /// </summary>
 public partial class ChromeForm
 {
@@ -16,12 +16,12 @@ public partial class ChromeForm
     private const int CaptionContentGapDip = 8;
 
     private Control? _titleBarContent;
-    private Control? _titleBarActions;
     private bool _showDefaultTitleBar = true;
 
     /// <summary>
-    /// 标题栏内容控件：占满图标右侧到操作区之间的空间，用来放菜单、输入框等标题栏内容。
-    /// 需要自己接收鼠标的内容请用 <see cref="ChromeFrame.SetHitTestRole"/> 标记为 <see cref="ChromeHitTestRole.Client"/>。
+    /// 标题栏内容控件：占满图标右侧到三个窗口按钮之间的空间，用来放菜单、输入框、按钮等标题栏内容。
+    /// 需要自己接收鼠标的内容请用 <see cref="ChromeFrame.SetHitTestRole"/> 标记为 <see cref="ChromeHitTestRole.Client"/>
+    /// （该标记沿控件树向下继承，标在最外层容器上即可）。
     /// </summary>
     [Category("WindowChromeKit")]
     [DefaultValue(null)]
@@ -29,15 +29,6 @@ public partial class ChromeForm
     {
         get => _titleBarContent;
         set => SetTitleBarSlot(ref _titleBarContent, value);
-    }
-
-    /// <summary>标题栏操作控件：右对齐、紧挨三个窗口按钮左侧。</summary>
-    [Category("WindowChromeKit")]
-    [DefaultValue(null)]
-    public Control? TitleBarActions
-    {
-        get => _titleBarActions;
-        set => SetTitleBarSlot(ref _titleBarActions, value);
     }
 
     private ContentAlignment _captionTextAlignment = ContentAlignment.MiddleLeft;
@@ -73,12 +64,6 @@ public partial class ChromeForm
     public Rectangle TitleBarContentBounds =>
         _titleBarContent is null ? Rectangle.Empty : _titleBarContent.Bounds;
 
-    /// <summary>标题栏操作插槽当前占用的矩形（客户区坐标）；未设置插槽时为空。</summary>
-    [Browsable(false)]
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
-    public Rectangle TitleBarActionsBounds =>
-        _titleBarActions is null ? Rectangle.Empty : _titleBarActions.Bounds;
-
     private void SetTitleBarSlot(ref Control? field, Control? value)
     {
         if (ReferenceEquals(field, value))
@@ -98,7 +83,7 @@ public partial class ChromeForm
     }
 
     /// <summary>
-    /// 把两个插槽摆到标题栏里：图标区右侧 → 内容 → 操作 → 三个窗口按钮。
+    /// 把内容插槽摆到标题栏里：图标区右侧 → 内容 → 三个窗口按钮。
     /// WinForms 的每个子控件都是独立 HWND，鼠标命中会落在子窗口上、父窗口的
     /// WM_NCHITTEST 不再被询问，所以插槽**按控件自身宽度摆放、不铺满标题栏**，
     /// 未被占用的标题栏仍然可以拖动窗口；插槽里未标记为可交互的部分则由
@@ -106,30 +91,19 @@ public partial class ChromeForm
     /// </summary>
     private void LayoutTitleBarSlots()
     {
-        if (_titleBarContent is null && _titleBarActions is null)
+        if (_titleBarContent is null)
             return;
         var slotTop = Metrics.CaptionButtonPaintTop;
         var slotHeight = Math.Max(1, Metrics.CaptionButtonHeight);
+        // 右侧避让三个窗口按钮
         var right = ClientRectangle.Right - Metrics.CaptionButtonWidth * 3;
-
-        if (_titleBarActions is not null)
-        {
-            // 操作区右对齐、紧挨三个窗口按钮：先算宽度，再让它贴到按钮组左侧
-            var width = MeasureSlot(_titleBarActions, Math.Max(0, right));
-            right = Math.Max(0, right - width);
-            _titleBarActions.SetBounds(right, slotTop, width, slotHeight);
-        }
-
-        if (_titleBarContent is not null)
-        {
-            // 图标与标题栏内容之间留出间距（与 WPF 主题里标题文字的 8px 边距一致），
-            // 否则菜单会贴着图标，视觉上太挤
-            var left = ShowTitleBarIcon
-                ? Metrics.IconMargin + Metrics.IconSize + ScaleDip(CaptionContentGapDip, Metrics.Dpi)
-                : 0;
-            var width = MeasureSlot(_titleBarContent, Math.Max(0, right - left));
-            _titleBarContent.SetBounds(left, slotTop, width, slotHeight);
-        }
+        // 图标与标题栏内容之间留出间距（与 WPF 主题里标题文字的 8px 边距一致），
+        // 否则菜单会贴着图标，视觉上太挤
+        var left = ShowTitleBarIcon
+            ? Metrics.IconMargin + Metrics.IconSize + ScaleDip(CaptionContentGapDip, Metrics.Dpi)
+            : 0;
+        var width = MeasureSlot(_titleBarContent, Math.Max(0, right - left));
+        _titleBarContent.SetBounds(left, slotTop, width, slotHeight);
     }
 
     /// <summary>插槽宽度：控件自身宽度优先（未设置时用首选宽度），并夹到可用空间内。</summary>

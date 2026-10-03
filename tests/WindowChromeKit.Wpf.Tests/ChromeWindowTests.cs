@@ -70,7 +70,7 @@ public sealed class ChromeWindowTests
     });
 
     [Fact]
-    public void TitleBarSlotsAndInheritedRolesKeepInteractiveControlsInClientArea() => RunSta(() =>
+    public void TitleBarContentAndInheritedRolesKeepInteractiveControlsInClientArea() => RunSta(() =>
     {
         var interactive = new Border
         {
@@ -79,9 +79,18 @@ public sealed class ChromeWindowTests
             Background = Brushes.Transparent,
         };
         ChromeWindow.SetHitTestRole(interactive, ChromeHitTestRole.Client);
+        // 右侧的可交互按钮同样放在 TitleBarContent 里，自己标 Client ——
+        // 这正是原先 TitleBarActions 插槽的唯一作用（它只是默认替你标了 Client）。
+        var action = new Button
+        {
+            Width = 80,
+            Content = "操作",
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Client);
         var titleContent = new Grid { Background = Brushes.Transparent };
         titleContent.Children.Add(interactive);
-        var action = new Button { Width = 80, Content = "操作" };
+        titleContent.Children.Add(action);
         var window = new ChromeWindow
         {
             Width = 700,
@@ -89,7 +98,6 @@ public sealed class ChromeWindowTests
             ShowInTaskbar = false,
             ShowActivated = false,
             TitleBarContent = titleContent,
-            TitleBarActions = action,
             Content = new Border(),
         };
 
@@ -99,7 +107,10 @@ public sealed class ChromeWindowTests
 
         Assert.Equal(WindowFrameHitTest.Client, HitTest(handle, interactive));
         Assert.Equal(WindowFrameHitTest.Client, HitTest(handle, action));
-        var captionPoint = titleContent.PointToScreen(new Point(titleContent.ActualWidth - 2, titleContent.ActualHeight / 2));
+        // 标题栏里未被可交互内容覆盖的地方仍然算 Caption（可拖动）：
+        // 取左侧 interactive 与右侧 action 之间的空档。
+        var captionPoint = titleContent.PointToScreen(
+            new Point(titleContent.ActualWidth / 2, titleContent.ActualHeight / 2));
         Assert.Equal(WindowFrameHitTest.Caption, SendHitTest(handle, captionPoint));
 
         ChromeWindow.SetHitTestRole(interactive, ChromeHitTestRole.SystemMenu);
@@ -132,6 +143,9 @@ public sealed class ChromeWindowTests
             VerticalAlignment = VerticalAlignment.Center,
             Content = "操作",
         };
+        // 右侧按钮放进内容里并自己标 Client（替代已删除的 TitleBarActions 插槽）
+        ChromeWindow.SetHitTestRole(action, ChromeHitTestRole.Client);
+        titleContent.Children.Add(action);
         var window = new ChromeWindow
         {
             Width = 700,
@@ -139,7 +153,6 @@ public sealed class ChromeWindowTests
             ShowInTaskbar = false,
             ShowActivated = false,
             TitleBarContent = titleContent,
-            TitleBarActions = action,
         };
 
         _ = new WindowInteropHelper(window).EnsureHandle();
@@ -738,6 +751,115 @@ public sealed class ChromeWindowTests
         Assert.True(window.TryExecuteCaptionButton(ChromeHitTestRole.CloseButton, ChromeHitTestRole.CloseButton));
         Assert.True(window.IsVisible);
         cancelClose = false;
+        window.Close();
+    });
+
+    /// <summary>
+    /// 设置 <c>TitleBarContent</c> 之后，**窗口图标必须还在**。
+    ///
+    /// 图标（<c>PART_SystemMenu</c>）是窗口自己的一部分：它是系统菜单的入口，也代表窗口身份。
+    /// 它原先和默认标题文字同在一个 StackPanel 里，而模板用
+    /// <c>TitleBarContent == null</c> 的触发器把整个 StackPanel 折叠 —— 于是换了标题栏内容，
+    /// 图标就跟着消失了，使用者只能自己在内容里再画一个（样例当初就是这么绕过去的）。
+    ///
+    /// 现在图标独立成列，只有默认**标题文字**参与二选一，与 WinForms 的插槽语义一致
+    /// （WinForms 的内容区本来就从图标右侧开始排）。这个测试钉住该行为。
+    /// </summary>
+    [Fact]
+    public void TitleBarContentKeepsTheWindowIcon() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 800,
+            Height = 400,
+            Title = "带图标的标题栏",
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Content = new Border(),
+        };
+        new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var systemMenu = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartSystemMenu, window));
+        var icon = Assert.IsAssignableFrom<Image>(
+            FindVisualDescendant(systemMenu, element => element is Image));
+        Assert.True(icon.IsVisible, "没有 TitleBarContent 时图标应当可见");
+        var iconWidth = icon.RenderSize.Width;
+        Assert.True(iconWidth > 0, "图标应当有实际宽度");
+
+        // 换上一个标题栏内容：图标必须留下，默认标题文字让位
+        var content = new Grid { Background = Brushes.Transparent };
+        window.TitleBarContent = content;
+        window.UpdateLayout();
+
+        Assert.True(icon.IsVisible, "设置 TitleBarContent 之后图标应当仍然可见");
+        Assert.Equal(iconWidth, icon.RenderSize.Width, 3);
+        Assert.True(content.ActualWidth > 0, "标题栏内容应当拿到布局空间");
+        Assert.True(content.ActualHeight > 0);
+
+        // 内容排在图标右侧，不和图标重叠
+        var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
+        var contentOrigin = content.TransformToAncestor(window).Transform(new Point(0, 0));
+        Assert.True(
+            contentOrigin.X >= iconOrigin.X + icon.RenderSize.Width - 1,
+            $"标题栏内容应当排在图标右侧：图标 {iconOrigin.X:F1}+{icon.RenderSize.Width:F1}，内容起点 {contentOrigin.X:F1}");
+
+        // 关掉图标时，这一列收为 0，内容跟着左移
+        window.ShowTitleBarIcon = false;
+        window.UpdateLayout();
+        Assert.False(icon.IsVisible);
+        var collapsedOrigin = content.TransformToAncestor(window).Transform(new Point(0, 0));
+        Assert.True(collapsedOrigin.X < contentOrigin.X, "隐藏图标后内容应当左移");
+
+        window.Close();
+    });
+
+    /// <summary>
+    /// 标题栏内容**铺满到三个按钮之前**，中间不再夹着已删除的 TitleBarActions 槽位。
+    ///
+    /// 布局是 <c>[图标 Auto][内容 *][三个按钮 Auto]</c>。原来还有第四列放
+    /// <c>TitleBarActions</c>（右对齐贴按钮组），但与 <c>TitleBarContent</c> 语义重叠 ——
+    /// 它唯一做的事就是默认替内容标了 <c>HitTestRole=Client</c>，而那是个**可继承**的附加属性，
+    /// 使用者自己标容器即可。所以 2.0.0 删掉了它，内容区相应变宽到按钮前。
+    /// </summary>
+    [Fact]
+    public void TitleBarContentSpansUpToTheCaptionButtons() => RunSta(() =>
+    {
+        var content = new Border { Background = Brushes.Transparent };
+        var window = new ChromeWindow
+        {
+            Width = 900,
+            Height = 400,
+            Title = "内容铺满",
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            TitleBarContent = content,
+            Content = new Border(),
+        };
+        new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var minimize = Assert.IsType<Button>(
+            window.Template.FindName(ChromeWindow.PartMinimizeButton, window));
+        var contentOrigin = content.TransformToAncestor(window).Transform(new Point(0, 0));
+        var contentEnd = contentOrigin.X + content.ActualWidth;
+        var buttonsOrigin = minimize.TransformToAncestor(window).Transform(new Point(0, 0));
+
+        // 内容右缘紧贴按钮组左边（允许 1px 取整误差）
+        Assert.InRange(Math.Abs(contentEnd - buttonsOrigin.X), 0, 1);
+
+        // 内容从图标右侧开始（图标列不重叠）
+        var systemMenu = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartSystemMenu, window));
+        var iconEnd = systemMenu.TransformToAncestor(window).Transform(new Point(0, 0)).X
+            + systemMenu.ActualWidth;
+        Assert.True(
+            contentOrigin.X >= iconEnd - 1,
+            $"内容应当从图标右侧开始：图标右缘 {iconEnd:F1}，内容起点 {contentOrigin.X:F1}");
+
         window.Close();
     });
 
