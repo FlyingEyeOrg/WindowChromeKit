@@ -144,7 +144,7 @@
                                             HorizontalAlignment="Right">
                                     <Button x:Name="PART_MinimizeButton"
                                             Width="{Binding EffectiveMinimizeButtonWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                            Height="{TemplateBinding CaptionButtonHeight}"
+                                            Height="{TemplateBinding EffectiveCaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.MinimizeWindowCommand}"
@@ -155,7 +155,7 @@
                                     </Button>
                                     <Button x:Name="PART_MaximizeButton"
                                             Width="{TemplateBinding CaptionButtonWidth}"
-                                            Height="{TemplateBinding CaptionButtonHeight}"
+                                            Height="{TemplateBinding EffectiveCaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.MaximizeWindowCommand}"
@@ -169,7 +169,7 @@
                                     </Button>
                                     <Button x:Name="PART_CloseButton"
                                             Width="{TemplateBinding CaptionButtonWidth}"
-                                            Height="{TemplateBinding CaptionButtonHeight}"
+                                            Height="{TemplateBinding EffectiveCaptionButtonHeight}"
                                             Style="{StaticResource DefaultCaptionButtonStyle}"
                                             Foreground="{Binding Path=(TextElement.Foreground), ElementName=PART_TitleBar}"
                                             Command="{x:Static shell:SystemCommands.CloseWindowCommand}"

@@ -284,6 +284,38 @@ public partial class ChromeWindow
     public static readonly DependencyProperty TitleBarBorderThicknessProperty =
         TitleBarBorderThicknessPropertyKey.DependencyProperty;
 
+    private static readonly DependencyPropertyKey EffectiveCaptionButtonHeightPropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(EffectiveCaptionButtonHeight),
+            typeof(double),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(0d)
+        );
+
+    public static readonly DependencyProperty EffectiveCaptionButtonHeightProperty =
+        EffectiveCaptionButtonHeightPropertyKey.DependencyProperty;
+
+    /// <summary>
+    /// 标题栏按钮的**实际**高度，模板应当绑这个而不是 <see cref="CaptionButtonHeight"/>。
+    ///
+    /// 普通态就是 <see cref="CaptionButtonHeight"/>（例如 Chrome 样式 40 高标题栏配 39 高的按钮，
+    /// 空出来的那一行正好留给顶边线）。最大化时顶边线高度为 0，按钮要**长高 1px 铺满整条标题栏**
+    /// （40 高），否则底部会漏出一条底色。
+    ///
+    /// 这与 WinForms 的 <c>CaptionHitHeight</c> 是同一个规则（那边实测 39 → 40）。
+    /// 之前模板只把按钮从"贴底"改成"贴顶"（<c>VerticalAlignment</c>），高度没变，
+    /// 于是普通态漏在顶部（被顶边线盖住看不出来）、最大化时漏在底部（就能看见）。
+    /// </summary>
+    public double EffectiveCaptionButtonHeight => (double)GetValue(EffectiveCaptionButtonHeightProperty);
+
+    internal void UpdateEffectiveCaptionButtonHeight() =>
+        SetValue(
+            EffectiveCaptionButtonHeightPropertyKey,
+            WindowState == WindowState.Maximized
+                ? TitleBarHeight
+                : CaptionButtonHeight
+        );
+
     public Brush ActiveTitleBarBackground
     {
         get => (Brush)GetValue(ActiveTitleBarBackgroundProperty);

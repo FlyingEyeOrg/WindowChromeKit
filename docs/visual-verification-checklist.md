@@ -29,7 +29,7 @@ cd /mnt/d/Project/FlyingEye/WindowChromeKit
   tests/WindowChromeKit.Wpf.Tests/WindowChromeKit.Wpf.Tests.csproj -c Debug --nologo
 ```
 
-**通过标准**：WinForms **39/39**、WPF **53/53**，0 失败。
+**通过标准**：WinForms **39/39**、WPF **55/55**，0 失败。
 
 覆盖的关键契约（回归时重点看这些不红）：
 
@@ -51,6 +51,7 @@ cd /mnt/d/Project/FlyingEye/WindowChromeKit
 | `TitleBarContentStartsAtTheSystemMenuHitBoxEdge` | WinForms：插槽 = 命中盒右缘，且赋值后立即就位 |
 | `CaptionIconMarginFollowsTheCaptionHeight` | WPF：图标左边距由标题栏高度算出（左 = 上 = 下） |
 | `ExplicitIconMarginIsNotOverwrittenByTheDerivation` | WPF：`Left` 为 NaN 才自动推导，显式值不被覆盖 |
+| `CaptionButtonsReachTheTopRowWhenMaximized` | WPF ×3 样式：最大化时按钮**长高**铺满标题栏（不只是换对齐） |
 | `CaptionIconMarginFollowsTheCaptionHeight` | WinForms：同上，含从未硬编码的高度 |
 | `MinimumWidthCoversTheWholeIconSlot` | WinForms：最小宽度按**整列**（命中盒右缘）算，不是图标墨迹宽 |
 | `HiddenIconFreesTheWholeColumnForBothTitleAndContent` | WinForms：隐藏图标后标题与插槽共用同一起点（都为 0） |
@@ -288,7 +289,7 @@ VM   ：Win10-Test 已登录？ Y/N
 
 ```
 构建：0 error / 0 warning
-单测：WinForms 39/39   WPF 53/53
+单测：WinForms 39/39   WPF 55/55
 VM  ：顶线 6/6        三套样式 × 普通/最大化，普通态有线、最大化无线
       标题贴左 6/6    三套样式 × 两种状态，全部 MiddleLeft
       标题栏配色 6/6  Chrome (255,255,255)/(241,243,244)、VsCode (25,26,27)×2、

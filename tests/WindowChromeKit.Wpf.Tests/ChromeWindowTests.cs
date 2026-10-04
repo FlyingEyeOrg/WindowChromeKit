@@ -524,16 +524,26 @@ public sealed class ChromeWindowTests
     /// 最大化时不画顶边线（画了会在屏幕顶端多一条），所以按钮必须铺到标题栏顶部；
     /// 普通态则相反：模板的 1px BorderThickness 让出第 0 行，按钮从第 1 行开始。
     /// 否则最大化 + 悬停按钮时，顶部会漏出一条底色（浅色标题栏下看起来是 1px 白边）。
+    ///
+    /// <para>
+    /// 三种样式全部验：Windows 是 31/31（按钮和标题栏一样高，本来就没有缝），
+    /// **Chrome/VsCode 才是会出问题的那两个**（40/39、35/34）——
+    /// 原先只测了 Windows 样式，所以"最大化时按钮只换对齐、没长高"这个 bug 一直没被发现：
+    /// 底部漏出的那 1px 在浅色标题栏下就是一条白线（实测按钮占 0..39 而非 0..40）。
+    /// </para>
     /// </summary>
-    [Fact]
-    public void CaptionButtonsReachTheTopRowWhenMaximized() => RunSta(() =>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome)]
+    [InlineData(ChromeTitleBarStyle.VsCode)]
+    [InlineData(ChromeTitleBarStyle.Windows)]
+    public void CaptionButtonsReachTheTopRowWhenMaximized(ChromeTitleBarStyle style) => RunSta(() =>
     {
         var window = new ChromeWindow
         {
             Width = 700,
             Height = 400,
             ShowInTaskbar = false,
-            TitleBarStyle = ChromeTitleBarStyle.Windows,
+            TitleBarStyle = style,
         };
         window.Show();
         try
@@ -542,20 +552,30 @@ public sealed class ChromeWindowTests
             var close = Assert.IsAssignableFrom<FrameworkElement>(
                 window.Template.FindName(ChromeWindow.PartCloseButton, window));
 
-            // 顶边线是覆盖层、不占布局，所以按钮在两种状态下都铺满整条标题栏
-            // （普通态的线画在按钮之上；最大化时线高 0，不会在屏幕顶端多一条）
+            // 普通态：顶边线存在，按钮贴底（底边落在标题栏下缘）、高度就是配置值。
+            // 按钮顶边不是固定的 1 —— Windows 样式的按钮和标题栏一样高（31/31），顶边就是 0；
+            // Chrome/VsCode 矮 1px（40/39、35/34）才是 1。所以断言"关系"而不是那个数字。
             Assert.Equal(1d, window.TitleBarBorderThickness.Top, 1);
-            Assert.Equal(0d, close.TransformToAncestor(window).Transform(new Point(0, 0)).Y, 1);
-            Assert.Equal(window.TitleBarHeight, close.ActualHeight, 1);
+            Assert.Equal(window.CaptionButtonHeight, close.ActualHeight, 1);
+            var normalTop = close.TransformToAncestor(window).Transform(new Point(0, 0)).Y;
+            Assert.Equal(window.TitleBarHeight - window.CaptionButtonHeight, normalTop, 1);
+            Assert.Equal(window.TitleBarHeight, normalTop + close.ActualHeight, 1);
 
             window.WindowState = WindowState.Maximized;
             window.UpdateLayout();
+
+            // 最大化：线高 0、按钮从第 0 行起，且要**长高**铺满整条标题栏
             Assert.Equal(0d, window.TitleBarBorderThickness.Top, 1);
             Assert.Equal(0d, close.TransformToAncestor(window).Transform(new Point(0, 0)).Y, 1);
             Assert.Equal(window.TitleBarHeight, close.ActualHeight, 1);
+            Assert.Equal(
+                window.TitleBarHeight,
+                close.TransformToAncestor(window).Transform(new Point(0, 0)).Y + close.ActualHeight,
+                1);
 
             window.WindowState = WindowState.Normal;
             window.UpdateLayout();
+            Assert.Equal(window.CaptionButtonHeight, close.ActualHeight, 1);
         }
         finally
         {

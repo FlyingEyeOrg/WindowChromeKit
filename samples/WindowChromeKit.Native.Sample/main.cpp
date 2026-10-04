@@ -132,6 +132,7 @@ struct FrameMetrics
     int buttonHeight = 39;
     int buttonTop = 1;      // 命中矩形用：按钮相对**窗口矩形**顶部的偏移
     int buttonPaintTop = 1; // 绘制用：按钮相对**客户区**顶部的偏移（比命中矩形少 1 行给顶边线）
+    int buttonPaintHeight = 39; // 绘制用：最大化时长高 1px 铺满标题栏，否则底部漏一条底色
     int topBand = 6;
     int iconSize = 16;
     int iconMargin = 12;
@@ -309,6 +310,11 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     // 最大化时客户区顶边落在工作区顶边，Chrome 实测把按钮块画在可见区第 0 行起
     // （字形中心落在屏幕第 19.5 行），所以这里用 0。
     metrics.buttonPaintTop = IsZoomed(window) ? 0 : 1;
+    // 绘制高度：普通态就是按钮高度（第 1..39 行，第 0 行让给顶边线）；
+    // **最大化时要长高到铺满整条标题栏**。原先只把顶边从 1 改成 0、高度没动，
+    // 于是 0..39 的第 39 行露底色（40 高的标题栏）—— 与 WPF 模板原先同一个 bug。
+    // WinForms 的 CaptionHitHeight 就是这个规则（实测普通 39 → 最大化 40）。
+    metrics.buttonPaintHeight = IsZoomed(window) ? metrics.captionHeight : metrics.buttonHeight;
     return metrics;
 }
 
@@ -629,7 +635,7 @@ void PaintWindow(HWND window, WindowState& state)
         button.right = client.right - index * metrics.buttonWidth;
         button.left = button.right - metrics.buttonWidth;
         button.top = metrics.buttonPaintTop;
-        button.bottom = button.top + metrics.buttonHeight;
+        button.bottom = button.top + metrics.buttonPaintHeight;
         const COLORREF glyph = DrawButton(
             memory,
             button,

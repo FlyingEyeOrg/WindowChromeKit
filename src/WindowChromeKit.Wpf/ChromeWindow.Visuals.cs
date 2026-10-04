@@ -116,6 +116,10 @@ public partial class ChromeWindow
         // 屏幕顶端多出一条线（Chrome 最大化也没有）；Win11 上 DWM 会覆盖同一行，无副作用。
         var topLine = WindowState == WindowState.Maximized ? 0 : 1 / (scaleY <= 0 ? 1 : scaleY);
         SetValue(TitleBarBorderThicknessPropertyKey, new Thickness(0, topLine, 0, 0));
+        // 按钮高度与顶边线是一对：普通态按钮让出第 0 行给顶边线，最大化时顶边线为 0、
+        // 按钮要长高铺满。放在这里是因为 UpdateDpiVisuals 已经是这四种变化的唯一汇聚点：
+        // 模板套用、状态切换、度量变化、DPI 变化。
+        UpdateEffectiveCaptionButtonHeight();
     }
 
     private void ScheduleEffectiveTitleBarIconRefresh()
