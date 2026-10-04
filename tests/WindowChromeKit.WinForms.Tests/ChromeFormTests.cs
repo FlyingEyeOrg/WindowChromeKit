@@ -2,12 +2,14 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using WindowChromeKit.WinForms;
+using WindowChromeKit.WinForms.Internal;
 using Xunit;
 
 namespace WindowChromeKit.WinForms.Tests;
 
 public sealed class ChromeFormTests
 {
+    private const int WmGetMinMaxInfo = 0x0024;
     private const int WmNcHitTest = 0x0084;
     private const int WmNcMouseMove = 0x00A0;
     private const int HtCaption = 2;
@@ -752,6 +754,197 @@ public sealed class ChromeFormTests
         Assert.Equal("Segoe MDL2 Assets", ChromeForm.CaptionGlyphFontFamilyName);
         Assert.Equal(10, ChromeForm.CaptionGlyphSizeDip);
     }
+
+    /// <summary>
+    /// 图标左边距是**算出来的**，不是手填常量：<c>round((标题栏高 − 图标高) / 2)</c>，
+    /// 于是"左 = 上 = 下"，改 <see cref="ChromeForm.CaptionHeightDip"/> 时自动跟随。
+    ///
+    /// 这里特意验了几个**从未硬编码过**的高度：只有真正按高度算才能得到这些值。
+    /// 另注意必须四舍五入（整数除法会把 35 算成 9、31 算成 7，各少 1px）。
+    /// </summary>
+    [Theory]
+    [InlineData(40, 12)]   // Chrome
+    [InlineData(35, 10)]   // VsCode
+    [InlineData(31, 8)]    // Windows
+    [InlineData(48, 16)]   // 以下高度从未硬编码，只能算出来
+    [InlineData(27, 6)]
+    [InlineData(24, 4)]
+    public void CaptionIconMarginFollowsTheCaptionHeight(int height, int expected) => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            Text = "Title",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(700, 300),
+            CaptionHeightDip = height,
+        };
+        form.Show();
+        Application.DoEvents();
+
+        Assert.Equal(expected, form.CaptionIconMarginDip);
+        // 命中盒左缘 = 图标左边距 − 盒子比图标宽出的每侧 3px，且不为负
+        Assert.Equal(Math.Max(0, expected - 3), Math.Max(0, form.SystemMenuLeft));
+    });
+
+    /// <summary>
+    /// 标题栏内容从**系统菜单命中盒的右缘**开始 —— 与原生 Win32 标题栏同规则。
+    ///
+    /// 实测 Win32 自绘标题栏（简中系统、96dpi）：命中盒 22px、比图标每侧宽 3px，
+    /// 标题的布局原点正好落在命中盒右缘，于是图标【墨迹】到标题【墨迹】剩 6px。
+    /// 以前这里算的是「图标墨迹右缘 + 8px」，实测比原生宽 5px（11px 对 6px）。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome)]
+    [InlineData(ChromeTitleBarStyle.VsCode)]
+    [InlineData(ChromeTitleBarStyle.Windows)]
+    public void TitleBarContentStartsAtTheSystemMenuHitBoxEdge(ChromeTitleBarStyle style) => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            TitleBarStyle = style,
+            Text = "Title",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(800, 400),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // 命中盒边长是系统度量 SM_CXSMSIZE（96dpi 下 22），命中盒右缘 = SystemMenuLeft + 22
+        var hitBoxWidth = SystemInformation.SmallCaptionButtonSize.Width;
+        var hitBoxRight = form.SystemMenuLeft + hitBoxWidth;
+
+        // 图标在命中盒内居中：墨迹左缘 = 命中盒左缘 + 3
+        var iconInkLeft = form.CaptionIconMarginDip;
+        Assert.Equal(form.SystemMenuLeft + 3, iconInkLeft);
+
+        var content = new Panel { Width = 100, Height = 20 };
+        form.TitleBarContent = content;
+        Application.DoEvents();
+
+        // 几何规则：插槽起点 = 命中盒右缘（图标在盒子内居中，故离图标墨迹右缘 3px）
+        Assert.Equal(hitBoxRight, form.TitleBarContentBounds.Left);
+        var iconInkRight = iconInkLeft + SystemInformation.SmallIconSize.Width;
+        Assert.Equal(3, form.TitleBarContentBounds.Left - iconInkRight);
+
+        // 屏幕上看到的 6px 空白 = 上面那 3px + 绘制标题时 TextRenderer 自带的 3px 左内边距。
+        // 已用真实窗口逐像素核对：WinForms / WPF / C++ 样例 / 原生 Win32 标题栏四者
+        // 的【墨迹】空白都是 6px（见 docs/visual-verification-checklist.md）。
+        // 那个 3px 内边距属于 TextRenderer 的行为，这里只钉住本库负责的几何部分。
+
+        // 关掉图标后插槽回到**最左 0**，整列一个像素都不占。
+        // 隐藏图标时插槽用 0、而默认标题用的是 Metrics.IconMargin（12），
+        // 两者各写一份算式 —— 实测相差 12px，现在共用 CaptionTextLeftCore。
+        form.ShowTitleBarIcon = false;
+        Application.DoEvents();
+        Assert.Equal(0, form.TitleBarContentBounds.Left);
+    });
+
+    /// <summary>
+    /// 隐藏图标时，默认标题与 <see cref="ChromeForm.TitleBarContent"/> 插槽必须从**同一个 x** 起排。
+    ///
+    /// 两者原先各写一份算式：插槽用 0，默认标题用 <c>Metrics.IconMargin</c>（Chrome 是 12），
+    /// 于是隐藏图标后标题仍从 12 起排（实测墨迹在 15），比插槽多缩进 12px。
+    /// 现在共用 <c>CaptionTextLeftCore</c>，这条断言防止它们再次各自漂移。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome)]
+    [InlineData(ChromeTitleBarStyle.VsCode)]
+    [InlineData(ChromeTitleBarStyle.Windows)]
+    public void HiddenIconFreesTheWholeColumnForBothTitleAndContent(ChromeTitleBarStyle style) => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            TitleBarStyle = style,
+            Text = "Title",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(800, 400),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        // 显示图标时，插槽 = 命中盒右缘
+        var slotWithIcon = form.SystemMenuLeft + SystemInformation.SmallCaptionButtonSize.Width;
+        Assert.True(slotWithIcon > 0);
+
+        var content = new Panel { Width = 100, Height = 20 };
+        form.TitleBarContent = content;
+        Application.DoEvents();
+        Assert.Equal(slotWithIcon, form.TitleBarContentBounds.Left);
+
+        // 隐藏图标后整列释放：插槽与默认标题都回到 0
+        form.ShowTitleBarIcon = false;
+        Application.DoEvents();
+        Assert.Equal(0, form.TitleBarContentBounds.Left);
+        Assert.Equal(0, form.CaptionTextLeftCore);
+
+        // 两处算式必须是同一个（防止再次各自漂移）
+        Assert.Equal(form.CaptionTextLeftCore, form.TitleBarContentBounds.Left);
+    });
+
+    /// <summary>
+    /// 用于算最小窗口宽度的"图标区宽度"必须覆盖**整列**（插槽起点），而不是图标的墨迹宽度。
+    ///
+    /// 命中盒比图标每侧宽 3px，所以墨迹宽度比插槽少 3px（Chrome 28 对 31）。
+    /// 少算这 3px 时缩到最小宽度，三个按钮会被挤出客户区右侧 ——
+    /// 与 WPF 版同一个坑（那边漏的是 <c>CaptionIconBoxMargin.Right</c>）。
+    /// </summary>
+    [Theory]
+    [InlineData(ChromeTitleBarStyle.Chrome)]
+    [InlineData(ChromeTitleBarStyle.VsCode)]
+    [InlineData(ChromeTitleBarStyle.Windows)]
+    public void MinimumWidthCoversTheWholeIconSlot(ChromeTitleBarStyle style) => RunSta(() =>
+    {
+        using var form = new ChromeForm
+        {
+            TitleBarStyle = style,
+            Text = "Title",
+            ShowInTaskbar = false,
+            StartPosition = FormStartPosition.Manual,
+            Location = new Point(200, 200),
+            Size = new Size(800, 400),
+        };
+        form.Show();
+        Application.DoEvents();
+
+        var hitBoxWidth = SystemInformation.SmallCaptionButtonSize.Width;
+        var slotWidth = form.SystemMenuLeft + hitBoxWidth;   // 插槽起点 = 命中盒右缘
+
+        // 图标墨迹宽度严格小于插槽宽度（命中盒每侧多 3px），两者不能混用
+        var inkWidth = form.CaptionIconMarginDip + SystemInformation.SmallIconSize.Width;
+        Assert.Equal(3, slotWidth - inkWidth);
+
+        // 最小尺寸是通过 WM_GETMINMAXINFO 上报的（不是 Form.MinimumSize）
+        var limitsPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
+        try
+        {
+            Marshal.StructureToPtr(default(NativeMinMaxInfo), limitsPointer, false);
+            _ = SendMessage(form.Handle, WmGetMinMaxInfo, IntPtr.Zero, limitsPointer);
+            var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(limitsPointer);
+
+            var frame = FrameX(form);
+            // 三个按钮**不一定等宽**：Chrome 样式的"最小化"窄 1px（45 / 46 / 46），
+            // 所以不能图省事写成 CaptionButtonWidthDip * 3。
+            var buttons = form.CaptionButtonWidthDip * 2
+                + (form.MinimizeButtonWidthDip > 0
+                    ? form.MinimizeButtonWidthDip
+                    : form.CaptionButtonWidthDip);
+            var required = slotWidth + buttons + frame * 2;
+            Assert.True(
+                limits.MinTrackSize.X >= required,
+                $"{style}：MinTrackSize.X={limits.MinTrackSize.X} 应至少为 {required}"
+                    + $"（图标区 {slotWidth} + 按钮 {buttons} + frame*2 {frame * 2}）");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(limitsPointer);
+        }
+    });
 
     /// <summary>样式决定的那几个几何量（换配色时这些必须一个都不变）。</summary>
     private static (int Height, int Width, int ButtonHeight, int IconMargin, int MinWidth, ContentAlignment Align)

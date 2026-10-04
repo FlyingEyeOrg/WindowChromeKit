@@ -59,9 +59,9 @@ constexpr int kIdEdgeButton = 1002;
 //    ChromeTitleBarStyle 同一张表（几何 + 配色），三处必须一起改 ——
 enum class TitleBarStyle
 {
-    Chrome,   // Chrome 实测：标题栏 40、按钮 46×39、图标 12px 位、跟随系统明暗
-    VsCode,   // VS Code：标题栏 35、按钮 46×34、配色固定深色 #323233
-    Windows,  // 贴近 Windows 11 原生：标题栏 32、按钮 44×32、图标贴左 3px 位、跟随系统
+    Chrome,   // Chrome 实测：标题栏 40、按钮 46×39、跟随系统明暗（图标左边距自动算）
+    VsCode,   // VS Code：标题栏 35、按钮 46×34、配色固定深色 #323233（图标左边距自动算）
+    Windows,  // 贴近 Windows 11 原生：标题栏 31、按钮 45×31、跟随系统（图标左边距自动算）
 };
 
 struct TitleBarStyleSettings
@@ -69,7 +69,6 @@ struct TitleBarStyleSettings
     int captionHeightDip;
     int buttonWidthDip;
     int buttonHeightDip;
-    int iconMarginDip;
     COLORREF captionActive;
     COLORREF captionInactive;
     COLORREF captionText;
@@ -86,7 +85,9 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
     switch (style)
     {
         case TitleBarStyle::VsCode:
-            return {35, 46, 34, 12, RGB(0x32, 0x32, 0x33), RGB(0x2D, 0x2D, 0x2D),
+            // 图标左边距 10（不是 12）：标题栏 35 高时上下各 (35−16)/2 = 9.5，
+            // 左边距跟着走才能"左 = 上 = 下"；取 10 而非 9.5 是为了图标落在整数像素上。
+            return {35, 46, 34, RGB(0x32, 0x32, 0x33), RGB(0x2D, 0x2D, 0x2D),
                     RGB(0xCC, 0xCC, 0xCC), RGB(0x9D, 0x9D, 0x9D),
                     RGB(0x50, 0x50, 0x50), RGB(0x5F, 0x5F, 0x5F),
                     RGB(0xE8, 0x11, 0x23), RGB(0xF1, 0x70, 0x7A), true};
@@ -94,12 +95,12 @@ TitleBarStyleSettings SettingsFor(TitleBarStyle style)
             // 原生 WPF Window 实测（96dpi）：标题栏可见高 31、按钮 36×22
             // 关闭按钮红用原生实测值（悬停 #C42B1C）
             // 按钮视觉格子 45 宽（原生悬停块实测），高度铺满标题栏
-            return {31, 45, 31, 8, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+            return {31, 45, 31, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
                     RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
                     RGB(0xC4, 0x2B, 0x1C), RGB(0xA9, 0x23, 0x16), false};
         default:
-            return {40, 46, 39, 12, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
+            return {40, 46, 39, RGB(0xFF, 0xFF, 0xFF), RGB(0xF1, 0xF3, 0xF4),
                     RGB(0x20, 0x21, 0x24), RGB(0x80, 0x86, 0x8B),
                     RGB(0xE8, 0xEA, 0xED), RGB(0xDA, 0xDC, 0xE0),
                     RGB(0xE8, 0x11, 0x23), RGB(0xF1, 0x70, 0x7A), false};
@@ -272,9 +273,15 @@ FrameMetrics ComputeFrameMetrics(HWND window)
     metrics.buttonHeight = ScaleDip(g_style.buttonHeightDip, metrics.dpi);
     metrics.topBand = ScaleDip(kTopResizeBandDip, metrics.dpi);
     metrics.iconSize = SystemMetricForDpi(SM_CXSMICON, metrics.dpi);
-    metrics.iconMargin = ScaleDip(g_style.iconMarginDip, metrics.dpi);
     metrics.menuBoxWidth = SystemMetricForDpi(SM_CXSMSIZE, metrics.dpi);
     metrics.menuBoxHeight = SystemMetricForDpi(SM_CYSMSIZE, metrics.dpi);
+    // 图标左边距**按标题栏高度自动算**，让"左 = 上 = 下"（图标垂直居中；正方形命中盒
+    // 居中时上下边距就等于左边距）。与两个库（ChromeForm.CaptionIconMarginDip /
+    // ChromeWindow.CaptionIconBoxMargin）同一条规则：改标题栏高度时左边距自动跟随，
+    // 不必在每套样式里手填一个和高度绑定的数字。
+    // 四舍五入而非整数除法：高度 35 / 31 时 (高 − 图标) 是奇数，截断会少 1px 让图标偏左上。
+    const int iconSpace = metrics.captionHeight - metrics.iconSize;
+    metrics.iconMargin = iconSpace > 0 ? (iconSpace + 1) / 2 : 0;
     metrics.menuBoxLeft = metrics.iconMargin - (metrics.menuBoxWidth - metrics.iconSize) / 2;
     // 盒子在标题栏内垂直居中，随标题栏高度自适应（不钉在 frame 内缩线上）
     metrics.menuBoxTop = (metrics.captionHeight - metrics.menuBoxHeight) / 2;
@@ -600,8 +607,12 @@ void PaintWindow(HWND window, WindowState& state)
     // 标题文字
     wchar_t title[256]{};
     GetWindowTextW(window, title, ARRAYSIZE(title));
+    // 从系统菜单命中盒右缘开始 —— 与原生标题栏同规则，也和两个库（ChromeForm / ChromeWindow）一致。
+    // 末尾再补 3px 是因为这里用的是 Segoe UI（字形左留白 0），而原生标题栏用系统标题字体
+    // （简中系统上是 Microsoft YaHei UI，左留白 3px）；补上之后标题【墨迹】距图标【墨迹】6px，
+    // 与 Win32 自绘标题栏实测一致。以前这里多加的是 8px，比原生宽 5px。
     RECT titleRect{
-        metrics.iconMargin + metrics.iconSize + 8,
+        metrics.menuBoxLeft + metrics.menuBoxWidth + 3,
         0,
         client.right - metrics.buttonWidth * 3 - 8,
         metrics.captionHeight};

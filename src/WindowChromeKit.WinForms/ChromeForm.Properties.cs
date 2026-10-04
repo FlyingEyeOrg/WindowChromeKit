@@ -14,7 +14,7 @@ public partial class ChromeForm
     private int _captionButtonWidthDip = 46;
     private int _minimizeButtonWidthDip;
     private int _captionButtonHeightDip = 39;
-    private int _captionIconMarginDip = 12;
+    private int? _captionIconMarginDip;
     private int _topResizeBandDip = 6;
     private bool _showTitleBarIcon = true;
     private Font? _captionFont;
@@ -61,14 +61,41 @@ public partial class ChromeForm
         set => SetOption(ref _captionButtonHeightDip, Math.Max(1, value));
     }
 
-    /// <summary>标题栏图标左边距（DIP）。实测 Chrome 为 12。</summary>
+    /// <summary>
+    /// 标题栏图标左边距（DIP）。**默认自动**：让图标"左 = 上 = 下"，
+    /// 即 <c>round((标题栏高 − 图标高) / 2)</c>，改 <see cref="CaptionHeightDip"/> 时会跟着变。
+    /// 赋过值之后即以赋的值为准（三套预置样式不再各写一个常量）。
+    /// <para>
+    /// 注意要用**四舍五入**而不是整数除法：高度 35 或 31 时 (高−16) 是奇数，
+    /// 截断会得到 9 / 7，比正确的 10 / 8 小 1px，图标会明显偏上偏左。
+    /// </para>
+    /// </summary>
+    /// <remarks>
+    /// **不要**加 <c>[DefaultValue(null)]</c>：实测它会短路 <c>ShouldSerialize*</c> 约定方法
+    /// （有该特性时 <c>ShouldSerializeValue</c> 恒为 true，设计器照样把算出来的值写进
+    /// <c>Designer.cs</c>），去掉后才会正确询问约定方法。
+    /// </remarks>
     [Category("WindowChromeKit")]
-    [DefaultValue(12)]
     public int CaptionIconMarginDip
     {
-        get => _captionIconMarginDip;
+        get => _captionIconMarginDip
+            ?? (int)Math.Round((CaptionHeightDip - CaptionIconSizeDip) / 2.0, MidpointRounding.AwayFromZero);
         set => SetOption(ref _captionIconMarginDip, Math.Max(0, value));
     }
+
+    /// <summary>
+    /// 没显式赋过值时不要让设计器把**算出来的**边距写进 <c>Designer.cs</c>：
+    /// 一旦写进去就成了硬编码，改标题栏高度时又不会跟随了（实测默认行为会写）。
+    /// </summary>
+    /// <remarks>
+    /// 必须是 <c>public</c>：<see cref="TypeDescriptor"/> 只识别公开的
+    /// <c>ShouldSerialize*</c> / <c>Reset*</c> 约定方法，私有的话设计器看不到
+    /// （实测私有版本返回 true，仍会把算出来的值写进 Designer.cs）。
+    /// </remarks>
+    public bool ShouldSerializeCaptionIconMarginDip() => _captionIconMarginDip.HasValue;
+
+    /// <summary>恢复为"按标题栏高度自动算"（设计器属性网格里的 Reset 项）。</summary>
+    public void ResetCaptionIconMarginDip() => SetOption(ref _captionIconMarginDip, (int?)null);
 
     /// <summary>顶部缩放带高度（DIP）。实测 Chrome 为 6，明显窄于其余三边的 8。</summary>
     [Category("WindowChromeKit")]
@@ -278,7 +305,7 @@ public partial class ChromeForm
                 CaptionHeightDip = 35;
                 CaptionButtonWidthDip = 46;
                 CaptionButtonHeightDip = 34;
-                CaptionIconMarginDip = 12;
+                // 图标左边距默认自动（= (35−16)/2 → 10），与上下边距同源，不必手填
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 MinimizeButtonWidthDip = 0;
                 break;
@@ -294,8 +321,7 @@ public partial class ChromeForm
                 // 铺满整条标题栏；普通态第 0 行是顶边线，由绘制矩形按需让出（最大化时不画线，
                 // 所以最大化时按钮要铺到第 0 行，否则顶部会露出一条底色）
                 CaptionButtonHeightDip = 31;
-                // 图标在标题栏左侧内缩 8px（原生实测图标落在客户区 8..23）
-                CaptionIconMarginDip = 8;
+                // 图标左边距默认自动（= (31−16)/2 → 8），图标落在客户区 8..23（原生实测）
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 MinimizeButtonWidthDip = 0;
                 break;
@@ -309,7 +335,7 @@ public partial class ChromeForm
                 // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
                 MinimizeButtonWidthDip = 45;
                 CaptionButtonHeightDip = 39;
-                CaptionIconMarginDip = 12;
+                // 图标左边距默认自动（= (40−16)/2 → 12）
                 CaptionTextAlignment = ContentAlignment.MiddleLeft;
                 break;
         }

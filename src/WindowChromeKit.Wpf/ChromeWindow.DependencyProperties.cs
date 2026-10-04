@@ -111,12 +111,21 @@ public partial class ChromeWindow
             IsDefinedTitleBarPalette
         );
 
+    /// <summary>
+    /// 系统菜单命中盒相对标题栏左上角的外边距。
+    /// <c>Left</c> 为 <see cref="double.NaN"/> 表示**自动**（按标题栏高度推导，见
+    /// <see cref="CoerceCaptionIconBoxMargin"/>），所以三套样式都不必手填一个和高度绑定的数字。
+    /// </summary>
     public static readonly DependencyProperty CaptionIconBoxMarginProperty =
         DependencyProperty.Register(
             nameof(CaptionIconBoxMargin),
             typeof(Thickness),
             typeof(ChromeWindow),
-            new FrameworkPropertyMetadata(new Thickness(9d, 0d, 0d, 0d))
+            new FrameworkPropertyMetadata(
+                new Thickness(double.NaN, 0d, 0d, 0d),
+                null,
+                CoerceCaptionIconBoxMargin
+            )
         );
 
     public static readonly DependencyProperty CaptionButtonHeightProperty =
@@ -465,8 +474,41 @@ public partial class ChromeWindow
     )
     {
         var window = (ChromeWindow)dependencyObject;
+        // 图标左边距是由标题栏高度算出来的，高度一变要重算（否则图标会停在旧位置）
+        window.CoerceValue(CaptionIconBoxMarginProperty);
         window.UpdateDpiVisuals();
         window._frame?.ScheduleNativeFrameRefresh();
+    }
+
+    /// <summary>
+    /// 解析图标命中盒的外边距：<c>Left</c> 为 <see cref="double.NaN"/> 表示"自动"，
+    /// 按命中盒在标题栏里**垂直居中**推导（命中盒是正方形，居中的盒子上下边距等于左边距）。
+    ///
+    /// 用 <c>NaN</c> 作"自动"哨兵是 WPF 自己的惯例（<c>Width</c>/<c>Height</c> 的 Auto 也是 NaN）。
+    /// 好处是**显式赋值优先**：调用方写了具体数字就原样保留，只有没写时才自动算 ——
+    /// 与 WinForms 那边用 <c>int?</c> 的 <c>null</c> 表示自动是同一套语义。
+    ///
+    /// 之所以需要区分"没设过"和"设过"：否则会把调用方显式写的值静默覆盖
+    /// （实测设 <c>Left=20</c> 读回 9）。
+    ///
+    /// 三个样式的历史值（Chrome 9 / VsCode 7 / Windows 5）都能由
+    /// <c>round((高度 − 22) / 2)</c> 复现，说明它们本来就是这条规则的产物。
+    /// </summary>
+    private static object CoerceCaptionIconBoxMargin(DependencyObject dependencyObject, object baseValue)
+    {
+        var window = (ChromeWindow)dependencyObject;
+        var margin = (Thickness)baseValue;
+        if (!double.IsNaN(margin.Left))
+            return margin;
+
+        var centred = Math.Round(
+            (window.TitleBarHeight - SystemMenuBoxSizeDip) / 2d,
+            MidpointRounding.AwayFromZero);
+        return new Thickness(
+            Math.Max(0d, centred),
+            margin.Top,
+            margin.Right,
+            margin.Bottom);
     }
 
     private static bool IsNonNegativeFiniteDouble(object value) =>

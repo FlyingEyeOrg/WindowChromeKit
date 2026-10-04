@@ -272,9 +272,19 @@ public sealed class ChromeWindowTests
         window.Close();
     });
 
+    /// <summary>
+    /// 三套样式的几何值。这些数字来自原生实测，改动前请先确认不是笔误。
+    ///
+    /// <para>
+    /// <c>expectedIconBoxMargin</c> 是**命中盒的左边距**，不是图标的墨迹位置：
+    /// 墨迹 = 这个值 + 模板里 Image 的 3px 内缩。VsCode 是 7（墨迹 10），因为它的标题栏
+    /// 只有 35 高，图标上下各 (35−16)/2 = 9.5 —— 左边距取 10 才与上下接近，
+    /// 取 12 会明显偏右（见 TitleBarStyle.cs 里对应的说明）。
+    /// </para>
+    /// </summary>
     [Theory]
     [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
-    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 9d)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 7d)]
     [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d, 5d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
@@ -627,15 +637,22 @@ public sealed class ChromeWindowTests
             ShowInTaskbar = false,
             ShowActivated = false,
             Title = "minimum size",
+            // Right 特意设成非 0：它是图标列的**一部分**（命中盒右边的留白），
+            // 漏算它时最小宽度会少一整段，缩到最小时关闭按钮会跑到客户区外。
+            CaptionIconBoxMargin = new Thickness(0d, 0d, 24d, 0d),
         };
         var handle = new WindowInteropHelper(window).EnsureHandle();
         window.Show();
         window.UpdateLayout();
 
         var (frameX, frameY) = WindowFrameHitTest.GetFrameThickness(96);
-        // 图标区（28 = 12 边距 + 16 图标）+ 三个标题栏按钮 + 两侧 frame：
-        // 缩到最小时图标（系统菜单入口）不能被挤没。
-        var expectedMinimumWidth = 28 + (int)Math.Ceiling(window.CaptionButtonWidth * 3) + frameX * 2;
+        // 图标区 = 命中盒左边距 + 命中盒边长 + Right 边距（**不是**图标的墨迹宽 28）。
+        // 这里原先是 "28 = 12 边距 + 16 图标"，少算了命中盒比图标每侧宽出的 3px，
+        // 而且只断言 ">="，所以真少了 3px 也照样通过（Right 边距更是完全没算）。
+        var iconMargin = window.CaptionIconBoxMargin;
+        var leading = iconMargin.Left + ChromeWindow.SystemMenuBoxSizeDip + iconMargin.Right;
+        var expectedMinimumWidth =
+            (int)Math.Ceiling(leading) + (int)Math.Ceiling(window.CaptionButtonWidth * 3) + frameX * 2;
         var expectedMinimumHeight = frameY + (int)Math.Ceiling(window.TitleBarHeight);
 
         var limitsPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
@@ -644,9 +661,12 @@ public sealed class ChromeWindowTests
             Marshal.StructureToPtr(default(NativeMinMaxInfo), limitsPointer, false);
             _ = NativeWindowMethods.SendMessage(handle, 0x0024, IntPtr.Zero, limitsPointer);
             var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(limitsPointer);
-            Assert.True(
-                limits.MinTrackSize.X >= expectedMinimumWidth,
-                $"MinTrackSize.X={limits.MinTrackSize.X} 应至少覆盖三个标题栏按钮与两侧 frame（{expectedMinimumWidth}）");
+            // 系统下限 SM_CXMINTRACK 可能比我们算的更大，取两者中较大者作期望
+            var systemMinimumX = NativeWindowMethods.GetSystemMetricsForDpi(
+                NativeWindowMethods.SmCxMinTrack,
+                96);
+            expectedMinimumWidth = Math.Max(expectedMinimumWidth, systemMinimumX);
+            Assert.Equal(expectedMinimumWidth, limits.MinTrackSize.X);
             Assert.True(
                 limits.MinTrackSize.Y > expectedMinimumHeight,
                 $"MinTrackSize.Y={limits.MinTrackSize.Y} 应大于标题栏与 frame 之和（{expectedMinimumHeight}）");
@@ -817,6 +837,154 @@ public sealed class ChromeWindowTests
     });
 
     /// <summary>
+    /// <c>CaptionIconBoxMargin.Left</c> 的"自动 vs 显式"语义：<c>NaN</c> = 自动
+    /// （按标题栏高度推导），写了具体数字就以调用方为准。
+    ///
+    /// 这条很要紧：coerce 回调若不区分"没设过"和"设过"，就会把调用方显式写的值**静默覆盖**
+    /// （实测设 <c>Left=20</c> 读回 9）。用 NaN 当哨兵是 WPF 自己的惯例
+    /// （<c>Width</c>/<c>Height</c> 的 Auto 也是 NaN），与 WinForms 用 <c>int?</c> 的
+    /// <c>null</c> 表示自动是同一套语义。
+    /// </summary>
+    [Theory]
+    [InlineData(2d)]
+    [InlineData(20d)]
+    [InlineData(40d)]
+    [InlineData(0d)]
+    public void ExplicitIconMarginIsNotOverwrittenByTheDerivation(double left) => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Title = "T",
+            Width = 800,
+            Height = 300,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Content = new Border(),
+        };
+        window.Show();
+        window.UpdateLayout();
+
+        window.CaptionIconBoxMargin = new Thickness(left, 0d, 0d, 0d);
+        window.UpdateLayout();
+        Assert.Equal(left, window.CaptionIconBoxMargin.Left, 3);
+
+        // 没设过 Left 时回到自动推导（标题栏高 40、命中盒 22 → 9）
+        window.CaptionIconBoxMargin = new Thickness(double.NaN, 0d, 0d, 0d);
+        window.UpdateLayout();
+        var expected = Math.Round((window.TitleBarHeight - ChromeWindow.SystemMenuBoxSizeDip) / 2d,
+            MidpointRounding.AwayFromZero);
+        Assert.Equal(expected, window.CaptionIconBoxMargin.Left, 3);
+        window.Close();
+    });
+
+    /// <summary>
+    /// 图标左边距是**算出来的**，不是手填常量：等于命中盒在标题栏里垂直居中时的边距
+    /// <c>round((标题栏高 − 22) / 2)</c>。
+    ///
+    /// 这样"左 = 上 = 下"天然成立，改 <c>TitleBarHeight</c> 时左边距会自动跟随 ——
+    /// 否则高度一改就会留下"图标偏右"的漏改（三个样式的历史值 9 / 7 / 5
+    /// 本来也全是这条规则的产物）。
+    /// </summary>
+    [Theory]
+    [InlineData(40d, 9d)]   // Chrome
+    [InlineData(35d, 7d)]   // VsCode
+    [InlineData(31d, 5d)]   // Windows
+    [InlineData(48d, 13d)]  // 以下高度从未硬编码，只能算出来
+    [InlineData(27d, 3d)]
+    [InlineData(24d, 1d)]
+    public void CaptionIconMarginFollowsTheCaptionHeight(double height, double expected) => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Title = "Title",
+            Width = 700,
+            Height = 300,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            TitleBarHeight = height,
+            Content = new Border(),
+        };
+        window.Show();
+        window.UpdateLayout();
+
+        Assert.Equal(expected, window.CaptionIconBoxMargin.Left, 3);
+
+        var icon = Assert.IsAssignableFrom<Image>(
+            FindVisualDescendant(
+                Assert.IsAssignableFrom<FrameworkElement>(
+                    window.Template.FindName(ChromeWindow.PartSystemMenu, window)),
+                element => element is Image));
+        var hitBox = Assert.IsAssignableFrom<FrameworkElement>(
+            FindByHitTestRole(window, ChromeHitTestRole.SystemMenu));
+        var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
+        var boxOrigin = hitBox.TransformToAncestor(window).Transform(new Point(0, 0));
+
+        // 图标在命中盒内再内缩 3px（模板里 Image 的 Margin），所以墨迹左边距 = 盒子左边距 + 3
+        Assert.Equal(3, iconOrigin.X - boxOrigin.X, 3);
+        window.Close();
+    });
+
+    /// <summary>
+    /// 标题文字从**系统菜单命中盒的右缘**开始 —— 与原生 Win32 标题栏同规则。
+    ///
+    /// 实测 Win32 自绘标题栏（简中系统、96dpi）：命中盒 22px 比图标每侧宽 3px，标题文字的
+    /// 布局原点正好落在命中盒右缘，于是图标【墨迹】到标题【墨迹】剩 6px。
+    ///
+    /// 这里断言的是**几何规则**（原点 = 命中盒右缘 + 3），不是那个 6px 的最终视觉值：
+    /// 后者还取决于字体（WPF 的 Segoe UI 左留白 0，GDI 的 Microsoft YaHei UI 留白 3），
+    /// 而模板里补的 3px 正是为了抹平这个差。所以两者相加应当等于「命中盒右缘 + 6」。
+    /// </summary>
+    [Fact]
+    public void TitleTextStartsAtTheSystemMenuHitBoxEdge() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 800,
+            Height = 400,
+            Title = "Title",
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Content = new Border(),
+        };
+        new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var icon = Assert.IsAssignableFrom<Image>(
+            FindVisualDescendant(
+                Assert.IsAssignableFrom<FrameworkElement>(
+                    window.Template.FindName(ChromeWindow.PartSystemMenu, window)),
+                element => element is Image));
+        var title = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName("PART_DefaultTitleContent", window));
+
+        var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
+        var titleOrigin = title.TransformToAncestor(window).Transform(new Point(0, 0));
+        var iconEnd = iconOrigin.X + icon.ActualWidth;
+
+        // 模板里标题的 Margin.Left 是 3（见 Generic.xaml 的说明）
+        Assert.Equal(3, title.Margin.Left, 3);
+
+        // 图标墨迹 → 标题布局原点 = 命中盒每侧超出量 3 + Margin 3 = 6
+        // （图标在命中盒内再居中偏 3，见模板里 Image 的 Margin="3,0,0,0"）
+        var inkGap = titleOrigin.X - iconEnd;
+        Assert.InRange(inkGap, 5, 7);
+
+        // 关掉图标后，标题回到**最左 0**，整列一个像素都不占。
+        // 原先只断言 "X < 隐藏前"，太松：模板里那 3px 的命中盒补偿留着也能过，
+        // 于是标题在隐藏图标后仍从 x=3 起排（实测），与内容插槽的 0 不一致。
+        window.ShowTitleBarIcon = false;
+        window.UpdateLayout();
+        var collapsedOrigin = title.TransformToAncestor(window).Transform(new Point(0, 0));
+        Assert.Equal(0, collapsedOrigin.X, 1);
+        var collapsedColumn = Assert.IsAssignableFrom<FrameworkElement>(
+            window.Template.FindName(ChromeWindow.PartSystemMenu, window));
+        Assert.Equal(0, collapsedColumn.ActualWidth, 1);
+
+        window.Close();
+    });
+
+    /// <summary>
     /// 标题栏内容**铺满到三个按钮之前**，中间不再夹着已删除的 TitleBarActions 槽位。
     ///
     /// 布局是 <c>[图标 Auto][内容 *][三个按钮 Auto]</c>。原来还有第四列放
@@ -851,14 +1019,21 @@ public sealed class ChromeWindowTests
         // 内容右缘紧贴按钮组左边（允许 1px 取整误差）
         Assert.InRange(Math.Abs(contentEnd - buttonsOrigin.X), 0, 1);
 
-        // 内容从图标右侧开始（图标列不重叠）
+        // 内容从系统菜单**命中盒的右缘**开始（不是"图标右侧某个大概位置"）。
+        // 注意 PART_SystemMenu 是 Auto 列的**外层容器**（x 从 0 起），真正的 22px 命中盒
+        // 是它里面的 Border，靠 Margin.Left 内缩。所以列宽 = Margin.Left + 22，
+        // 而插槽起点 = 该列的右缘 = 外层容器的右缘。
+        // 早先这里只断言 "contentOrigin.X >= iconEnd - 1"，太松 ——
+        // 样例里多放一个 31px 占位 Border 也能通过，于是内容被推到 x=62 一直没被发现。
         var systemMenu = Assert.IsAssignableFrom<FrameworkElement>(
             window.Template.FindName(ChromeWindow.PartSystemMenu, window));
-        var iconEnd = systemMenu.TransformToAncestor(window).Transform(new Point(0, 0)).X
-            + systemMenu.ActualWidth;
-        Assert.True(
-            contentOrigin.X >= iconEnd - 1,
-            $"内容应当从图标右侧开始：图标右缘 {iconEnd:F1}，内容起点 {contentOrigin.X:F1}");
+        var systemMenuOrigin = systemMenu.TransformToAncestor(window).Transform(new Point(0, 0));
+
+        Assert.Equal(
+            window.CaptionIconBoxMargin.Left + ChromeWindow.SystemMenuBoxSizeDip,
+            systemMenu.ActualWidth,
+            1);
+        Assert.Equal(systemMenuOrigin.X + systemMenu.ActualWidth, contentOrigin.X, 1);
 
         window.Close();
     });

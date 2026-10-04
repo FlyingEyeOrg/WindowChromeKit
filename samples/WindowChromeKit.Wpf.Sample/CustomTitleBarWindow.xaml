@@ -18,20 +18,21 @@
         <Grid Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="0" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <!-- 这里**不再自己画图标**：窗口左侧那个图标是模板里的 PART_SystemMenu，
-                 它在设置了 TitleBarContent 之后照常显示（和 WinForms 的插槽语义一致）。
-                 内容从它右侧开始排 —— 第一个 Grid 列留 31px 就是它的位置
-                 （CaptionIconBoxMargin.Left 9 + 系统菜单命中盒子 22）。 -->
-            <Border Grid.Column="0"
-                    Width="31"
-                    Background="Transparent"
-                    chrome:ChromeWindow.HitTestRole="SystemMenu" />
-            <StackPanel Grid.Column="1"
+            <!-- 这里**既不用画图标，也不用给它留位**：窗口左侧那个图标是模板里的
+                 PART_SystemMenu，设置 TitleBarContent 之后照常显示。
+                 而且库已经把图标那一列让出来了 —— 本插槽的 x 起点就等于系统菜单命中盒的
+                 右缘（CaptionIconBoxMargin.Left + 22）。所以第一列直接从内容开始排。
+                 （早先这里还放了一个 31px 的 SystemMenu 占位 Border，那是重复预留：
+                  点击区被撑到 54px、内容整体右移 31px，与库的插槽语义打架。） -->
+            <!-- Margin 3 与库自带标题同规则：插槽起点就是系统菜单命中盒的右缘，
+                 再留 3px 命中盒内缩，文字墨迹便与图标墨迹拉开与原生标题栏相当的距离
+                 （实测 5~15px 都算正常，不必为此调数值）。 -->
+            <StackPanel Grid.Column="0"
+                        Margin="3,0,0,0"
                         VerticalAlignment="Center">
                 <TextBlock FontSize="12"
                            FontWeight="SemiBold"
@@ -40,7 +41,7 @@
                            Opacity="0.7"
                            Text="可拖动的自定义标题内容" />
             </StackPanel>
-            <TextBox Grid.Column="3"
+            <TextBox Grid.Column="2"
                      Width="220"
                      Height="20"
                      Margin="18,0,8,0"
@@ -58,7 +59,7 @@
             <!-- 菜单也放在 TitleBarContent 里，靠右排在输入框右侧。
                  以前它用 TitleBarActions 插槽（库会把它右对齐贴到按钮组左侧），
                  但那个插槽与 TitleBarContent 语义重叠 —— 唯一区别只是默认替你标了 Client。 -->
-            <Menu Grid.Column="4"
+            <Menu Grid.Column="3"
                   Margin="4,0,8,0"
                   Background="Transparent"
                   Foreground="#F0F4F8"

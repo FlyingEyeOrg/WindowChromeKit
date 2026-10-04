@@ -111,7 +111,8 @@ public partial class ChromeForm
         // 与 WPF 版一致：设置了标题栏内容插槽后，默认标题文字不再绘制（避免和自定义内容重叠）
         if (TitleBarContent is not null)
             return;
-        var left = Metrics.IconMargin + (ShowTitleBarIcon ? Metrics.IconSize + ScaleDip(8, Metrics.Dpi) : 0);
+        // 与 TitleBarContent 插槽共用同一个起点（见 CaptionTextLeftCore 的说明）
+        var left = CaptionTextLeftCore;
         // 右侧避让三个窗口按钮
         var right = client.Width - Metrics.TotalCaptionButtonWidth - ScaleDip(8, Metrics.Dpi);
         if (right <= left)

@@ -53,8 +53,26 @@ public partial class ChromeForm : ChromeFrame
 
     protected override int GetCaptionIconMarginDip() => CaptionIconMarginDip;
 
+    /// <summary>
+    /// 标题栏左侧图标区宽度（DIP），用于算最小窗口宽度。
+    ///
+    /// 要报**插槽的真实宽度**（= 系统菜单命中盒的右缘），而不是图标的墨迹宽度：
+    /// 命中盒比图标每侧宽 3px，所以墨迹宽度会比插槽少 3px（Chrome 28 对 31）。
+    /// 少算这 3px 会把三个按钮挤出客户区右侧 —— 与 WPF 版同一个坑
+    /// （那边 <c>CaptionLeadingWidth</c> 原先是 <c>Left + 22</c> 但漏了 <c>Right</c>）。
+    /// 命中盒尺寸是 DPI 相关的系统度量，这里按 96dpi 的设计值折算回 DIP。
+    /// </summary>
     protected override int GetCaptionLeadingWidthDip() =>
-        ShowTitleBarIcon ? CaptionIconMarginDip + CaptionIconSizeDip : 0;
+        ShowTitleBarIcon ? SystemMenuLeftDesignDip + SystemMenuBoxSizeDip : 0;
+
+    /// <summary>
+    /// 命中盒左缘在设计尺寸（96dpi）下的位置：图标左边距减去盒子比图标宽出的每侧 3px。
+    /// </summary>
+    private int SystemMenuLeftDesignDip =>
+        Math.Max(0, CaptionIconMarginDip - (SystemMenuBoxSizeDip - CaptionIconSizeDip) / 2);
+
+    /// <summary>系统菜单命中盒边长（DIP）。与 <c>SM_CXSMSIZE</c> 在 96dpi 下的值一致。</summary>
+    private const int SystemMenuBoxSizeDip = 22;
 
     protected override int GetTopResizeBandDip() => TopResizeBandDip;
 

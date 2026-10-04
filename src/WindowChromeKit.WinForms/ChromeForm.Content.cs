@@ -12,9 +12,6 @@ namespace WindowChromeKit.WinForms;
 /// </summary>
 public partial class ChromeForm
 {
-    /// <summary>图标区与标题栏内容之间的间距（DIP）。</summary>
-    private const int CaptionContentGapDip = 8;
-
     private Control? _titleBarContent;
     private bool _showDefaultTitleBar = true;
 
@@ -78,6 +75,11 @@ public partial class ChromeForm
             HookSlotDrag(value);
         if (value is not null && !Controls.Contains(value))
             Controls.Add(value);
+        // 直接摆位，不能只靠 PerformLayout()：本类没有重写 OnLayout，
+        // LayoutTitleBarSlots 只由 OnFrameMetricsUpdated / OnFrameSizeChanged 驱动，
+        // 所以 PerformLayout() 不会让它执行 —— 实测赋值后插槽会停在 X=0，
+        // 要等一次尺寸变化才归位到图标右侧。
+        LayoutTitleBarSlots();
         PerformLayout();
         InvalidateCaption();
     }
@@ -97,14 +99,25 @@ public partial class ChromeForm
         var slotHeight = Math.Max(1, Metrics.CaptionButtonHeight);
         // 右侧避让三个窗口按钮
         var right = ClientRectangle.Right - Metrics.CaptionButtonWidth * 3;
-        // 图标与标题栏内容之间留出间距（与 WPF 主题里标题文字的 8px 边距一致），
-        // 否则菜单会贴着图标，视觉上太挤
-        var left = ShowTitleBarIcon
-            ? Metrics.IconMargin + Metrics.IconSize + ScaleDip(CaptionContentGapDip, Metrics.Dpi)
-            : 0;
+        var left = CaptionTextLeftCore;
         var width = MeasureSlot(_titleBarContent, Math.Max(0, right - left));
         _titleBarContent.SetBounds(left, slotTop, width, slotHeight);
     }
+
+    /// <summary>
+    /// 标题栏里"图标之后"的内容起点：**系统菜单命中盒的右缘** —— 原生标题栏的规则。
+    ///
+    /// 实测 Win32 自绘标题栏里，标题的布局原点正好落在命中盒右缘（图标墨迹 +3、
+    /// 命中盒比图标每侧宽 3，所以两者墨迹之间剩 6px 空白）。
+    /// 以前这里多加过一个 8px 的「间距」，比原生宽 5px，已去掉。
+    ///
+    /// 隐藏图标时整列都不占布局，所以回到 0。
+    /// **默认标题文字与 <see cref="TitleBarContent"/> 插槽共用这一个起点** ——
+    /// 它们原先各写一份，插槽用 0 而标题用 <c>Metrics.IconMargin</c>（12），
+    /// 隐藏图标后两者相差 12px。共用之后不会再各自漂移。
+    /// </summary>
+    internal int CaptionTextLeftCore =>
+        ShowTitleBarIcon ? Metrics.SystemMenuLeft + Metrics.SystemMenuWidth : 0;
 
     /// <summary>插槽宽度：控件自身宽度优先（未设置时用首选宽度），并夹到可用空间内。</summary>
     private static int MeasureSlot(Control control, int available)

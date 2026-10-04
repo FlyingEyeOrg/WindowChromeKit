@@ -79,7 +79,8 @@ public partial class ChromeWindow
                 CaptionButtonWidth = 46d;
                 CaptionButtonHeight = 34d;
                 MinimizeButtonWidth = 0d;
-                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
+                // 图标左边距由 CoerceCaptionIconBoxMargin 按标题栏高度自动算（= (35−22)/2 → 7），
+                // 与上下边距同源，所以这里不用手填。
                 break;
 
             case ChromeTitleBarStyle.Windows:
@@ -93,8 +94,8 @@ public partial class ChromeWindow
                 // 最大化时该线为 0，按钮自然铺到顶，不会在顶部漏出一条底色
                 CaptionButtonHeight = 31d;
                 MinimizeButtonWidth = 0d;
-                // 图标在盒内左对齐并有 3px 内缩，盒子再左移 5 才能让图标落在客户区 8..23（原生实测）
-                CaptionIconBoxMargin = new Thickness(5d, 0d, 0d, 0d);
+                // 图标在盒内左对齐并有 3px 内缩，盒子左边距由高度自动算（= (31−22)/2 → 5），
+                // 于是图标墨迹落在客户区 8..23（原生实测）
                 break;
 
             default:
@@ -104,7 +105,7 @@ public partial class ChromeWindow
                 // Chrome 实测最小化按钮比其余两个窄 1px（45 / 46 / 46）
                 MinimizeButtonWidth = 45d;
                 CaptionButtonHeight = 39d;
-                CaptionIconBoxMargin = new Thickness(9d, 0d, 0d, 0d);
+                // 图标左边距同样自动算（= (40−22)/2 → 9），图标墨迹落在 12
                 break;
         }
 

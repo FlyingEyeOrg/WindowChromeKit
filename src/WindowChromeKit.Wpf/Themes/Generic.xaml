@@ -119,9 +119,14 @@
                                 </Border>
 
                                 <Grid Grid.Column="1" MinWidth="0" Background="Transparent">
-                                    <!-- 默认标题文字：只有没给 TitleBarContent 时才显示 -->
+                                    <!-- 默认标题文字：只有没给 TitleBarContent 时才显示。
+                                         本列左缘 = 系统菜单命中盒右缘（列宽 = CaptionIconBoxMargin.Left + 22）。
+                                         原生标题栏的规则就是「文字从命中盒右缘开始」，这里再补 3px 是因为
+                                         命中盒比图标每侧宽 3px、而 WPF 字形没有 GDI 那 3px 左留白：
+                                         补上之后标题【墨迹】正好距图标【墨迹】6px，与 Win32 自绘标题栏实测一致
+                                         （此前 Margin=8 让墨迹间距变成 11px，比原生宽 5px）。 -->
                                     <TextBlock x:Name="PART_DefaultTitleContent"
-                                               Margin="8,0,0,0"
+                                               Margin="3,0,0,0"
                                                VerticalAlignment="Center"
                                                Visibility="Collapsed"
                                                Text="{TemplateBinding Title}"
@@ -224,6 +229,10 @@
                         </Trigger>
                         <Trigger Property="ShowTitleBarIcon" Value="False">
                             <Setter TargetName="PART_SystemMenu" Property="Visibility" Value="Collapsed" />
+                            <!-- 图标没有了，那 3px 的"命中盒内缩补偿"也要一起去掉：
+                                 默认标题的 Margin 是为了对齐"命中盒比图标每侧宽 3px"而加的，
+                                 留着会让标题在隐藏图标后仍从 3 起排（实测 x=3，应当为 0）。 -->
+                            <Setter TargetName="PART_DefaultTitleContent" Property="Margin" Value="0" />
                         </Trigger>
                         <Trigger Property="ResizeMode" Value="NoResize">
                             <Setter TargetName="PART_MinimizeButton" Property="Visibility" Value="Collapsed" />
