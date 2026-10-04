@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFrameworks>net6.0-windows;net8.0-windows;net472;net48</TargetFrameworks>
@@ -10,7 +10,7 @@
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
 		<PackageId>WindowChromeKit.WinForms</PackageId>
-		<VersionPrefix>2.0.0</VersionPrefix>
+		<VersionPrefix>2.1.0</VersionPrefix>
 		<Authors>FlyingEyeOrg</Authors>
 		<Title>WindowChromeKit.WinForms</Title>
 		<Description>面向 .NET 的 WinForms 自定义窗口程序集：保留原生 WS_CAPTION/WS_THICKFRAME 边框（DWM 阴影与阴影中的缩放带），标题栏完全自绘。需要 Windows 10 及以上（含 Windows 11）；不支持 Windows 7 / 8 / 8.1。</Description>
