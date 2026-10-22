@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using WindowChromeKit.Wpf.Internal;
 
 namespace WindowChromeKit.Wpf;
@@ -55,6 +55,14 @@ public partial class ChromeWindow
         }
     }
 
+    /// <summary>
+    /// 标题栏按钮当前是否可用。这是**唯一**判定来源：命中层（<c>RoleToNativePart</c>）
+    /// 与视觉层（<c>IsRoleEnabled</c>）都必须读它。
+    ///
+    /// 曾经两处不同源：视觉层用 <see cref="ChromeFrame.IsResizable"/>，命中层用
+    /// <c>ResizeMode != NoResize</c>。于是 <c>CanMinimize</c> 下最大化按钮被置灰，
+    /// 命中层却仍把它报成 <c>HTMAXBUTTON</c> —— 外观和命中互相矛盾。
+    /// </summary>
     protected override bool IsRoleEnabled(ChromeHitTestRole role) => role switch
     {
         ChromeHitTestRole.MinimizeButton => ResizeMode != ResizeMode.NoResize,

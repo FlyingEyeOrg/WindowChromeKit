@@ -178,6 +178,9 @@ Chrome / VsCode / Windows 分别是 31 / 29 / 27），第一列直接从内容�
 - [`docs/native-frame-model.md`](docs/native-frame-model.md) —— **技术方案与踩坑记录**：
   原生 frame 模型、命中优先级、顶边 1px 线的 DWM 混合公式，以及实现过程中实测发现和
   踩过的坑。改动窗口框架、命中判定或标题栏绘制相关代码前建议先读一遍。
+- [`docs/frame-property-contract.md`](docs/frame-property-contract.md) —— **窗口属性契约**：
+  哪些 WPF 属性归本库所有、设置了会直接抛异常（`WindowStyle`）、哪些拦不住只能靠运行期兜底
+  （`WindowChrome`、`WS_EX_LAYERED`），以及"我想取消边框 / 做圆角 / 半透明"分别该用什么。
 - [`docs/visual-verification-checklist.md`](docs/visual-verification-checklist.md) ——
   **视觉验证清单**：可重复执行的测试与 VM 像素验证步骤、三套样式的期望值对照表
   （配色/几何/命中区/最大化行为），以及人工目视项。改完照着跑一遍即可。
@@ -240,6 +243,26 @@ Chrome / VsCode / Windows 分别是 31 / 29 / 27），第一列直接从内容�
   复刻「保留阴影 + 阴影中的 resize 带 + 自绘标题栏」，可作为库实现的对照基准。
 - `tests/WindowChromeKit.Wpf.Tests`：算法测试和真实 HWND 集成测试。
 - `legacy/SoftwareHub.DesktopAgent.Runtime/Windows`：供后续提取使用、不参与编译的源代码快照。
+
+## 属性契约：哪些 WPF 属性不能设
+
+`ChromeFrame` / `ChromeWindow` **保留原生 `WS_CAPTION | WS_THICKFRAME` 边框** —— DWM 阴影、
+可见边框、「阴影里那圈」缩放带、Snap Layout 和系统菜单都来自它，而客户区是按 frame 厚度内缩的。
+因此有几个 WPF 属性归本库所有，**设置后会直接抛 `InvalidOperationException`**，而不是静默画错：
+
+| 属性 | 允许值 | 越界行为 |
+| --- | --- | --- |
+| `WindowStyle` | `SingleBorderWindow` | 抛异常。`ThreeDBorderWindow` 会被 coerce 回单边框 |
+| `AllowsTransparency` | `false` | WPF 自己会抛（`true` 只能配 `WindowStyle=None`） |
+| `WindowChrome`（附加属性） | 不设置 | frame 附加时抛异常 |
+| `ResizeMode` | **全部允许** | —— |
+| `Opacity`、`Topmost`、`Owner`、`ShowInTaskbar`、`Title`、`Icon`、`Background` 等 | 全部允许 | —— |
+
+`WindowStyle="None"` 是最常见的误用：想要「没有标题栏的窗口」应当**直接继承 `ChromeFrame`**
+（它本来就是这样的骨架），或给 `ChromeWindow` 换 `Template`，而不是关掉原生边框。
+需要圆角时用 Windows 11 的 DWM 圆角（`DWMWA_WINDOW_CORNER_PREFERENCE`）；
+真正无边框/异形/半透明窗口本库不支持 —— 那会失去 DWM 阴影与缩放带。
+完整清单、实测数据与替代做法见 [`docs/frame-property-contract.md`](docs/frame-property-contract.md)。
 
 ## 构建与测试
 

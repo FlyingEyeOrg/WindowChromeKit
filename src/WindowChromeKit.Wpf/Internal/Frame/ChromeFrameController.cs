@@ -38,6 +38,8 @@ internal sealed class ChromeFrameController
     private const uint WmDisplayChange = 0x007E;
     private const uint WmNcCalcSize = 0x0083;
     private const uint WmNcHitTest = 0x0084;
+    private const uint WmStyleChanging = 0x007C;
+    private const uint WmStyleChanged = 0x007D;
     private const uint WmNcMouseMove = 0x00A0;
     private const uint WmNcLButtonDown = 0x00A1;
     private const uint WmNcLButtonUp = 0x00A2;
@@ -174,6 +176,12 @@ internal sealed class ChromeFrameController
                 return new IntPtr(HitTest(GetScreenPoint(longParameter)));
             case WmDwmCompositionChanged:
                 ScheduleNativeFrameRefresh();
+                break;
+            case WmStyleChanged:
+                // 样式位被改了（可能是 WPF 自己响应 ResizeMode，也可能是第三方代码）。
+                // 这里只重算 frame 几何；WS_EX_LAYERED 这类会拆掉 DWM 渲染的改动由宿主的
+                // 兜底校验负责（见 ChromeFrame.EnsureNativeStyle），因为它需要抛异常。
+                _host.OnNativeStyleChanged();
                 break;
             case WmDpiChanged:
                 _host.Dispatcher.BeginInvoke(() =>

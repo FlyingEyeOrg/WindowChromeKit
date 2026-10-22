@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Input;
 using WindowChromeKit.Wpf.Internal;
 
@@ -10,11 +10,39 @@ public partial class ChromeWindow
     {
         _input.PrepareResizeModeChange();
         CommandManager.InvalidateRequerySuggested();
+        // ResizeMode 会改变缩放能力与最小尺寸，而 WPF 改样式位是异步落在原生窗口上的 ——
+        // 这里安排一次 frame 重算，保证命中带、最小尺寸与新状态同源。
+        _frame?.ScheduleNativeFrameRefresh();
     }
 
     protected override void OnFrameDpiChanged() => UpdateDpiVisuals();
 
-    protected override double CaptionButtonsWidth => CaptionButtonWidth * VisibleCaptionButtonCount;
+    /// <summary>
+    /// 样式位变化后重算 frame：<c>ResizeMode</c> 会改变缩放能力，
+    /// 而命中判定与最小尺寸都读 <see cref="ChromeFrame.IsResizable"/>。
+    /// </summary>
+    protected override void OnFrameNativeStyleChanged()
+    {
+        ApplyResizeMode();
+        UpdateDpiVisuals();
+        base.OnFrameNativeStyleChanged();
+    }
+
+    /// <summary>
+    /// 三个标题栏按钮**实际**占用的宽度。
+    ///
+    /// 必须按各自的真实宽度累加：Chrome 样式的最小化按钮是 45、其余是 46，
+    /// 原先用「统一宽度 × 按钮数」漏掉了 <see cref="ChromeWindow.MinimizeButtonWidth"/>。
+    /// 那 1px 的差恰好偏小（安全方向），但一旦把最小化按钮调宽，最小窗口宽度就会不够，
+    /// 关闭按钮被挤出客户区右侧。
+    ///
+    /// 另外按模板实况算：<c>NoResize</c> 时模板把最小化/最大化按钮折叠掉了，
+    /// 此时只剩关闭按钮，宽度也应随之收窄。
+    /// </summary>
+    protected override double CaptionButtonsWidth =>
+        (_minimize is null ? 0d : EffectiveMinimizeButtonWidth)
+        + (_maximize is null ? 0d : CaptionButtonWidth)
+        + CaptionButtonWidth;
 
     protected override double CaptionHeight => TitleBarHeight;
 

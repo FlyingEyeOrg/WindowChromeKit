@@ -671,8 +671,12 @@ public sealed class ChromeWindowTests
         // 而且只断言 ">="，所以真少了 3px 也照样通过（Right 边距更是完全没算）。
         var iconMargin = window.CaptionIconBoxMargin;
         var leading = iconMargin.Left + ChromeWindow.SystemMenuBoxSizeDip + iconMargin.Right;
+        // 按钮宽度必须按**各自的实际宽度**累加：Chrome 样式的最小化是 45、其余是 46。
+        // 这里原先写的是 CaptionButtonWidth * 3，漏掉了 MinimizeButtonWidth 那 1px。
+        var captionButtonsWidth =
+            window.EffectiveMinimizeButtonWidth + window.CaptionButtonWidth * 2;
         var expectedMinimumWidth =
-            (int)Math.Ceiling(leading) + (int)Math.Ceiling(window.CaptionButtonWidth * 3) + frameX * 2;
+            (int)Math.Ceiling(leading) + (int)Math.Ceiling(captionButtonsWidth) + frameX * 2;
         var expectedMinimumHeight = frameY + (int)Math.Ceiling(window.TitleBarHeight);
 
         var limitsPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
@@ -1650,6 +1654,210 @@ public sealed class ChromeWindowTests
 
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
+
+    /// <summary>
+    /// 契约守卫：<c>WindowStyle</c> 只允许单边框。
+    ///
+    /// 保留 <c>WS_CAPTION | WS_THICKFRAME</c> 是整套方案的地基（DWM 阴影、可见边框、
+    /// 缩放带、Snap、系统菜单），而 <c>WM_NCCALCSIZE</c> 会无条件内缩客户区 ——
+    /// 样式位被摘掉就会留下一圈没人绘制的非客户区。所以设置即抛，而不是静默画错。
+    /// 详见 <c>docs/frame-property-contract.md</c>。
+    /// </summary>
+    [Fact]
+    public void WindowStyleIsGuardedToSingleBorder() => RunSta(() =>
+    {
+        var window = new ChromeWindow();
+
+        // 默认值必须是 SingleBorderWindow —— 证明 OverrideMetadata 写回了默认值，
+        // 没有把它替换成 0（None）。
+        Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
+
+        // 显式写正确值是安全的：值没变时 SetValue 直接返回，coerce 不会执行。
+        window.WindowStyle = WindowStyle.SingleBorderWindow;
+        Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
+
+        // ThreeDBorderWindow 实测与单边框无差异，coerce 回单边框而不是抛。
+        window.WindowStyle = WindowStyle.ThreeDBorderWindow;
+        Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
+
+        foreach (var style in new[] { WindowStyle.None, WindowStyle.ToolWindow })
+        {
+            var exception = Assert.Throws<InvalidOperationException>(
+                () => window.WindowStyle = style);
+            // 消息必须能定位到本库，否则用户从 XAML 的 XamlParseException 里看不出是谁拒绝的。
+            Assert.Contains("ChromeFrame", exception.Message);
+            Assert.Contains("WindowStyle", exception.Message);
+            // 抛在 coerce 里 → 值根本没落库，状态不会不一致。
+            Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
+        }
+
+        window.Close();
+    });
+
+    /// <summary>
+    /// 兜底层：<c>WindowChrome</c> 是别人命名空间上的附加属性，无法 OverrideMetadata，
+    /// 只能在 frame 附加时拦。它是第二套 WM_NCCALCSIZE / WM_NCHITTEST，
+    /// 会与本库的窗口过程抢同一批消息。
+    /// </summary>
+    [Fact]
+    public void WindowChromeIsRejectedWhenTheFrameAttaches() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 400,
+            Height = 300,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+        };
+        System.Windows.Shell.WindowChrome.SetWindowChrome(
+            window,
+            new System.Windows.Shell.WindowChrome { CaptionHeight = 0 });
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => new WindowInteropHelper(window).EnsureHandle());
+        Assert.Contains("ChromeFrame", exception.Message);
+        Assert.Contains("WindowChrome", exception.Message);
+
+        window.Close();
+    });
+
+    /// <summary>
+    /// 兜底层：<c>WS_EX_LAYERED</c> 是实测唯一会让 DWM 停止渲染非客户区的样式位
+    /// （阴影、可见边框、缩放带一起消失），而客户区仍然按 frame 厚度内缩。
+    ///
+    /// 注意 <c>WS_THICKFRAME</c> **不校验**：<c>ResizeMode=NoResize/CanMinimize</c> 会让 WPF
+    /// 主动摘掉它，实测 DWM 照样渲染那圈、只是不再可缩放，三种 ResizeMode 的像素完全一致。
+    ///
+    /// 这里不伪造系统状态：WPF 的 HwndSource 会在样式变化后重写自己的样式位，
+    /// `SetWindowLongPtr` 写入 `WS_EX_LAYERED` 会被立刻覆盖回（已实测）。因此只断言
+    /// "四种 ResizeMode 都合法"这个真正能通过真实路径验证的结论。
+    /// </summary>
+    [Fact]
+    public void EveryResizeModeIsAllowedDespiteLosingThickFrame() => RunSta(() =>
+    {
+        foreach (var mode in new[]
+        {
+            ResizeMode.CanResize,
+            ResizeMode.CanMinimize,
+            ResizeMode.NoResize,
+            ResizeMode.CanResizeWithGrip,
+        })
+        {
+            var window = new ChromeWindow
+            {
+                Width = 400,
+                Height = 300,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                ResizeMode = mode,
+            };
+            var handle = new WindowInteropHelper(window).EnsureHandle();
+            Assert.True(NativeWindowMethods.IsWindow(handle));
+
+            // NoResize/CanMinimize 会摘掉 WS_THICKFRAME —— 这是 WPF 的既定行为，
+            // 我们的守卫**不能**因此抛异常（否则合法功能被误伤）。
+            var style = NativeWindowMethods.GetWindowLongPtr(handle, -16).ToInt64();
+            var hasThickFrame = (style & 0x00040000L) != 0;
+            Assert.Equal(
+                mode is ResizeMode.CanResize or ResizeMode.CanResizeWithGrip,
+                hasThickFrame);
+
+            window.Close();
+        }
+    });
+
+    /// <summary>
+    /// <c>ResizeMode</c> 的按钮可用性必须**单一事实来源**：
+    /// 视觉层（<see cref="ChromeFrame.IsRoleEnabled"/>）与命中层
+    /// （<c>ChromeInputController.RoleToNativePart</c>）读同一个判定。
+    ///
+    /// 曾经视觉层用 <c>IsResizable</c>、命中层用 <c>ResizeMode != NoResize</c>，
+    /// 于是 <c>CanMinimize</c> 下最大化按钮被置灰、命中层却仍报 <c>HTMAXBUTTON</c>。
+    /// </summary>
+    [Fact]
+    public void CaptionButtonAvailabilityAndHitTestShareOneDecision() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 800,
+            Height = 500,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            ResizeMode = ResizeMode.CanMinimize,
+        };
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var maximize = Assert.IsType<Button>(
+            window.Template.FindName(ChromeWindow.PartMaximizeButton, window));
+        // 视觉层：CanMinimize 下最大化按钮被禁用并置灰
+        Assert.False(maximize.IsEnabled);
+        Assert.Equal(window.CaptionButtonDisabledOpacity, maximize.Opacity, 3);
+
+        // 命中层：必须与之一致，不能仍报 HTMAXBUTTON（否则会出现"按钮是灰的、鼠标却显示可最大化"）。
+        var center = maximize.PointToScreen(
+            new Point(maximize.ActualWidth / 2, maximize.ActualHeight / 2));
+        var hit = NativeWindowMethods.SendMessage(
+            handle,
+            0x0084,
+            IntPtr.Zero,
+            PackScreenPoint(center));
+        Assert.NotEqual(WindowFrameHitTest.MaxButton, hit.ToInt32());
+        // 实际落到 HTCAPTION：IsEnabled=false 的控件不参与 WPF 命中测试，
+        // 于是那一格穿透到标题栏，表现为可拖动 —— 与"禁用即不可点"一致。
+        Assert.Equal(WindowFrameHitTest.Caption, hit.ToInt32());
+
+        window.Close();
+    });
+
+    /// <summary>
+    /// 标题栏按钮总宽必须按各自真实宽度累加 —— Chrome 样式的最小化是 45、其余是 46。
+    /// 原先用「统一宽度 × 按钮数」，漏掉了 <c>MinimizeButtonWidth</c>：
+    /// 那 1px 恰好偏小（安全方向），但一旦把最小化按钮调宽，最小窗口宽度就不够，
+    /// 关闭按钮会被挤出客户区右侧。
+    /// </summary>
+    [Fact]
+    public void CaptionButtonsWidthCountsEachButtonRealWidth() => RunSta(() =>
+    {
+        var window = new ChromeWindow
+        {
+            Width = 800,
+            Height = 500,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+        };
+        var handle = new WindowInteropHelper(window).EnsureHandle();
+        window.Show();
+        window.UpdateLayout();
+
+        var host = (IChromeFrameHost)window;
+        Assert.Equal(45d + 46d * 2, host.CaptionButtonsWidth, 3);
+
+        // 把最小化按钮调宽 40px，总宽必须跟着变大同样的量。
+        window.MinimizeButtonWidth = 85d;
+        window.UpdateLayout();
+        Assert.Equal(85d + 46d * 2, host.CaptionButtonsWidth, 3);
+
+        // 最小宽度必须容得下它，否则关闭按钮会被挤出去。
+        var pointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeMinMaxInfo>());
+        try
+        {
+            Marshal.StructureToPtr(default(NativeMinMaxInfo), pointer, false);
+            _ = NativeWindowMethods.SendMessage(handle, 0x0024, IntPtr.Zero, pointer);
+            var limits = Marshal.PtrToStructure<NativeMinMaxInfo>(pointer);
+            var buttons = (int)Math.Ceiling(host.CaptionButtonsWidth);
+            var leading = (int)Math.Ceiling(host.CaptionLeadingWidth);
+            Assert.True(
+                limits.MinTrackSize.X >= buttons + leading,
+                $"MinTrackSize.X={limits.MinTrackSize.X} 放不下按钮 {buttons} + 图标区 {leading}");
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(pointer);
+            window.Close();
+        }
+    });
 
     private static void RunSta(Action action)
     {

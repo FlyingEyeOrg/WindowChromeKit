@@ -271,14 +271,19 @@ internal sealed class ChromeInputController
             _host.ApplyVisualState();
     }
 
+    /// <summary>
+    /// 语义角色 → 原生命中值。按钮可用性一律问 <see cref="IChromeFrameHost.IsRoleEnabled"/>，
+    /// 不再自己判断 ResizeMode —— 否则视觉层的「禁用」和命中层的「仍报 HTMAXBUTTON」会互相矛盾
+    /// （<c>CanMinimize</c> 下就出现过）。
+    /// </summary>
     private int RoleToNativePart(ChromeHitTestRole role) =>
         role switch
         {
             ChromeHitTestRole.Caption => WindowFrameHitTest.Caption,
             ChromeHitTestRole.SystemMenu => WindowFrameHitTest.SystemMenu,
-            ChromeHitTestRole.MinimizeButton when _host.ResizeMode != ResizeMode.NoResize =>
+            ChromeHitTestRole.MinimizeButton when _host.IsRoleEnabled(role) =>
                 WindowFrameHitTest.MinButton,
-            ChromeHitTestRole.MaximizeButton when _host.ResizeMode != ResizeMode.NoResize =>
+            ChromeHitTestRole.MaximizeButton when _host.IsRoleEnabled(role) =>
                 WindowFrameHitTest.MaxButton,
             ChromeHitTestRole.CloseButton => WindowFrameHitTest.Close,
             _ => WindowFrameHitTest.Client,

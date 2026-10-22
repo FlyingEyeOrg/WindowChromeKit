@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -49,6 +49,13 @@ internal interface IChromeFrameHost
 
     /// <summary>DPI 变化后刷新视觉度量。</summary>
     void OnFrameDpiChanged();
+
+    /// <summary>
+    /// 原生样式位变化后（<c>WM_STYLECHANGED</c>）回调。
+    /// frame 几何依赖 frame 厚度与缩放能力，样式位一变就要重算，否则会出现
+    /// 「画在这里、点在那里」。
+    /// </summary>
+    void OnNativeStyleChanged();
 
     /// <summary>显示器拓扑或工作区变化通知。</summary>
     void OnDisplayConfigurationChanged();
