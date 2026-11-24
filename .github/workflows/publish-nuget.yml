@@ -10,6 +10,15 @@ on:
         description: "手动发布的包版本，例如 1.0.1；留空时使用 VersionPrefix"
         required: false
         type: string
+      target:
+        description: "要发布的包；both 为两个包（默认）"
+        required: false
+        type: choice
+        default: both
+        options:
+          - both
+          - wpf
+          - winforms
 
 permissions:
   contents: read
@@ -116,9 +125,11 @@ jobs:
           }
 
       - name: Pack WindowChromeKit.Wpf
+        if: ${{ inputs.target != 'winforms' }}
         run: dotnet pack src/WindowChromeKit.Wpf/WindowChromeKit.Wpf.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.wpf }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
 
       - name: Pack WindowChromeKit.WinForms
+        if: ${{ inputs.target != 'wpf' }}
         run: dotnet pack src/WindowChromeKit.WinForms/WindowChromeKit.WinForms.csproj -c Release --no-build --no-restore -o artifacts -p:PackageVersion=${{ steps.version.outputs.winforms }} -p:ContinuousIntegrationBuild=true -p:IncludeSource=true
 
       - name: Upload NuGet packages
@@ -141,10 +152,13 @@ jobs:
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          $packages = @(
-              @{ Name = "WindowChromeKit.Wpf";     Version = "${{ steps.version.outputs.wpf }}" },
-              @{ Name = "WindowChromeKit.WinForms"; Version = "${{ steps.version.outputs.winforms }}" }
-          )
+          $packages = @()
+          if ("${{ inputs.target }}" -ne "winforms") {
+              $packages += @{ Name = "WindowChromeKit.Wpf"; Version = "${{ steps.version.outputs.wpf }}" }
+          }
+          if ("${{ inputs.target }}" -ne "wpf") {
+              $packages += @{ Name = "WindowChromeKit.WinForms"; Version = "${{ steps.version.outputs.winforms }}" }
+          }
           foreach ($package in $packages) {
               dotnet nuget push "artifacts/$($package.Name).$($package.Version).nupkg" `
                 --source "https://api.nuget.org/v3/index.json" `
