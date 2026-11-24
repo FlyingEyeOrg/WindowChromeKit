@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -33,6 +33,12 @@ public partial class ChromeWindow
     private const int IconSmall2 = 2;
     private const int IdiApplication = 32512;
     private FrameworkElement? _titleBar;
+
+    /// <summary>
+    /// 上一次处理激活变化时的 <see cref="Window.IsActive"/>。
+    /// 用来识别“失活 → 激活”这一种转换，避免每次激活都驱动一次渲染。
+    /// </summary>
+    private bool _lastKnownActive;
     private FrameworkElement? _systemMenu;
     private FrameworkElement? _minimize;
     private FrameworkElement? _maximize;
@@ -109,14 +115,45 @@ public partial class ChromeWindow
 
     private void OnActivationChanged(object? sender, EventArgs eventArgs)
     {
+        var wasActive = _lastKnownActive;
+        _lastKnownActive = IsActive;
         CommitVisualState();
-        if (!IsActive)
+
+        // 只在“由失活变为激活”的那一次提交后驱动渲染：
+        // 这正是 HTCAPTION 按下导致激活、随后被 SC_MOVE 挡住的场景。
+        if (!IsActive || wasActive)
             return;
-        // DefWindowProc 会在 HTCAPTION 按下后进入系统的 SC_MOVE 等待。先用空操作
-        // 排完已排队的 Render 项，让刚提交的激活视觉呈现；不泵送输入，也不嵌套
-        // DispatcherFrame。单击时这是无害的幂等刷新，系统拖动和双击仍走原生路径。
-        Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+        FlushRenderDispatcher();
     }
+
+    /// <summary>
+    /// 同步驱动一次 WPF 的渲染调度，把已排队的这一帧提交出去。
+    ///
+    /// <para><b>不要随意调用。</b>它会把 Dispatcher 队列里所有 Render 级工作同步执行完，
+    /// 属于“把一帧强行推到屏幕”的手段，只应在原生消息栈内、即将进入系统等待之前
+    /// 需要“先呈现再阻塞”时使用。目前唯一调用点是
+    /// <see cref="OnActivationChanged"/> 的失活→激活转换。</para>
+    ///
+    /// <para>WPF 的渲染提交不是“属性一变就上屏”：<c>MediaContext</c> 把
+    /// <c>RenderMessageHandler</c> 作为一个 Dispatcher 操作排在 Render 优先级上，
+    /// 由 Dispatcher 在之后的轮次里取出执行。真正提交用的 <c>Channel.SyncFlush</c>
+    /// 是 internal，应用代码无法直接调用。</para>
+    ///
+    /// <para>需要它的场景：在 <c>HTCAPTION</c> 上按下后，<c>DefWindowProc</c> 会为
+    /// <c>SC_MOVE</c> 进入一段系统内部的等待。那段等待期间 UI 线程一直在这条消息的
+    /// 处理栈上，Dispatcher 排不上新的轮次，排队中的渲染就一直不提交 —— 表现为
+    /// 窗口已经激活、属性也已经正确，标题栏却仍显示失活色，直到进入移动循环才更新。</para>
+    ///
+    /// <para>因此这里让 Dispatcher 执行到 Render 优先级，等价于手动驱动一次
+    /// <c>RenderMessageHandler</c>。这是 WPF 公开能力下唯一能同步提交一帧的方式：
+    /// <c>UpdateLayout</c> 只做布局、<c>InvalidateVisual</c> 只做标记、
+    /// <c>UpdateWindow</c> 只触发 WM_PAINT，都不会让合成器提交。</para>
+    ///
+    /// <para>不泵送输入、不嵌套 <c>DispatcherFrame</c>，因此不会改变系统拖动、
+    /// 双击最大化或 Aero Snap 的消息路径。</para>
+    /// </summary>
+    private void FlushRenderDispatcher() =>
+        Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
 
     internal void UpdateDpiVisuals()
     {
