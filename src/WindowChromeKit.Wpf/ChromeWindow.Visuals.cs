@@ -119,41 +119,80 @@ public partial class ChromeWindow
         _lastKnownActive = IsActive;
         CommitVisualState();
 
-        // 只在“由失活变为激活”的那一次提交后驱动渲染：
-        // 这正是 HTCAPTION 按下导致激活、随后被 SC_MOVE 挡住的场景。
+        // 只在“由失活变为激活”的那一次提交后驱动渲染。
+        //
+        // 激活 → 失活（点别的窗口）不需要：那种场景没有后续的系统等待，渲染自然会提交。
+        // 只有失活 → 激活且紧接着进入 SC_MOVE 时才会被挡住，见 FlushCompositionTarget。
         if (!IsActive || wasActive)
             return;
-        FlushRenderDispatcher();
+        FlushCompositionTarget();
     }
 
     /// <summary>
-    /// 同步驱动一次 WPF 的渲染调度，把已排队的这一帧提交出去。
+    /// 让 WPF 立刻把已提交的视觉渲染出来，绕过“要等 Dispatcher 轮次”的默认时序。
     ///
-    /// <para><b>不要随意调用。</b>它会把 Dispatcher 队列里所有 Render 级工作同步执行完，
-    /// 属于“把一帧强行推到屏幕”的手段，只应在原生消息栈内、即将进入系统等待之前
-    /// 需要“先呈现再阻塞”时使用。目前唯一调用点是
+    /// <para><b>不要随意调用。</b>它会让 WPF 走一整遍 resize 渲染路径（取消排队的渲染操作、
+    /// 同步执行 <c>RenderMessageHandler</c>）。只应在“激活已经发生、紧接着要进入系统内部
+    /// 等待”时使用，否则就是多余的重绘。目前唯一调用点是
     /// <see cref="OnActivationChanged"/> 的失活→激活转换。</para>
     ///
-    /// <para>WPF 的渲染提交不是“属性一变就上屏”：<c>MediaContext</c> 把
+    /// <para><b>背景（现象）。</b>窗口失焦后，用鼠标按住标题栏空白处不动，窗口在几毫秒内
+    /// 就激活了，标题栏模板的背景属性也已经变成激活色，但屏幕上仍是失活色，大约
+    /// 500ms 后才切换。单击、按住后拖动都没有这个问题，只有“按住且不动”才会出现。</para>
+    ///
+    /// <para><b>原因。</b>在 <c>HTCAPTION</c> 上按下后，<c>DefWindowProc</c> 会为
+    /// <c>SC_MOVE</c> 进入系统的模态交互循环。这个循环只派发它认识的消息（鼠标、键盘等），
+    /// <b>不服务 WPF 的 Dispatcher 队列</b>。实测：在该循环进行期间投递
+    /// <c>DispatcherPriority.Send</c> 的操作，同样要等到 <c>WM_ENTERSIZEMOVE</c> 之后
+    /// 才执行——所以 UI 线程并没有死锁，只是 Dispatcher 队列没人处理。</para>
+    ///
+    /// <para>而 WPF 的画面提交恰好依赖这个队列：<c>MediaContext</c> 把
     /// <c>RenderMessageHandler</c> 作为一个 Dispatcher 操作排在 Render 优先级上，
-    /// 由 Dispatcher 在之后的轮次里取出执行。真正提交用的 <c>Channel.SyncFlush</c>
-    /// 是 internal，应用代码无法直接调用。</para>
+    /// 等轮次到了才执行；真正把帧交给合成器的 <c>Channel.SyncFlush</c> 是 internal，
+    /// 应用代码无法直接调用。于是属性早已正确，帧却一直排队，直到模态循环结束。</para>
     ///
-    /// <para>需要它的场景：在 <c>HTCAPTION</c> 上按下后，<c>DefWindowProc</c> 会为
-    /// <c>SC_MOVE</c> 进入一段系统内部的等待。那段等待期间 UI 线程一直在这条消息的
-    /// 处理栈上，Dispatcher 排不上新的轮次，排队中的渲染就一直不提交 —— 表现为
-    /// 窗口已经激活、属性也已经正确，标题栏却仍显示失活色，直到进入移动循环才更新。</para>
+    /// <para><b>为什么这样做。</b>WPF 自己也有一条“同步渲染”的路径：
+    /// <c>WM_SIZE</c> 会进入 <c>HwndTarget.OnResize</c> → <c>MediaContext.Resize</c>，
+    /// 后者取消排队的渲染操作并<b>同步调用</b> <c>RenderMessageHandler</c>。源码注释原话是
+    /// “run the dispatch for the render queue item by hand”。而 <c>OnResize</c> 并不检查
+    /// 尺寸是否真的变化，因此用<b>当前</b>客户区尺寸发一条 <c>WM_SIZE</c> 就够了：
+    /// 窗口几何完全不变，但渲染被同步提交。</para>
     ///
-    /// <para>因此这里让 Dispatcher 执行到 Render 优先级，等价于手动驱动一次
-    /// <c>RenderMessageHandler</c>。这是 WPF 公开能力下唯一能同步提交一帧的方式：
-    /// <c>UpdateLayout</c> 只做布局、<c>InvalidateVisual</c> 只做标记、
-    /// <c>UpdateWindow</c> 只触发 WM_PAINT，都不会让合成器提交。</para>
+    /// <para><b>为什么用 <c>SendMessage</c> 而不是 <c>PostMessage</c>。</b>异步投递的消息
+    /// 同样要经过消息队列，而模态循环不取它们——实测所有 <c>PostMessage</c>（含
+    /// <c>WM_SIZE</c>、<c>WM_PAINT</c>、<c>WM_NULL</c>）都积压到
+    /// <c>WM_ENTERSIZEMOVE</c> 之后才被处理。而 <c>SendMessage</c> 是同步调用窗口过程，
+    /// 不经过队列，所以能穿透模态循环——实测立即返回。</para>
     ///
-    /// <para>不泵送输入、不嵌套 <c>DispatcherFrame</c>，因此不会改变系统拖动、
-    /// 双击最大化或 Aero Snap 的消息路径。</para>
+    /// <para><b>试过但无效的方案</b>（记录在此，避免后来者重复踩坑）：
+    /// <c>DwmFlush</c>（只等 DWM 合成已有内容，不产出新帧）、
+    /// <c>SetWindowPos(SWP_FRAMECHANGED)</c>（同样只让 DWM 重新合成旧内容）、
+    /// <c>UpdateWindow</c> / <c>RedrawWindow(RDW_UPDATENOW)</c>（WPF 不走 WM_PAINT）、
+    /// <c>UpdateLayout</c> / <c>InvalidateVisual</c>（只做布局与标记，不提交）、
+    /// 各种 <c>PostMessage</c>。还有一个被否决的方案是接管 <c>HTCAPTION</c> 自己实现拖动——
+    /// 那会丢掉 Aero Snap、双击最大化、最大化拖出还原，代价远大于收益。</para>
+    ///
+    /// <para>本方法不改变窗口几何、不改变激活状态、不改消息顺序，因此系统拖动、双击
+    /// 最大化与 Aero Snap 仍走原生路径。</para>
     /// </summary>
-    private void FlushRenderDispatcher() =>
-        Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+    private void FlushCompositionTarget()
+    {
+        var handle = FrameHandle;
+        if (handle == IntPtr.Zero)
+            return;
+        if (!NativeWindowMethods.GetClientRect(handle, out var client))
+            return;
+        // wParam = SIZE_RESTORED(0)；lParam 低 16 位是客户区宽、高 16 位是客户区高。
+        // 尺寸取自当前值，所以窗口不会真的改变大小。
+        _ = NativeWindowMethods.SendMessage(
+            handle,
+            WmSize,
+            IntPtr.Zero,
+            new IntPtr(unchecked((client.Height << 16) | (client.Width & 0xFFFF)))
+        );
+    }
+
+    private const uint WmSize = 0x0005;
 
     internal void UpdateDpiVisuals()
     {
