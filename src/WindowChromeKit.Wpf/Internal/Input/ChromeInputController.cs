@@ -17,6 +17,15 @@ internal sealed class ChromeInputController
 
     internal ChromeInputController(IChromeFrameHost host) => _host = host;
 
+    /// <summary>
+    /// 输入状态发生变化。参数是完整快照；本控制器不直接操作 WPF 模板或视觉状态。
+    /// </summary>
+    internal event Action<ChromeInputState>? StateChanged;
+
+    internal ChromeInputState CurrentState => new(HotRole, PressedRole);
+
+    private void NotifyStateChanged() => StateChanged?.Invoke(CurrentState);
+
     internal bool IsTrackingCaptionButtonPress => _trackingCaptionButtonPress;
 
     internal ChromeHitTestRole HotRole => NativePartToRole(_hotPart);
@@ -87,7 +96,7 @@ internal sealed class ChromeInputController
         if (cancelPress)
             CancelCaptionButtonPress();
         else
-            _host.ApplyVisualState();
+            NotifyStateChanged();
     }
 
     /// <summary>处理非客户区按钮按下，必要时接管鼠标捕获。</summary>
@@ -105,7 +114,7 @@ internal sealed class ChromeInputController
         _trackingCaptionButtonPress = _pressedPart != 0;
         if (_trackingCaptionButtonPress)
             _ = NativeWindowMethods.SetCapture(window);
-        _host.ApplyVisualState();
+        NotifyStateChanged();
         // 系统默认过程会独占跟踪非客户区按钮，导致自定义按钮收不到抬起消息。
         // 这里接管捕获，确保移出、移回、取消和最终命令具有普通 Button 一致的语义。
         return true;
@@ -157,7 +166,7 @@ internal sealed class ChromeInputController
     internal void HandleCaptureChanged()
     {
         _trackingCaptionButtonPress = false;
-        ResetPointerVisualState();
+        ResetPointerState();
     }
 
     /// <summary>跟踪非客户区悬停部件，用来刷新标题栏按钮的 Hover 状态。</summary>
@@ -176,7 +185,7 @@ internal sealed class ChromeInputController
             _trackingMouse = NativeWindowMethods.TrackMouseEvent(ref tracking);
         }
         if (changed)
-            _host.ApplyVisualState();
+            NotifyStateChanged();
     }
 
     /// <summary>鼠标被捕获时更新当前悬停的标题栏按钮。</summary>
@@ -186,7 +195,7 @@ internal sealed class ChromeInputController
         if (_hotPart == part)
             return;
         _hotPart = part;
-        _host.ApplyVisualState();
+        NotifyStateChanged();
     }
 
     /// <summary>读取光标位置并转换成原生标题栏按钮部件值；失败时返回 0。</summary>
@@ -217,7 +226,7 @@ internal sealed class ChromeInputController
         _ = NativeWindowMethods.ReleaseCapture();
         _pressedPart = 0;
         _hotPart = releasedPart;
-        _host.ApplyVisualState();
+        NotifyStateChanged();
         _ = _host.TryExecuteCaptionButton(
             NativePartToRole(pressedPart),
             NativePartToRole(releasedPart)
@@ -247,7 +256,7 @@ internal sealed class ChromeInputController
         if (_hotPart == part)
             return;
         _hotPart = part;
-        _host.ApplyVisualState();
+        NotifyStateChanged();
     }
 
     /// <summary>取消当前标题栏按钮按压并释放鼠标捕获。</summary>
@@ -257,18 +266,18 @@ internal sealed class ChromeInputController
         _trackingCaptionButtonPress = false;
         if (releaseCapture)
             _ = NativeWindowMethods.ReleaseCapture();
-        ResetPointerVisualState();
+        ResetPointerState();
     }
 
-    /// <summary>清空 hover/pressed 状态并刷新视觉层。</summary>
-    internal void ResetPointerVisualState()
+    /// <summary>清空 hover/pressed 输入状态，并通知宿主提交视觉。</summary>
+    internal void ResetPointerState()
     {
         var changed = _hotPart != 0 || _pressedPart != 0;
         _trackingMouse = false;
         _hotPart = 0;
         _pressedPart = 0;
         if (changed)
-            _host.ApplyVisualState();
+            NotifyStateChanged();
     }
 
     /// <summary>

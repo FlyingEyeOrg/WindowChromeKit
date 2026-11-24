@@ -86,7 +86,7 @@ public partial class ChromeWindow
     protected override void OnFrameStateChanged()
     {
         UpdateDpiVisuals();
-        ApplyVisualState();
+        CommitVisualState();
         base.OnFrameStateChanged();
         ApplyResizeMode();
     }

@@ -55,13 +55,14 @@ public partial class ChromeWindow
         _close = GetTemplateChild(PartCloseButton) as FrameworkElement;
         ApplyResizeMode();
         UpdateDpiVisuals();
-        ApplyVisualState();
+        CommitVisualState();
     }
 
     protected override void ApplyVisualState()
     {
-        var hoveredRole = _input.HotRole;
-        var pressedOrigin = _input.PressedRole;
+        var input = VisualInputState;
+        var hoveredRole = input.HoveredRole;
+        var pressedOrigin = input.PressedRole;
         var pressedRole = pressedOrigin == hoveredRole ? pressedOrigin : ChromeHitTestRole.Default;
         SetValue(HoveredChromeRolePropertyKey, hoveredRole);
         SetValue(PressedChromeRolePropertyKey, pressedRole);
@@ -106,7 +107,16 @@ public partial class ChromeWindow
         _ = VisualStateManager.GoToState(this, prefix + suffix, true);
     }
 
-    private void OnActivationChanged(object? sender, EventArgs eventArgs) => ApplyVisualState();
+    private void OnActivationChanged(object? sender, EventArgs eventArgs)
+    {
+        CommitVisualState();
+        if (!IsActive)
+            return;
+        // DefWindowProc 会在 HTCAPTION 按下后进入系统的 SC_MOVE 等待。先用空操作
+        // 排完已排队的 Render 项，让刚提交的激活视觉呈现；不泵送输入，也不嵌套
+        // DispatcherFrame。单击时这是无害的幂等刷新，系统拖动和双击仍走原生路径。
+        Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
+    }
 
     internal void UpdateDpiVisuals()
     {

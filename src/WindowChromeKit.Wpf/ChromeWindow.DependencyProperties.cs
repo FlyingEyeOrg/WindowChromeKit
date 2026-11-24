@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -478,7 +478,7 @@ public partial class ChromeWindow
     private static void OnChromeVisualChanged(
         DependencyObject dependencyObject,
         DependencyPropertyChangedEventArgs eventArgs
-    ) => ((ChromeWindow)dependencyObject).ApplyVisualState();
+    ) => ((ChromeWindow)dependencyObject).CommitVisualState();
 
     private static bool IsDefinedTitleBarStyle(object value) =>
         value is ChromeTitleBarStyle style && Enum.IsDefined(typeof(ChromeTitleBarStyle), style);

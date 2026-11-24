@@ -44,9 +44,6 @@ internal interface IChromeFrameHost
     /// <summary>在指定按钮上完成按下和抬起时执行窗口命令。</summary>
     bool TryExecuteCaptionButton(ChromeHitTestRole pressedRole, ChromeHitTestRole releasedRole);
 
-    /// <summary>刷新宿主标题栏的 hover/pressed 视觉状态。</summary>
-    void ApplyVisualState();
-
     /// <summary>DPI 变化后刷新视觉度量。</summary>
     void OnFrameDpiChanged();
 

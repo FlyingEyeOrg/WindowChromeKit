@@ -17,6 +17,7 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     private const long WsExLayered = 0x00080000L;
 
     private protected readonly ChromeInputController _input;
+    private readonly ChromeVisualStateCoordinator _visuals;
     private protected ChromeFrameController? _frame;
 
     /// <summary>
@@ -77,6 +78,8 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
         // 构造函数跑在 XAML 之前，赋值拦不住 XAML，只是给人「设过了」的错觉。
         SnapsToDevicePixels = true;
         _input = new ChromeInputController(this);
+        _visuals = new ChromeVisualStateCoordinator(ApplyVisualState);
+        _input.StateChanged += OnInputStateChanged;
         SourceInitialized += OnFrameSourceInitialized;
         StateChanged += OnFrameStateChanged;
         ContentRendered += OnFrameContentRendered;
@@ -116,6 +119,18 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
 
     /// <summary>刷新标题栏 hover/pressed 视觉状态；frame-only 窗口可以为空实现。</summary>
     protected virtual void ApplyVisualState() { }
+
+    /// <summary>
+    /// 窗口所有视觉状态的唯一提交入口。激活、窗口状态、模板和输入状态都汇聚到这里；
+    /// 输入控制器与原生窗口过程不直接操作 WPF 视觉。
+    /// </summary>
+    private protected void CommitVisualState() => _visuals.Commit();
+
+    /// <summary>视觉层读取的最新输入快照；不与输入控制器形成反向依赖。</summary>
+    private protected ChromeInputState VisualInputState => _visuals.Input;
+
+    /// <summary>输入控制器提交状态变化，由协调器统一更新视觉。</summary>
+    private void OnInputStateChanged(ChromeInputState input) => _visuals.CommitInput(input);
 
     /// <summary>DPI 变化后的视觉度量刷新钩子。</summary>
     protected virtual void OnFrameDpiChanged() { }
@@ -224,6 +239,7 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
     {
         _frame?.Detach();
         _frame = null;
+        _input.StateChanged -= OnInputStateChanged;
         SourceInitialized -= OnFrameSourceInitialized;
         StateChanged -= OnFrameStateChanged;
         ContentRendered -= OnFrameContentRendered;
@@ -255,7 +271,6 @@ public abstract class ChromeFrame : Window, IChromeFrameHost
         ChromeHitTestRole pressedRole,
         ChromeHitTestRole releasedRole
     ) => TryExecuteCaptionButton(pressedRole, releasedRole);
-    void IChromeFrameHost.ApplyVisualState() => ApplyVisualState();
     void IChromeFrameHost.OnFrameDpiChanged() => OnFrameDpiChanged();
     void IChromeFrameHost.OnNativeStyleChanged() => OnFrameNativeStyleChanged();
     void IChromeFrameHost.OnDisplayConfigurationChanged() => OnDisplayConfigurationChanged();

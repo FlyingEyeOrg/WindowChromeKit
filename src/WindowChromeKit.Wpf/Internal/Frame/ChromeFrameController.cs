@@ -236,7 +236,7 @@ internal sealed class ChromeFrameController
                 break;
             case WmNcMouseLeave:
                 if (!_input.IsTrackingCaptionButtonPress)
-                    _input.ResetPointerVisualState();
+                    _input.ResetPointerState();
                 break;
             case WmCancelMode:
                 _input.CancelCaptionButtonPress();
