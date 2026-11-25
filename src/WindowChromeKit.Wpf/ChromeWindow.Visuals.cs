@@ -172,6 +172,13 @@ public partial class ChromeWindow
     /// 各种 <c>PostMessage</c>。还有一个被否决的方案是接管 <c>HTCAPTION</c> 自己实现拖动——
     /// 那会丢掉 Aero Snap、双击最大化、最大化拖出还原，代价远大于收益。</para>
     ///
+    /// <para><b>踩过的坑：<c>wParam</c> 必须如实填写窗口状态。</b>早期版本把 <c>wParam</c>
+    /// 写死为 <c>SIZE_RESTORED</c>（0），结果最大化窗口一旦激活就被还原成普通态 ——
+    /// 因为 WPF 的 <c>Window</c> 在收到 <c>SIZE_RESTORED</c> 且自身状态不是
+    /// <see cref="WindowState.Normal"/> 时，会主动把 <see cref="WindowState"/> 改回
+    /// <see cref="WindowState.Normal"/>。所以这里按当前状态填
+    /// <c>SIZE_MAXIMIZED</c> / <c>SIZE_RESTORED</c>，最小化则直接跳过。</para>
+    ///
     /// <para>本方法不改变窗口几何、不改变激活状态、不改消息顺序，因此系统拖动、双击
     /// 最大化与 Aero Snap 仍走原生路径。</para>
     /// </summary>
@@ -180,19 +187,41 @@ public partial class ChromeWindow
         var handle = FrameHandle;
         if (handle == IntPtr.Zero)
             return;
+
+        // 最小化时不刷新：HwndTarget 对 SIZE_MINIMIZED 走的是“不渲染”分支，
+        // 而且最小化状态下也看不到标题栏。
+        if (WindowState == WindowState.Minimized)
+            return;
+
         if (!NativeWindowMethods.GetClientRect(handle, out var client))
             return;
-        // wParam = SIZE_RESTORED(0)；lParam 低 16 位是客户区宽、高 16 位是客户区高。
-        // 尺寸取自当前值，所以窗口不会真的改变大小。
+
+        // wParam 必须如实反映当前窗口状态，否则 WPF 会把窗口改成错误的状态。
+        //
+        // Window 的 WM_SIZE 处理里有这样一段（PresentationFramework/Window.cs）：
+        //   case SIZE_RESTORED:
+        //       if (_previousWindowState != WindowState.Normal) {
+        //           if (WindowState != WindowState.Normal) WindowState = WindowState.Normal;
+        //           ...
+        //       }
+        // 也就是说：最大化时发一条 wParam = SIZE_RESTORED 的 WM_SIZE，窗口会被**还原**。
+        // 这正是本方法早期版本的缺陷 —— wParam 写死 0，导致最大化窗口激活时掉回普通态。
+        var windowState = WindowState == WindowState.Maximized ? SizeMaximized : SizeRestored;
         _ = NativeWindowMethods.SendMessage(
             handle,
             WmSize,
-            IntPtr.Zero,
+            new IntPtr(windowState),
             new IntPtr(unchecked((client.Height << 16) | (client.Width & 0xFFFF)))
         );
     }
 
     private const uint WmSize = 0x0005;
+
+    /// <summary><c>SIZE_RESTORED</c>：普通态。</summary>
+    private const int SizeRestored = 0;
+
+    /// <summary><c>SIZE_MAXIMIZED</c>：最大化。</summary>
+    private const int SizeMaximized = 2;
 
     internal void UpdateDpiVisuals()
     {
