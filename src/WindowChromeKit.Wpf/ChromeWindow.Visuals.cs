@@ -39,6 +39,12 @@ public partial class ChromeWindow
     /// 用来识别“失活 → 激活”这一种转换，避免每次激活都驱动一次渲染。
     /// </summary>
     private bool _lastKnownActive;
+
+    /// <summary>
+    /// 是否已排队一次“布局完成后按光标重算 hover”。
+    /// 窗口状态连续变化（如最大化紧接着还原）时只保留一次重算。
+    /// </summary>
+    private bool _pointerReevaluationPending;
     private FrameworkElement? _systemMenu;
     private FrameworkElement? _minimize;
     private FrameworkElement? _maximize;

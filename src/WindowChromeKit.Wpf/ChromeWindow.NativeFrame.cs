@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using WindowChromeKit.Wpf.Internal;
 
 namespace WindowChromeKit.Wpf;
@@ -85,10 +86,44 @@ public partial class ChromeWindow
 
     protected override void OnFrameStateChanged()
     {
+        // 窗口状态变化（最大化 / 还原 / 最小化）一定会移动三个标题栏按钮的位置，
+        // 而 hover 是**按旧几何**记录下来的部件值。若不先清掉，下面这次
+        // CommitVisualState 会把过期的 hover 画出来 —— 表现就是「鼠标已经不在
+        // 按钮上，按钮却仍然亮着」，要等下一次 WM_NCMOUSEMOVE 才恢复。
+        //
+        // 用无通知的重置：紧接着的 CommitVisualState 会一次性提交，避免同一帧里
+        // 连续两次刷新视觉。
+        _input.ClearPointerState();
         UpdateDpiVisuals();
         CommitVisualState();
         base.OnFrameStateChanged();
         ApplyResizeMode();
+
+        // 清空之后要按**新几何**重新判定一次，否则会出现相反的问题：鼠标恰好停在
+        // 移动后的按钮上，按钮却不亮，直到用户动一下鼠标。
+        //
+        // 不能在这里同步重算：此刻布局还没跑完。实测最大化按钮在 StateChanged 触发时
+        // 报出的屏幕位置是中间态（692,1），到布局完成才变成最终位置（2491,20），
+        // 按中间态命中会得到错误结果。
+        //
+        // Loaded 优先级晚于布局与渲染，此时按钮位置已经确定。
+        SchedulePointerReevaluation();
+    }
+
+    /// <summary>布局完成后再按光标位置重算一次 hover；同一轮内多次状态变化只排一次。</summary>
+    private void SchedulePointerReevaluation()
+    {
+        if (_pointerReevaluationPending)
+            return;
+        _pointerReevaluationPending = true;
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() =>
+            {
+                _pointerReevaluationPending = false;
+                _input.RefreshPointerStateFromCursor();
+            })
+        );
     }
 
     protected override void OnFrameClosed()

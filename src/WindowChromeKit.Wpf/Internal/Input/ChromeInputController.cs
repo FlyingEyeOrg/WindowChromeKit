@@ -281,6 +281,28 @@ internal sealed class ChromeInputController
     }
 
     /// <summary>
+    /// 按当前光标位置重新判定 hover/pressed 并提交视觉。
+    ///
+    /// <para>供已清空状态、且**几何已经稳定**的调用方使用（例如窗口状态变化后延迟重算）。
+    /// 几何尚未完成布局时不要调用 —— 会按中间态算出错误结果。</para>
+    /// </summary>
+    internal void RefreshPointerStateFromCursor() => RefreshHotPartFromCursor();
+
+    /// <summary>
+    /// 只清空 hover/pressed 状态，**不**触发通知。
+    ///
+    /// <para>供调用方在同一帧内紧接着自行提交视觉时使用（例如窗口状态变化：
+    /// 几何一变，旧的 hover 必然失效，清掉之后由调用方一次性刷新）。
+    /// 用 <see cref="ResetPointerState"/> 会导致同帧两次视觉提交。</para>
+    /// </summary>
+    internal void ClearPointerState()
+    {
+        _trackingMouse = false;
+        _hotPart = 0;
+        _pressedPart = 0;
+    }
+
+    /// <summary>
     /// 语义角色 → 原生命中值。按钮可用性一律问 <see cref="IChromeFrameHost.IsRoleEnabled"/>，
     /// 不再自己判断 ResizeMode —— 否则视觉层的「禁用」和命中层的「仍报 HTMAXBUTTON」会互相矛盾
     /// （<c>CanMinimize</c> 下就出现过）。
