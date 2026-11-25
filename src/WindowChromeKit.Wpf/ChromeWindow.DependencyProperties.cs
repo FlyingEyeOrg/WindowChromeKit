@@ -295,6 +295,60 @@ public partial class ChromeWindow
     public static readonly DependencyProperty EffectiveCaptionButtonHeightProperty =
         EffectiveCaptionButtonHeightPropertyKey.DependencyProperty;
 
+    private static readonly DependencyPropertyKey EffectiveSystemMenuBoxSizePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(EffectiveSystemMenuBoxSize),
+            typeof(double),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(NativeSystemMenuBoxSize)
+        );
+
+    public static readonly DependencyProperty EffectiveSystemMenuBoxSizeProperty =
+        EffectiveSystemMenuBoxSizePropertyKey.DependencyProperty;
+
+    private static readonly DependencyPropertyKey EffectiveTitleBarIconSizePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(EffectiveTitleBarIconSize),
+            typeof(double),
+            typeof(ChromeWindow),
+            new FrameworkPropertyMetadata(NativeTitleBarIconSize)
+        );
+
+    public static readonly DependencyProperty EffectiveTitleBarIconSizeProperty =
+        EffectiveTitleBarIconSizePropertyKey.DependencyProperty;
+
+    /// <summary>
+    /// 系统菜单命中盒的**实际**边长（DIP），模板应当绑这个。
+    ///
+    /// <para>Win32 原生标题栏里这套尺寸是固定的：<c>SM_CYCAPTION</c> 23、<c>SM_CXSMSIZE</c> 22、
+    /// <c>SM_CXSMICON</c> 16（96dpi）。本库允许把标题栏做得比原生高（Chrome 40、VsCode 35），
+    /// 此时若沿用 22 的盒子，图标相对标题栏就显得过小。</para>
+    ///
+    /// <para>因此这里按 <see cref="TitleBarHeight"/> / 23 等比放大整组几何：
+    /// 盒子 = 22 × S，图标 = 16 × S。比例与原生窗口一致，感官才协调。</para>
+    /// </summary>
+    public double EffectiveSystemMenuBoxSize => (double)GetValue(EffectiveSystemMenuBoxSizeProperty);
+
+    /// <summary>标题栏图标的**实际**边长（DIP），模板应当绑这个。规则见 <see cref="EffectiveSystemMenuBoxSize"/>。</summary>
+    public double EffectiveTitleBarIconSize => (double)GetValue(EffectiveTitleBarIconSizeProperty);
+
+    /// <summary>
+    /// 按标题栏高度重算整组图标几何。标题栏高度一变化就要调用。
+    ///
+    /// <para><c>S = TitleBarHeight / 23</c>，23 是 Win32 的 <c>SM_CYCAPTION</c>。
+    /// 用 <see cref="TitleBarHeight"/> 而不是原生 caption 高度，是因为本库的标题栏是自绘的，
+    /// 高度由样式决定（Chrome 40 / VsCode 35 / Windows 31）。</para>
+    /// </summary>
+    internal void UpdateEffectiveIconMetrics()
+    {
+        var scale = TitleBarHeight / NativeCaptionHeight;
+        if (!IsFinitePositive(scale))
+            scale = 1d;
+
+        SetValue(EffectiveSystemMenuBoxSizePropertyKey, NativeSystemMenuBoxSize * scale);
+        SetValue(EffectiveTitleBarIconSizePropertyKey, NativeTitleBarIconSize * scale);
+    }
+
     /// <summary>
     /// 标题栏按钮的**实际**高度，模板应当绑这个而不是 <see cref="CaptionButtonHeight"/>。
     ///
@@ -506,6 +560,9 @@ public partial class ChromeWindow
     )
     {
         var window = (ChromeWindow)dependencyObject;
+        // 图标与命中盒的尺寸由标题栏高度按原生比例推出，高度一变要先重算这组尺寸，
+        // 再重算左边距 —— 顺序不能反，左边距依赖 EffectiveSystemMenuBoxSize。
+        window.UpdateEffectiveIconMetrics();
         // 图标左边距是由标题栏高度算出来的，高度一变要重算（否则图标会停在旧位置）
         window.CoerceValue(CaptionIconBoxMarginProperty);
         window.UpdateDpiVisuals();
@@ -533,8 +590,10 @@ public partial class ChromeWindow
         if (!double.IsNaN(margin.Left))
             return margin;
 
+        // 命中盒随标题栏高度等比缩放，因此左边距仍取“让盒子在标题栏里竖向居中”的值：
+        // (标题栏高 − 盒高) / 2。盒子变大时这个值自然变小，盒子始终居中。
         var centred = Math.Round(
-            (window.TitleBarHeight - SystemMenuBoxSizeDip) / 2d,
+            (window.TitleBarHeight - window.EffectiveSystemMenuBoxSize) / 2d,
             MidpointRounding.AwayFromZero);
         return new Thickness(
             Math.Max(0d, centred),

@@ -99,6 +99,33 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClientToScreen(IntPtr window, ref NativePoint point);
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForWindow(IntPtr window);
+
+    /// <summary>创建原生窗口。只用于测量系统度量（例如原生标题栏高度），不显示。</summary>
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CreateWindowExW")]
+    internal static extern IntPtr CreateWindowEx(
+        uint extendedStyle,
+        string className,
+        string windowName,
+        uint style,
+        int x,
+        int y,
+        int width,
+        int height,
+        IntPtr parentHandle,
+        IntPtr menuHandle,
+        IntPtr instanceHandle,
+        IntPtr parameter);
+
+    [DllImport("user32.dll", SetLastError = true, EntryPoint = "DestroyWindow")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyWindow(IntPtr window);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsZoomed(IntPtr window);
 
     [DllImport("user32.dll", EntryPoint = "DrawIconEx")]

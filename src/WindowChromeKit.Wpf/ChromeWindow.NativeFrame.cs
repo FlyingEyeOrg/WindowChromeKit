@@ -64,7 +64,7 @@ public partial class ChromeWindow
     /// </summary>
     protected override double CaptionLeadingWidth =>
         ShowTitleBarIcon
-            ? CaptionIconBoxMargin.Left + SystemMenuBoxSizeDip + CaptionIconBoxMargin.Right
+            ? CaptionIconBoxMargin.Left + EffectiveSystemMenuBoxSize + CaptionIconBoxMargin.Right
             : 0d;
 
     protected override void OnFrameAttached()

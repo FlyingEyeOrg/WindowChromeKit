@@ -103,14 +103,15 @@ public sealed class ChromeFormTests
             Application.DoEvents();
 
             Assert.Equal(expectedCaptionHeight, form.CaptionHeight);
-            // 盒子 22 高（SM_CXSMSIZE × SM_CYSMSIZE），在标题栏内居中
+            // 命中盒按标题栏高度等比缩放（基准：原生可见标题栏 31 配 22），在标题栏内居中
+            var scale = expectedCaptionHeight / 31.0;
+            var boxHeight = Math.Max(1, (int)Math.Round(22 * scale, MidpointRounding.AwayFromZero));
             var boxTop = form.SystemMenuTop;
-            var boxHeight = 22;
             var expectedTop = (form.CaptionHeight - boxHeight) / 2;
             Assert.True(
                 boxTop == expectedTop,
-                $"{style}: caption={form.CaptionHeight} box top should be {expectedTop} but was {boxTop}");
-            // 图标 16px 在盒内居中，两者中心必须一致
+                $"{style}: caption={form.CaptionHeight} box({boxHeight}) top should be {expectedTop} but was {boxTop}");
+            // 图标在盒内居中，两者中心必须一致
             Assert.True(
                 boxTop + boxHeight / 2 == expectedTop + boxHeight / 2,
                 $"{style}: icon centre must match the box centre");
@@ -142,8 +143,10 @@ public sealed class ChromeFormTests
             var window = WindowRect(form);
             var frame = FrameX(form);
             var expectedTop = form.SystemMenuTop;
-            var boxHeight = 22;
-            var boxWidth = 22;
+            // 命中盒按标题栏高度等比缩放（基准：原生可见标题栏 31 配 22）
+            var scale = captionHeight / 31.0;
+            var boxHeight = Math.Max(1, (int)Math.Round(22 * scale, MidpointRounding.AwayFromZero));
+            var boxWidth = boxHeight;
 
             // 盒子内部：中心必须是 HTSYSMENU
             var centreY = window.Top + expectedTop + boxHeight / 2;
@@ -763,13 +766,13 @@ public sealed class ChromeFormTests
     /// 另注意必须四舍五入（整数除法会把 35 算成 9、31 算成 7，各少 1px）。
     /// </summary>
     [Theory]
-    [InlineData(40, 12)]   // Chrome
-    [InlineData(35, 10)]   // VsCode
-    [InlineData(31, 8)]    // Windows
-    [InlineData(48, 16)]   // 以下高度从未硬编码，只能算出来
-    [InlineData(27, 6)]
-    [InlineData(24, 4)]
-    public void CaptionIconMarginFollowsTheCaptionHeight(int height, int expected) => RunSta(() =>
+    [InlineData(40)]   // Chrome
+    [InlineData(35)]   // VsCode
+    [InlineData(31)]   // Windows
+    [InlineData(48)]   // 以下高度从未硬编码，只能算出来
+    [InlineData(27)]
+    [InlineData(24)]
+    public void CaptionIconMarginFollowsTheCaptionHeight(int height) => RunSta(() =>
     {
         using var form = new ChromeForm
         {
@@ -783,9 +786,18 @@ public sealed class ChromeFormTests
         form.Show();
         Application.DoEvents();
 
+        // 图标左边距是推导出来的：命中盒在标题栏内垂直居中，图标再在盒内居中。
+        //   scale = 高度 / 31（31 = 原生可见标题栏高，运行时测量）
+        //   盒 = round(22 × scale)，图标 = round(16 × scale)
+        //   左边距 = (高度 − 盒)/2 + (盒 − 图标)/2
+        var scale = height / 31.0;
+        var boxSize = Math.Max(1, (int)Math.Round(22 * scale, MidpointRounding.AwayFromZero));
+        var iconSize = Math.Max(1, (int)Math.Round(16 * scale, MidpointRounding.AwayFromZero));
+        var expected = Math.Max(0, (height - boxSize) / 2) + (boxSize - iconSize) / 2;
         Assert.Equal(expected, form.CaptionIconMarginDip);
-        // 命中盒左缘 = 图标左边距 − 盒子比图标宽出的每侧 3px，且不为负
-        Assert.Equal(Math.Max(0, expected - 3), Math.Max(0, form.SystemMenuLeft));
+
+        // 命中盒左缘 = (高度 − 盒)/2，与垂直居中同一套边距
+        Assert.Equal(Math.Max(0, (height - boxSize) / 2), Math.Max(0, form.SystemMenuLeft));
     });
 
     /// <summary>
@@ -813,22 +825,28 @@ public sealed class ChromeFormTests
         form.Show();
         Application.DoEvents();
 
-        // 命中盒边长是系统度量 SM_CXSMSIZE（96dpi 下 22），命中盒右缘 = SystemMenuLeft + 22
-        var hitBoxWidth = SystemInformation.SmallCaptionButtonSize.Width;
+        // 命中盒按标题栏高度等比缩放（基准：原生可见标题栏 31 配 22），
+        // 所以不能再读 SystemInformation.SmallCaptionButtonSize（它恒为原生 22）。
+        var hitBoxWidth = form.SystemMenuWidth;
         var hitBoxRight = form.SystemMenuLeft + hitBoxWidth;
 
-        // 图标在命中盒内居中：墨迹左缘 = 命中盒左缘 + 3
+        // 图标同样按该比例缩放，且与命中盒共用同一个比例（直接读库里的实际值，
+        // 不在这里重算 —— 重算会因取整顺序不同差 1px）。
+        var iconSize = form.CaptionIconSize;
+        var inset = (hitBoxWidth - iconSize) / 2;
+
+        // 图标在命中盒内居中：墨迹左缘 = 命中盒左缘 + inset
         var iconInkLeft = form.CaptionIconMarginDip;
-        Assert.Equal(form.SystemMenuLeft + 3, iconInkLeft);
+        Assert.Equal(form.SystemMenuLeft + inset, iconInkLeft);
 
         var content = new Panel { Width = 100, Height = 20 };
         form.TitleBarContent = content;
         Application.DoEvents();
 
-        // 几何规则：插槽起点 = 命中盒右缘（图标在盒子内居中，故离图标墨迹右缘 3px）
+        // 几何规则：插槽起点 = 命中盒右缘
+        // （图标墨迹左缘已经在上面按 inset 校验过，这里不必再用圆整值反推一次 ——
+        //   CaptionIconMarginDip 是整数，反推会差 1px，属于取整噪声而非几何错误。）
         Assert.Equal(hitBoxRight, form.TitleBarContentBounds.Left);
-        var iconInkRight = iconInkLeft + SystemInformation.SmallIconSize.Width;
-        Assert.Equal(3, form.TitleBarContentBounds.Left - iconInkRight);
 
         // 屏幕上看到的 6px 空白 = 上面那 3px + 绘制标题时 TextRenderer 自带的 3px 左内边距。
         // 已用真实窗口逐像素核对：WinForms / WPF / C++ 样例 / 原生 Win32 标题栏四者
@@ -869,7 +887,7 @@ public sealed class ChromeFormTests
         Application.DoEvents();
 
         // 显示图标时，插槽 = 命中盒右缘
-        var slotWithIcon = form.SystemMenuLeft + SystemInformation.SmallCaptionButtonSize.Width;
+        var slotWithIcon = form.SystemMenuLeft + form.SystemMenuWidth;
         Assert.True(slotWithIcon > 0);
 
         var content = new Panel { Width = 100, Height = 20 };

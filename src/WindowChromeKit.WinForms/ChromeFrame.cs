@@ -221,10 +221,33 @@ public partial class ChromeFrame : Form
         var dpi = (uint)Math.Max(96, DeviceDpi);
         var (frameX, frameY) = ChromeFrameGeometry.GetFrameThickness(dpi);
         var maximized = IsMaximized;
+        var captionHeight = ScaleDip(GetCaptionHeightDip(), dpi);
+
+        // 图标与系统菜单盒按「标题栏高度 / 原生可见标题栏高度」等比缩放。
+        //
+        // 原生基准取自**运行时测量**的原生窗口（96dpi 下 31，不是 SM_CYCAPTION 的 23 ——
+        // 后者不含边框与顶部 resize 带）。比例规则：
+        //   scale = 我们的标题栏高(DIP) / 原生标题栏高(DIP)
+        //   盒   = round(22 × scale)      （22 = SM_CXSMSIZE）
+        //   图标 = round(16 × scale)      （16 = SM_CXSMICON）
+        // 标题栏做得比原生高时（Chrome 40、VsCode 35），图标与盒子一起放大，
+        // 视觉比例与原生窗口保持一致；Windows 样式（31）正好还原成 22 / 16。
+        //
+        // 用 **DIP** 比较而不是物理像素：DIP 是 DPI 无关的同一坐标系，
+        // 跨显示器（两边 DPI 不同）时比例依然正确。
         var (menuBoxWidth, menuBoxHeight) = ChromeFrameGeometry.GetSystemMenuBoxSize(dpi);
         var iconSize = ChromeFrameGeometry.GetSmallIconSize(dpi);
-        var iconLeft = ScaleDip(GetCaptionIconMarginDip(), dpi);
-        var captionHeight = ScaleDip(GetCaptionHeightDip(), dpi);
+        var nativeCaptionDip = NativeCaptionMetrics.Height;
+        if (nativeCaptionDip > 0d)
+        {
+            var scale = GetCaptionHeightDip() / nativeCaptionDip;
+            if (scale > 0d && !double.IsInfinity(scale))
+            {
+                menuBoxWidth = Math.Max(1, (int)Math.Round(menuBoxWidth * scale, MidpointRounding.AwayFromZero));
+                menuBoxHeight = Math.Max(1, (int)Math.Round(menuBoxHeight * scale, MidpointRounding.AwayFromZero));
+                iconSize = Math.Max(1, (int)Math.Round(iconSize * scale, MidpointRounding.AwayFromZero));
+            }
+        }
         Metrics = new FrameMetrics
         {
             Dpi = dpi,
@@ -240,14 +263,16 @@ public partial class ChromeFrame : Form
             CaptionButtonHeight = ScaleDip(GetCaptionButtonHeightDip(), dpi),
             // （顶边在下面统一算：需要同时用到标题栏与按钮高度）
             CaptionLeadingWidth = ScaleDip(GetCaptionLeadingWidthDip(), dpi),
-            // 命中盒子与原生一致（22×22 正方形、竖向居中），但以画出来的图标为中心，
-            // 所以图标仍留在 IconMargin（默认 12），不会因为对齐命中区而左移
-            SystemMenuLeft = iconLeft - Math.Max(0, (menuBoxWidth - iconSize) / 2),
+            // 命中盒在标题栏内**垂直居中**，左边距取与上下相同的值（= (标题栏高 − 盒高)/2），
+            // 与 WPF 的 CaptionIconBoxMargin.Left 同一条规则。
+            // 图标在盒内居中，因此墨迹位置由盒子位置推出，不再单独钉一个左边距。
+            SystemMenuLeft = CenteredSystemMenuTop(captionHeight, menuBoxWidth),
             SystemMenuWidth = menuBoxWidth,
             // 盒子在标题栏（去掉顶边线那一行）内垂直居中，随标题栏高度自适应
             SystemMenuTop = CenteredSystemMenuTop(captionHeight, menuBoxHeight),
             SystemMenuHeight = menuBoxHeight,
-            IconMargin = iconLeft,
+            // 图标在命中盒内居中：墨迹左缘 = 盒左缘 + (盒 − 图标)/2
+            IconMargin = CenteredSystemMenuTop(captionHeight, menuBoxWidth) + (menuBoxWidth - iconSize) / 2,
             IconSize = iconSize,
             TopResizeBand = ScaleDip(GetTopResizeBandDip(), dpi),
             CaptionHitHeight = maximized

@@ -62,13 +62,10 @@ public partial class ChromeForm
     }
 
     /// <summary>
-    /// 标题栏图标左边距（DIP）。**默认自动**：让图标"左 = 上 = 下"，
-    /// 即 <c>round((标题栏高 − 图标高) / 2)</c>，改 <see cref="CaptionHeightDip"/> 时会跟着变。
+    /// 标题栏图标左边距（DIP）。**默认自动**：图标在命中盒内居中，而命中盒又在标题栏内
+    /// 垂直居中，所以 <c>左边距 = (标题栏高 − 盒高)/2 + (盒 − 图标)/2</c>，
+    /// 与上下边距同源，改 <see cref="CaptionHeightDip"/> 时会跟着变。
     /// 赋过值之后即以赋的值为准（三套预置样式不再各写一个常量）。
-    /// <para>
-    /// 注意要用**四舍五入**而不是整数除法：高度 35 或 31 时 (高−16) 是奇数，
-    /// 截断会得到 9 / 7，比正确的 10 / 8 小 1px，图标会明显偏上偏左。
-    /// </para>
     /// </summary>
     /// <remarks>
     /// **不要**加 <c>[DefaultValue(null)]</c>：实测它会短路 <c>ShouldSerialize*</c> 约定方法
@@ -78,8 +75,13 @@ public partial class ChromeForm
     [Category("WindowChromeKit")]
     public int CaptionIconMarginDip
     {
-        get => _captionIconMarginDip
-            ?? (int)Math.Round((CaptionHeightDip - CaptionIconSizeDip) / 2.0, MidpointRounding.AwayFromZero);
+        get
+        {
+            if (_captionIconMarginDip is int explicitValue)
+                return explicitValue;
+            var (box, icon) = GetScaledSystemMenuMetricsDip();
+            return Math.Max(0, (CaptionHeightDip - box) / 2) + (box - icon) / 2;
+        }
         set => SetOption(ref _captionIconMarginDip, Math.Max(0, value));
     }
 
@@ -232,6 +234,25 @@ public partial class ChromeForm
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int SystemMenuTop => Metrics.SystemMenuTop;
+
+    /// <summary>
+    /// 系统菜单（图标）命中盒的边长（设备像素，已按 DPI 缩放）。
+    ///
+    /// 会随标题栏高度等比放大（基准：原生可见标题栏配 22），所以标题栏做高时它不再是 96dpi 下的 22。
+    /// </summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int SystemMenuWidth => Metrics.SystemMenuWidth;
+
+    /// <summary>
+    /// 标题栏图标实际绘制的边长（设备像素，已按 DPI 与标题栏高度缩放）。
+    ///
+    /// 同样以原生可见标题栏为基准等比放大，标题栏做高时图标跟着变大 ——
+    /// 否则相对标题栏显得过小。与 <see cref="SystemMenuWidth"/> 同源同比例。
+    /// </summary>
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public int CaptionIconSize => Metrics.IconSize;
 
     /// <summary>当前样式下的标题栏按钮高度（设备像素，已按 DPI 缩放）。</summary>
     [Browsable(false)]

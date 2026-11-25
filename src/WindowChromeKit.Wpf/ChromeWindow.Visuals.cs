@@ -19,14 +19,27 @@ public partial class ChromeWindow
     internal const string PartCloseButton = "PART_CloseButton";
 
     /// <summary>
-    /// 图标那一列里系统菜单命中盒子的边长（DIP）：96dpi 下等于 <c>SM_CXSMSIZE</c>（22）。
+    /// Win32 原生窗口**实际可见**的标题栏高度（DIP），用于决定标题栏图标的比例基准。
     ///
-    /// 必须与 <c>Themes/Generic.xaml</c> 里 <c>PART_SystemMenu</c> 内层 Border 的
-    /// <c>Width</c>/<c>Height</c> 一致 —— 最小窗口宽度按「这个边长 + <c>CaptionIconBoxMargin.Left</c>」
-    /// 计算（见 <see cref="CaptionLeadingWidth"/>），两处不一致会把三个按钮挤出客户区右侧。
+    /// <para><b>为什么不直接用 <c>SM_CYCAPTION</c>：</b><c>SM_CYCAPTION</c> 只算标题栏文字区，
+    /// 而原生窗口从外框顶到客户区顶还要多出边框与顶部 resize 带。96dpi 实测：<c>SM_CYCAPTION</c>
+    /// 是 23，但标准 WPF 窗口（<c>WindowStyle=SingleBorderWindow</c>）的外框顶到客户区顶是
+    /// <b>31</b>；用 <c>SM_CYCAPTION + SM_CXFIXEDFRAME + SM_CXPADDEDBORDER</c> 只算得 30，
+    /// 仍差 1。所以按 <c>SM_CYCAPTION</c> 起算会把图标放大过头（16/23 ≈ 70% 而非 16/31 ≈ 52%）。</para>
+    ///
+    /// <para><b>为什么运行时测量：</b>这个差值随 DPI、系统主题和 Windows 版本变化。固定写 31
+    /// 只在 96dpi 成立，高 DPI 下图标比例会偏。这里在首次用到时创建一个临时原生窗口，量出
+    /// 外框顶到客户区顶的距离，再按该窗口的 DPI 折算成 DIP，得到当前环境的真实基准。</para>
+    ///
+    /// <para>测量失败时退回 <see cref="NativeCaptionMetrics.FallbackNativeCaptionHeight"/>（96dpi 实测值）。</para>
     /// </summary>
-    internal const double SystemMenuBoxSizeDip = 22d;
+    internal static double NativeCaptionHeight => NativeCaptionMetrics.Height;
 
+    /// <summary>原生系统菜单命中盒边长（<c>SM_CXSMSIZE</c>，96dpi）。</summary>
+    internal const double NativeSystemMenuBoxSize = 22d;
+
+    /// <summary>原生标题栏图标边长（<c>SM_CXSMICON</c>，96dpi）。</summary>
+    internal const double NativeTitleBarIconSize = 16d;
     private const uint WmGetIcon = 0x007F;
     private const int IconSmall = 0;
     private const int IconBig = 1;
@@ -237,6 +250,8 @@ public partial class ChromeWindow
         // 屏幕顶端多出一条线（Chrome 最大化也没有）；Win11 上 DWM 会覆盖同一行，无副作用。
         var topLine = WindowState == WindowState.Maximized ? 0 : 1 / (scaleY <= 0 ? 1 : scaleY);
         SetValue(TitleBarBorderThicknessPropertyKey, new Thickness(0, topLine, 0, 0));
+        // 图标与命中盒的尺寸跟着标题栏高度走（原生比例），这里一并刷新。
+        UpdateEffectiveIconMetrics();
         // 按钮高度与顶边线是一对：普通态按钮让出第 0 行给顶边线，最大化时顶边线为 0、
         // 按钮要长高铺满。放在这里是因为 UpdateDpiVisuals 已经是这四种变化的唯一汇聚点：
         // 模板套用、状态切换、度量变化、DPI 变化。

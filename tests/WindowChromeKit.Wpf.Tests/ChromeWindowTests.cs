@@ -283,15 +283,14 @@ public sealed class ChromeWindowTests
     /// </para>
     /// </summary>
     [Theory]
-    [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d, 9d)]
-    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d, 7d)]
-    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d, 5d)]
+    [InlineData(ChromeTitleBarStyle.Chrome, 40d, 46d, 39d)]
+    [InlineData(ChromeTitleBarStyle.VsCode, 35d, 46d, 34d)]
+    [InlineData(ChromeTitleBarStyle.Windows, 31d, 45d, 31d)]
     public void TitleBarStyleAppliesDocumentedGeometry(
         ChromeTitleBarStyle style,
         double expectedHeight,
         double expectedButtonWidth,
-        double expectedButtonHeight,
-        double expectedIconMargin) => RunSta(() =>
+        double expectedButtonHeight) => RunSta(() =>
     {
         var window = new ChromeWindow { Width = 700, Height = 400, ShowInTaskbar = false };
         window.Show();
@@ -310,6 +309,12 @@ public sealed class ChromeWindowTests
             Assert.Equal(expectedButtonWidth, window.CaptionButtonWidth, 3);
             Assert.Equal(expectedButtonWidth, close.ActualWidth, 3);
             Assert.Equal(expectedButtonHeight, window.CaptionButtonHeight, 3);
+
+            // 命中盒左边距 = (标题栏高 − 盒高)/2，盒高随标题栏等比缩放。
+            var boxSize = 22d * expectedHeight / ChromeWindow.NativeCaptionHeight;
+            var expectedIconMargin = Math.Round(
+                (expectedHeight - boxSize) / 2d,
+                MidpointRounding.AwayFromZero);
             Assert.Equal(expectedIconMargin, window.CaptionIconBoxMargin.Left, 3);
             Assert.True(window.ShowTitleBarIcon);
 
@@ -406,15 +411,21 @@ public sealed class ChromeWindowTests
             // WPF 的坐标空间就是客户区（不含原生 frame），直接比即可
             var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
             var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
-            // 图标在标题栏内垂直居中并随高度自适应：标题栏 31、盒子 22 → 顶边 (31-22)/2 = 4.5。
-            // 顶边线现在是覆盖层（不占布局），内容区等于整条标题栏，所以是精确居中。
+            // 图标与命中盒按 Win32 原生窗口的**实际**标题栏比例缩放。
+            // 基准是实测的原生可见标题栏 31（SM_CYCAPTION 23 不含边框与顶部 resize 带），
+            // 因此 S = 31/31 = 1，盒 = 22、图标 = 16 —— 与原生窗口完全一致。
+            var scale = 31d / ChromeWindow.NativeCaptionHeight;
+            var boxSize = 22d * scale;
+            var iconSize = 16d * scale;
+            var expectedLeft = Math.Round((31d - boxSize) / 2d, MidpointRounding.AwayFromZero);
             Assert.Equal(31d, window.TitleBarHeight, 1);
-            Assert.Equal(5d, boxOrigin.X, 1);
-            Assert.Equal(4.5d, boxOrigin.Y, 1);
-            Assert.Equal(22d, box.ActualHeight, 1);
-            Assert.Equal(8d, iconOrigin.X, 1);
-            Assert.Equal(7.5d, iconOrigin.Y, 1);
-            Assert.Equal(16d, icon.ActualHeight, 1);
+            Assert.Equal(expectedLeft, boxOrigin.X, 1);
+            Assert.Equal((31d - boxSize) / 2d, boxOrigin.Y, 1);
+            Assert.Equal(boxSize, box.ActualHeight, 1);
+            // 图标在盒内居中：墨迹左边距 = 盒左边 + (盒 − 图标)/2
+            Assert.Equal(boxOrigin.X + (boxSize - iconSize) / 2d, iconOrigin.X, 1);
+            Assert.Equal(boxOrigin.Y + (boxSize - iconSize) / 2d, iconOrigin.Y, 1);
+            Assert.Equal(iconSize, icon.ActualHeight, 1);
         }
         finally
         {
@@ -617,14 +628,19 @@ public sealed class ChromeWindowTests
 
             var boxOrigin = box!.TransformToAncestor(window).Transform(new Point(0, 0));
             var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
-            Assert.Equal(22d, box.ActualHeight, 1);
-            Assert.Equal(16d, icon.ActualHeight, 1);
+
+            // 图标与命中盒按 Win32 原生比例随标题栏高度等比缩放：
+            //   原生基准 SM_CYCAPTION 23 / SM_CXSMSIZE 22 / SM_CXSMICON 16
+            // 所以标题栏做高时它们要一起变大，而不是固定 16 / 22。
+            var scale = expectedCaptionHeight / ChromeWindow.NativeCaptionHeight;
+            Assert.Equal(22d * scale, box.ActualHeight, 1);
+            Assert.Equal(16d * scale, icon.ActualHeight, 1);
             // 盒子中心 == 图标中心（图标在盒内居中）
             var boxCentre = boxOrigin.Y + box.ActualHeight / 2;
             var iconCentre = iconOrigin.Y + icon.ActualHeight / 2;
             Assert.Equal(boxCentre, iconCentre, 1);
-            // 命中盒子自身必须是 22×22（SM_CXSMSIZE × SM_CYSMSIZE），命中角色就是 SystemMenu
-            Assert.Equal(22d, box.ActualWidth, 1);
+            // 命中盒子是正方形，命中角色就是 SystemMenu
+            Assert.Equal(22d * scale, box.ActualWidth, 1);
             Assert.Equal(ChromeHitTestRole.SystemMenu, ChromeWindow.GetHitTestRole(box));
             // 盒子的命中测试命中它自己（而不是被标题栏抢走）
             Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, box));
@@ -670,7 +686,7 @@ public sealed class ChromeWindowTests
         // 这里原先是 "28 = 12 边距 + 16 图标"，少算了命中盒比图标每侧宽出的 3px，
         // 而且只断言 ">="，所以真少了 3px 也照样通过（Right 边距更是完全没算）。
         var iconMargin = window.CaptionIconBoxMargin;
-        var leading = iconMargin.Left + ChromeWindow.SystemMenuBoxSizeDip + iconMargin.Right;
+        var leading = iconMargin.Left + window.EffectiveSystemMenuBoxSize + iconMargin.Right;
         // 按钮宽度必须按**各自的实际宽度**累加：Chrome 样式的最小化是 45、其余是 46。
         // 这里原先写的是 CaptionButtonWidth * 3，漏掉了 MinimizeButtonWidth 那 1px。
         var captionButtonsWidth =
@@ -895,7 +911,7 @@ public sealed class ChromeWindowTests
         // 没设过 Left 时回到自动推导（标题栏高 40、命中盒 22 → 9）
         window.CaptionIconBoxMargin = new Thickness(double.NaN, 0d, 0d, 0d);
         window.UpdateLayout();
-        var expected = Math.Round((window.TitleBarHeight - ChromeWindow.SystemMenuBoxSizeDip) / 2d,
+        var expected = Math.Round((window.TitleBarHeight - window.EffectiveSystemMenuBoxSize) / 2d,
             MidpointRounding.AwayFromZero);
         Assert.Equal(expected, window.CaptionIconBoxMargin.Left, 3);
         window.Close();
@@ -903,20 +919,19 @@ public sealed class ChromeWindowTests
 
     /// <summary>
     /// 图标左边距是**算出来的**，不是手填常量：等于命中盒在标题栏里垂直居中时的边距
-    /// <c>round((标题栏高 − 22) / 2)</c>。
+    /// <c>round((标题栏高 − 盒高) / 2)</c>，其中盒高本身随标题栏等比缩放
+    /// （<c>22 × 标题栏高 / 31</c>）。
     ///
-    /// 这样"左 = 上 = 下"天然成立，改 <c>TitleBarHeight</c> 时左边距会自动跟随 ——
-    /// 否则高度一改就会留下"图标偏右"的漏改（三个样式的历史值 9 / 7 / 5
-    /// 本来也全是这条规则的产物）。
+    /// 这样"左 = 上 = 下"天然成立，改 <c>TitleBarHeight</c> 时左边距会自动跟随。
     /// </summary>
     [Theory]
-    [InlineData(40d, 9d)]   // Chrome
-    [InlineData(35d, 7d)]   // VsCode
-    [InlineData(31d, 5d)]   // Windows
-    [InlineData(48d, 13d)]  // 以下高度从未硬编码，只能算出来
-    [InlineData(27d, 3d)]
-    [InlineData(24d, 1d)]
-    public void CaptionIconMarginFollowsTheCaptionHeight(double height, double expected) => RunSta(() =>
+    [InlineData(40d)]   // Chrome
+    [InlineData(35d)]   // VsCode
+    [InlineData(31d)]   // Windows
+    [InlineData(48d)]   // 以下高度从未硬编码，只能算出来
+    [InlineData(27d)]
+    [InlineData(24d)]
+    public void CaptionIconMarginFollowsTheCaptionHeight(double height) => RunSta(() =>
     {
         var window = new ChromeWindow
         {
@@ -931,6 +946,8 @@ public sealed class ChromeWindowTests
         window.Show();
         window.UpdateLayout();
 
+        var boxSize = 22d * height / ChromeWindow.NativeCaptionHeight;
+        var expected = Math.Round((height - boxSize) / 2d, MidpointRounding.AwayFromZero);
         Assert.Equal(expected, window.CaptionIconBoxMargin.Left, 3);
 
         var icon = Assert.IsAssignableFrom<Image>(
@@ -943,8 +960,10 @@ public sealed class ChromeWindowTests
         var iconOrigin = icon.TransformToAncestor(window).Transform(new Point(0, 0));
         var boxOrigin = hitBox.TransformToAncestor(window).Transform(new Point(0, 0));
 
-        // 图标在命中盒内再内缩 3px（模板里 Image 的 Margin），所以墨迹左边距 = 盒子左边距 + 3
-        Assert.Equal(3, iconOrigin.X - boxOrigin.X, 3);
+        // 图标在命中盒内**居中**（与原生 (22−16)/2 = 3 的左偏等价），
+        // 所以墨迹左边距 = 盒子左边距 + (盒边长 − 图标边长)/2。
+        var iconSize = 16d * height / ChromeWindow.NativeCaptionHeight;
+        Assert.Equal((boxSize - iconSize) / 2d, iconOrigin.X - boxOrigin.X, 3);
         window.Close();
     });
 
@@ -989,10 +1008,11 @@ public sealed class ChromeWindowTests
         // 模板里标题的 Margin.Left 是 3（见 Generic.xaml 的说明）
         Assert.Equal(3, title.Margin.Left, 3);
 
-        // 图标墨迹 → 标题布局原点 = 命中盒每侧超出量 3 + Margin 3 = 6
-        // （图标在命中盒内再居中偏 3，见模板里 Image 的 Margin="3,0,0,0"）
+        // 图标墨迹 → 标题布局原点 = 命中盒每侧超出量 + 标题 Margin。
+        // 每侧超出量随缩放变化：(盒 − 图标)/2 = (22 − 16)/2 × S = 3S，S = 40/23。
         var inkGap = titleOrigin.X - iconEnd;
-        Assert.InRange(inkGap, 5, 7);
+        var expectedGap = 3d * 40d / ChromeWindow.NativeCaptionHeight + 3d;
+        Assert.Equal(expectedGap, inkGap, 1);
 
         // 关掉图标后，标题回到**最左 0**，整列一个像素都不占。
         // 原先只断言 "X < 隐藏前"，太松：模板里那 3px 的命中盒补偿留着也能过，
@@ -1054,7 +1074,7 @@ public sealed class ChromeWindowTests
         var systemMenuOrigin = systemMenu.TransformToAncestor(window).Transform(new Point(0, 0));
 
         Assert.Equal(
-            window.CaptionIconBoxMargin.Left + ChromeWindow.SystemMenuBoxSizeDip,
+            window.CaptionIconBoxMargin.Left + window.EffectiveSystemMenuBoxSize,
             systemMenu.ActualWidth,
             1);
         Assert.Equal(systemMenuOrigin.X + systemMenu.ActualWidth, contentOrigin.X, 1);
@@ -1095,12 +1115,15 @@ public sealed class ChromeWindowTests
         Assert.True(content.ActualHeight > 0);
         Assert.Equal(Visibility.Visible, minimize.Visibility);
         Assert.Equal(Visibility.Visible, maximize.Visibility);
-        // 图标区 = 命中盒子（22，SM_CXSMSIZE）+ 左边距 9；命中盒子本身是 22×22 的正方形
-        Assert.Equal(31, systemMenu.ActualWidth, 3);
+        // 图标区 = 命中盒子（按标题栏高度等比缩放）+ 左边距。
+        // 标题栏 40 高时盒边长 = 22 × 40/23 ≈ 38.26，左边距 = round((40 − 38.26)/2) = 1。
+        var menuBoxSize = 22d * 40d / ChromeWindow.NativeCaptionHeight;
+        var menuBoxLeft = Math.Round((40d - menuBoxSize) / 2d, MidpointRounding.AwayFromZero);
+        Assert.Equal(menuBoxLeft + menuBoxSize, systemMenu.ActualWidth, 3);
         var menuBox = FindByHitTestRole(systemMenu, ChromeHitTestRole.SystemMenu);
         Assert.NotNull(menuBox);
-        Assert.Equal(22, menuBox!.ActualWidth, 3);
-        Assert.Equal(22, menuBox.ActualHeight, 3);
+        Assert.Equal(menuBoxSize, menuBox!.ActualWidth, 3);
+        Assert.Equal(menuBoxSize, menuBox.ActualHeight, 3);
         Assert.Equal(WindowFrameHitTest.SystemMenu, HitTest(handle, menuBox));
 
         window.ShowTitleBarIcon = false;

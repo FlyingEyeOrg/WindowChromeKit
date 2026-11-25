@@ -29,7 +29,7 @@
                    LineHeight="20"
                    Foreground="#5F6368"
                    TextWrapping="Wrap"
-                   Text="1. 阴影与圆角：窗口外侧应有一圈柔和阴影，四角是 Windows 11 的圆角，没有硬边或黑边。&#x0a;2. 阴影里的缩放带：把鼠标移到窗口外侧约 8 像素（视觉上在阴影里）应出现缩放光标；顶部这条带更窄（约 6 像素）。&#x0a;3. 顶边 1 像素线：普通态窗口最上面一行是边框线（Windows 11 由 DWM 画）；最大化后不应出现这条线。&#x0a;4. 标题栏：图标盒子 22×22、图标 16 在盒内；点图标弹系统菜单，拖标题栏移动，双击最大化/还原。&#x0a;5. 样式切换：下面三个按钮改 TitleBarStyle，几何与配色一次性套用；之后单独改属性以属性为准。&#x0a;6. 最大化：客户区正好铺满工作区，标题栏不出现 1 像素缝隙，最大化按钮变「还原」，悬停弹出 Snap Layouts。" />
+                   Text="1. 阴影与圆角：窗口外侧应有一圈柔和阴影，四角是 Windows 11 的圆角，没有硬边或黑边。&#x0a;2. 阴影里的缩放带：把鼠标移到窗口外侧约 8 像素（视觉上在阴影里）应出现缩放光标；顶部这条带更窄（约 6 像素）。&#x0a;3. 顶边 1 像素线：普通态窗口最上面一行是边框线（Windows 11 由 DWM 画）；最大化后不应出现这条线。&#x0a;4. 标题栏：图标与命中盒按标题栏高度等比缩放（基准是原生可见标题栏，比例约 16:31），点图标弹系统菜单，拖标题栏移动，双击最大化/还原。&#x0a;5. 样式切换：下面三个按钮改 TitleBarStyle，几何与配色一次性套用；之后单独改属性以属性为准。&#x0a;6. 最大化：客户区正好铺满工作区，标题栏不出现 1 像素缝隙，最大化按钮变「还原」，悬停弹出 Snap Layouts。&#x0a;7. 原生对比：点最后一个按钮打开一个系统标题栏的窗口，图标相同，可直接比较两者比例。" />
 
         <StackPanel Grid.Row="2"
                     Margin="24,12,24,0"
@@ -48,6 +48,11 @@
                     AutomationProperties.AutomationId="WindowsStyleButton"
                     Click="OnWindowsStyleClicked"
                     Content="Windows 样式" />
+            <Button Margin="12,0,0,0"
+                    Padding="16,8"
+                    AutomationProperties.AutomationId="NativeWindowButton"
+                    Click="OnNativeWindowClicked"
+                    Content="打开原生 WPF 窗口对比" />
             <TextBlock x:Name="StatusText"
                        Margin="20,0,0,0"
                        VerticalAlignment="Center"

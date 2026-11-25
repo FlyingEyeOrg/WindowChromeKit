@@ -98,20 +98,23 @@
                                         Grid.Column="0"
                                         Width="Auto"
                                         Background="Transparent">
-                                    <!-- 系统菜单命中盒子：与原生标题栏同形状 —— SM_CXSMSIZE × SM_CYSMSIZE
-                                         （96dpi 下 22×22 的正方形、竖向居中），中心对准图标；
-                                         盒子之外的标题栏（含图标左边那点空白）仍然可拖动 -->
-                                    <Border Width="22"
-                                            Height="22"
+                                    <!-- 系统菜单命中盒子：形状与原生标题栏一致，但尺寸按标题栏高度
+                                         等比缩放（原生基准 SM_CYCAPTION 23 / SM_CXSMSIZE 22 /
+                                         SM_CXSMICON 16）。标题栏做高时图标跟着变大，否则显得过小；
+                                         比例由 EffectiveSystemMenuBoxSize / EffectiveTitleBarIconSize 给出。
+
+                                         图标在盒内**居中**：原生是 (22−16)/2 = 3 的左偏，居中与它等价，
+                                         且不随缩放引入额外的换算。 -->
+                                    <Border Width="{TemplateBinding EffectiveSystemMenuBoxSize}"
+                                            Height="{TemplateBinding EffectiveSystemMenuBoxSize}"
                                             Margin="{TemplateBinding CaptionIconBoxMargin}"
                                             HorizontalAlignment="Left"
                                             VerticalAlignment="Center"
                                             Background="Transparent"
                                             local:ChromeWindow.HitTestRole="SystemMenu">
-                                        <Image Width="16"
-                                               Height="16"
-                                               Margin="3,0,0,0"
-                                               HorizontalAlignment="Left"
+                                        <Image Width="{TemplateBinding EffectiveTitleBarIconSize}"
+                                               Height="{TemplateBinding EffectiveTitleBarIconSize}"
+                                               HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
                                                Source="{TemplateBinding EffectiveTitleBarIcon}"
                                                Stretch="Uniform" />

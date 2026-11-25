@@ -187,6 +187,22 @@ internal static class NativeWindowMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShowWindow(IntPtr windowHandle, int command);
 
+    /// <summary>创建原生窗口。只用于测量系统度量（例如原生标题栏高度），不显示。</summary>
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    internal static extern IntPtr CreateWindowExW(
+        uint extendedStyle,
+        string className,
+        string windowName,
+        uint style,
+        int x,
+        int y,
+        int width,
+        int height,
+        IntPtr parentHandle,
+        IntPtr menuHandle,
+        IntPtr instanceHandle,
+        IntPtr parameter);
+
     [DllImport("gdi32.dll", SetLastError = true, EntryPoint = "CreateRectRgn")]
     internal static extern IntPtr CreateRectRegion(int left, int top, int right, int bottom);
 
